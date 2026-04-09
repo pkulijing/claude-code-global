@@ -63,6 +63,7 @@
 ## Python 开发规则
 
 - 使用 uv 管理项目依赖，使用 `uv add` 添加依赖，在 `pyproject.toml` 中记录 (`uv add` 天然支持) 依赖列表，**禁止使用 `pip install` 或 `uv pip install`**
+- 使用 `uv run` 运行 python 脚本，如 `uv run some_script.py`, `uv run python -m ruff xxxx`，**禁止直接调用 python 或 python3**
 - 使用 ruff 做代码格式化和 python 语法检查
 - pypi index指南：为了提高中国的下载速度，我们使用两个指定的源
   - 普通库从清华源下载，`torch/torchaudio/torchvision` 等 `torch` 相关的库从 sjtu 镜像源下载
