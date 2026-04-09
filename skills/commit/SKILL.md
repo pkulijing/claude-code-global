@@ -1,7 +1,7 @@
 ---
 name: commit
 description: 按照 git 规则自动分析变更并提交代码
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 用户调用此 skill 表示要提交当前的代码变更。按照全局 CLAUDE.md 中的 git 规则执行以下步骤：
