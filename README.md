@@ -6,10 +6,10 @@
 
 Claude Code 会读取 `~/.claude/` 下的全局配置：
 
-- `~/.claude/CLAUDE.md` — 所有项目通用的指令
+- `~/.claude/CLAUDE.md` — 所有项目通用的指令（链接自本仓库的 `GLOBAL_CLAUDE.md`）
 - `~/.claude/skills/` — 全局可用的 slash commands
 
-本仓库通过 `install.sh` 将配置文件以**符号链接**的方式部署到 `~/.claude/`，修改仓库文件即修改实际配置，`git pull` 即完成同步。
+本仓库通过 `install.sh` 将 `GLOBAL_CLAUDE.md` 和 `skills/` 以**符号链接**的方式部署到 `~/.claude/`，修改仓库文件即修改实际配置，`git pull` 即完成同步。
 
 ## 安装
 
@@ -20,9 +20,9 @@ bash ~/Developer/claude-code-global/install.sh
 
 重复执行 `install.sh` 是安全的（幂等），不会影响 `~/.claude/skills/` 下不属于本仓库的 skill。
 
-## CLAUDE.md 内容概览
+## GLOBAL_CLAUDE.md 内容概览
 
-全局 `CLAUDE.md` 定义了所有项目通用的开发规范：
+`GLOBAL_CLAUDE.md` 定义了所有项目通用的开发规范：
 
 | 模块 | 内容 |
 |------|------|

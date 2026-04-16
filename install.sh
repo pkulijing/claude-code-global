@@ -56,11 +56,11 @@ info "仓库目录: $REPO_DIR"
 info "目标目录: $TARGET_DIR"
 echo ""
 
-# 链接 CLAUDE.md
-if [ -f "$REPO_DIR/CLAUDE.md" ]; then
-    link_item "$REPO_DIR/CLAUDE.md" "$TARGET_DIR/CLAUDE.md"
+# 链接 GLOBAL_CLAUDE.md → ~/.claude/CLAUDE.md
+if [ -f "$REPO_DIR/GLOBAL_CLAUDE.md" ]; then
+    link_item "$REPO_DIR/GLOBAL_CLAUDE.md" "$TARGET_DIR/CLAUDE.md"
 else
-    warn "仓库中未找到 CLAUDE.md，跳过"
+    warn "仓库中未找到 GLOBAL_CLAUDE.md，跳过"
 fi
 
 # 链接 skills（逐个子目录）
