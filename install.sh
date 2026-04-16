@@ -27,12 +27,12 @@ link_item() {
         local current_target
         current_target="$(readlink "$dst")"
         if [ "$current_target" = "$src" ]; then
-            info "已跳过 $name（软链接已正确）"
+            info "已跳过 ${name}（软链接已正确）"
             return
         else
             rm "$dst"
             ln -s "$src" "$dst"
-            success "已更新 $name（旧链接指向 $current_target）"
+            success "已更新 ${name}（旧链接指向 ${current_target}）"
         fi
     elif [ -e "$dst" ]; then
         mv "$dst" "${dst}.bak"
