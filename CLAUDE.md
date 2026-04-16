@@ -70,26 +70,6 @@
 - 使用 `uv run` 运行 python 脚本，如 `uv run some_script.py`, `uv run python -m ruff xxxx`，**禁止直接调用 python 或 python3**
 - 使用 ruff 做代码格式化和 python 语法检查
 - pypi index指南：为了提高中国的下载速度，我们使用两个指定的源
-  - 普通库从清华源下载，`torch/torchaudio/torchvision` 等 `torch` 相关的库从 sjtu 镜像源下载
-  - 需要在 `pyproject.toml` 中做以下设置(`torch/torchaudio/torchvision`等库的版本号按需修改，重点是要有+cu121)
-
-```toml
-dependencies = [
-    "torch==2.5.1+cu121",
-    "torchaudio==2.5.1+cu121",
-]
-
-[[tool.uv.index]]
-name = "tuna"
-url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
-default = true
-
-[[tool.uv.index]]
-name = "pytorch-cu121"
-url = "https://mirror.sjtu.edu.cn/pytorch-wheels/cu121"
-explicit = true
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu121" }
-torchaudio = { index = "pytorch-cu121" }
-```
+  - 普通库从[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)下载
+  - `torch/torchaudio/torchvision` 等 `torch` 相关的库从[aliyun镜像站]( https://mirrors.aliyun.com/pytorch-wheels/cu121/) 下载. 你这个进程并不是一个完整的pypi源，需要使用 `extra` 方式在 `pyproject.toml` 中指定
+  - `torch` 使用 2.5.1 版本，cu121
