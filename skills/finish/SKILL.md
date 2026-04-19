@@ -12,4 +12,5 @@ disable-model-invocation: true
 
 1. 按照全局 CLAUDE.md 中「总结」部分的要求，在 `docs/` 下当前开发项文件夹中撰写 `SUMMARY.md`（结合参数内容）
 2. 如果当前开发项来自 BACKLOG.md 中的某个条目，需要调整BACKLOG.md，将相应条目删除
-3. 使用 `/commit` 提交所有变更（包括 SUMMARY.md）
+3. 调用 `/devtree` 更新开发树（`docs/DEVTREE.md`）
+4. 使用 `/commit` 提交所有变更（包括 SUMMARY.md 和 DEVTREE.md）
