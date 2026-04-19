@@ -1,18 +1,42 @@
 ---
 name: devtree
-description: 在 docs/DEVTREE.md 中维护项目开发树，记录各开发项的分类与逻辑父子关系
+description: 依据 docs/DEVTREE.md 中作者维护的 Epic 结构，重新生成可视化图表和节点索引
 disable-model-invocation: true
 ---
 
-用户调用此 skill 表示需要更新（或从零构建）当前项目的开发树文档 `docs/DEVTREE.md`。
-
-**参数处理**：可通过参数指定当前开发项编号（如 `/devtree 22`）。若无参数，自动识别 `docs/` 下编号最大的文件夹作为当前开发项。
+用户调用此 skill 表示 Epic 结构已更新，需要同步「可视化」和「节点索引」两个区块。
 
 ---
 
-## 分类体系
+## docs/DEVTREE.md 文件结构
 
-为每个开发项分配以下 6 类之一，依据 SUMMARY.md（或 PROMPT.md）的内容判断：
+文件分为三个区块，职责严格分离：
+
+| 区块 | 维护者 | 说明 |
+|------|--------|------|
+| **Epic 结构** | 作者手动维护 | Markdown 树形列表，定义目标层次和每个叶 Epic 包含的开发项编号 |
+| **可视化** | AI 维护 | Mermaid 图，从 Epic 结构生成 |
+| **节点索引** | AI 维护 | 所有开发项的分类与 Epic 归属表 |
+
+**AI 不得修改「Epic 结构」区块。** 只替换「可视化」和「节点索引」两个区块的内容。
+
+---
+
+## Epic 结构规范
+
+作者在「Epic 结构」区块中用 Markdown 标题层级定义目标树：
+
+- 非叶 Epic（中间节点）：只有子目标，没有「状态」和「轮次」
+- 叶 Epic（最底层目标）：有「状态」和「轮次」字段
+  - 状态取值：`已完成` / `进行中` / `已放弃`
+  - 轮次：逗号分隔的开发项编号列表
+- 同一叶 Epic 内的开发项是**并列关系**，没有层次，没有先后
+
+---
+
+## 开发项分类体系
+
+为每个开发项分配以下 6 类之一，依据 SUMMARY.md（或 PROMPT.md）内容判断：
 
 | 类型 | classDef 名 | 图标 | 判断标准 |
 |------|-------------|------|---------|
@@ -23,52 +47,48 @@ disable-model-invocation: true
 | 工程 | infra    | 📦 | 打包/CI/分发/工具链 |
 | 探索 | research | 🔬 | 调研，可能被搁置或回退 |
 
-## 父节点选择原则
-
-- 每个节点只有一个父节点，保持严格的树结构
-- 选「最直接的上游」：哪个开发项直接使能或驱动了本次开发
-- **不按时间顺序强行构造父子关系**：并行的功能分支应追溯到共同的真正前序节点，而非上一个编号
-- 若多个前序节点都有关联，选依赖最强的那一个作为父节点
-- 项目第一个开发项为根节点，无父节点
-
 ---
 
 ## 执行步骤
 
-### 第一步：确定当前开发项
+### 第一步：解析 Epic 结构
 
-- 若有参数，以参数指定的编号为准
-- 否则，扫描 `docs/` 下所有形如 `数字-名称` 的文件夹，取编号最大者作为当前开发项
+读取 `docs/DEVTREE.md` 的「Epic 结构」区块，提取：
+- Epic 的层次关系（哪些是中间节点，哪些是叶）
+- 每个叶 Epic 的名称、状态、所含开发项编号列表
 
-### 第二步：判断模式
+### 第二步：对尚未分类的开发项补充分类
 
-- `docs/DEVTREE.md` **不存在** → 进入**重建模式**
-- `docs/DEVTREE.md` **已存在** → 进入**增量模式**
+对「Epic 结构」中列出但「节点索引」表中尚无记录的开发项编号：
+- 读取对应 `docs/{编号}-*/SUMMARY.md`（若无则读 `PROMPT.md`）
+- 分配类型
 
-### 第三步 A：重建模式
+### 第三步：重新生成「可视化」区块
 
-1. 扫描 `docs/` 下所有开发项文件夹（按编号升序排列）
-2. 对每个开发项，优先读取 `SUMMARY.md`，若无则读取 `PROMPT.md`
-3. 逐一分析，为每个开发项分配类型并确定父节点（编号最小的开发项为根节点，父节点为空）
-4. 进入第四步，生成完整文档
+Mermaid 格式规范：
 
-### 第三步 B：增量模式
+- 整体是一棵有根树，用有向边（`-->`）表达 Epic 层级关系
+- 根节点：`ROOT["{项目目录名}"]:::epic`（由 AI 根据项目上下文推断）
+- **非叶 Epic**：普通节点 `{id}["{名称}"]:::epic`，通过 `-->` 边与父节点连接
+  - id 用英文缩写，如 `pd`、`ea`、`cross`
+- **叶 Epic**：`subgraph {id}["{状态图标} {名称}"]` 容器，内部声明 `direction TB`，通过 `-->` 边从父节点指向 subgraph id
+  - 状态图标：✅ 已完成 / 🔄 进行中 / ❌ 已放弃
+- 开发项节点放在所属叶 Epic 的 subgraph 内，节点之间用 `~~~`（不可见链接）强制纵向堆叠，不画有向边
+- 开发项格式：`N{编号}["{类型图标} {编号} · {文件夹中文名}"]:::{classDef名}`
+- 新增 `classDef epic fill:#f8f9fa,stroke:#adb5bd,color:#495057` 用于 Epic 节点配色
 
-1. 读取现有 `docs/DEVTREE.md`，了解已有树结构和节点列表
-2. 读取当前开发项的 `SUMMARY.md`（若无则读 `PROMPT.md`）
-3. 为当前开发项分配类型并确定父节点
-4. 在现有树的基础上追加当前节点，进入第四步
+### 第四步：重新生成「节点索引」区块
 
-### 第四步：写入 docs/DEVTREE.md
+按编号升序排列，每行包含：编号、名称、类型、所属叶 Epic、一句话描述。
 
-**生成顺序要求**：先完整确定节点索引表（每个节点的编号、名称、类型、父节点、描述），再严格从表中的「父节点」列机械推导 Mermaid 边——**每个节点在表中只有一个父节点，Mermaid 中也只能有一条对应的入边**。禁止在写边时引入表中未记录的父子关系。
+---
 
-按以下格式生成并写入文档（其中节点数据部分用真实内容替换示例）：
+## 输出格式模板
 
 ````markdown
-# 开发树
+## Epic 结构
 
-> 项目：{项目名} | 最后更新：{今日日期} | 共 {N} 轮
+（此区块由作者维护，AI 原样保留）
 
 ## 分类图例
 
@@ -84,33 +104,41 @@ disable-model-invocation: true
 ## 可视化
 
 ```mermaid
+%%{init: {'flowchart': {'rankSpacing': 25}}}%%
 graph TD
-  classDef genesis  fill:#d4edda,stroke:#28a745,color:#155724
-  classDef feature  fill:#cce5ff,stroke:#0d6efd,color:#003d8f
-  classDef bugfix   fill:#f8d7da,stroke:#dc3545,color:#721c24
-  classDef refactor fill:#fff3cd,stroke:#ffc107,color:#664d03
-  classDef infra    fill:#e2d9f3,stroke:#6f42c1,color:#3d1a78
-  classDef research fill:#e2e3e5,stroke:#6c757d,color:#383d41
+  classDef genesis  fill:#d4edda,stroke:#28a745,color:#155724,font-weight:bold
+  classDef feature  fill:#cce5ff,stroke:#0d6efd,color:#003d8f,font-weight:bold
+  classDef bugfix   fill:#f8d7da,stroke:#dc3545,color:#721c24,font-weight:bold
+  classDef refactor fill:#fff3cd,stroke:#ffc107,color:#664d03,font-weight:bold
+  classDef infra    fill:#e2d9f3,stroke:#6f42c1,color:#3d1a78,font-weight:bold
+  classDef research fill:#e2e3e5,stroke:#6c757d,color:#383d41,font-weight:bold
+  classDef epic     fill:#f8f9fa,stroke:#adb5bd,color:#495057,font-weight:bold,font-size:15px
 
-  N0["🌱 0 · 初始实现"]:::genesis
-  N1["🔬 1 · 流式识别探索"]:::research
-  N2["✨ 2 · 功能扩展"]:::feature
-  N0 --> N1
-  N0 --> N2
+  ROOT["项目名"]:::epic
+  ROOT --> ea["顶层 Epic A"]:::epic
+  ea --> ea1
+  ea --> ea2
+
+  subgraph ea1["✅ 叶 Epic A1"]
+    direction TB
+    N0["🌱 0 · 示例开发项"]:::genesis
+  end
+
+  subgraph ea2["🔄 叶 Epic A2"]
+    direction TB
+    N1["✨ 1 · 示例开发项"]:::feature
+    N2["🐛 2 · 示例开发项"]:::bugfix
+    N1 ~~~ N2
+  end
 ```
 
 ## 节点索引
 
-| # | 名称 | 类型 | 父节点 | 一句话描述 |
-|---|------|------|--------|-----------|
-| 0 | 初始实现 | 🌱 初建 | — | （一句话描述本轮核心成果） |
-| 1 | 流式识别探索 | 🔬 探索 | 0 | （一句话描述本轮核心成果） |
-| 2 | 功能扩展 | ✨ 功能 | 0 | （一句话描述本轮核心成果） |
-````
+> 最后更新：{今日日期} | 共 {N} 轮
 
-**格式规范**：
-- 节点 ID：`N{编号}`，如 `N0`、`N22`
-- 节点标签：`"{图标} {编号} · {文件夹中文名}"`（去掉编号前缀，只保留中文名）
-- 样式类：`:::{classDef名}`
-- 边：`N{父编号} --> N{子编号}`（每条边单独一行，根节点无入边）**边必须且只能从节点索引表的「父节点」列生成，与表保持严格一一对应**
-- 节点索引表中父节点列：根节点填 `—`，其余填父节点编号（只填一个）
+| # | 名称 | 类型 | 所属 Epic | 一句话描述 |
+|---|------|------|----------|-----------|
+| 0 | 示例开发项 | 🌱 初建 | 叶 Epic A1 | （一句话描述） |
+| 1 | 示例开发项 | ✨ 功能 | 叶 Epic A2 | （一句话描述） |
+| 2 | 示例开发项 | 🐛 修复 | 叶 Epic A2 | （一句话描述） |
+````
