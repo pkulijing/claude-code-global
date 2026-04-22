@@ -1,38 +1,5 @@
 # 开发树
 
-## Epic 结构
-
-> 由作者手动维护。AI 只负责「可视化」和「节点索引」两个区块。
-
-### 基础搭建
-
-- 状态：已完成
-- 轮次：0
-
-### 项目结构
-
-- 状态：已完成
-- 轮次：2
-
-### 开发工具链
-
-#### commit工作流
-
-- 状态：已完成
-- 轮次：1
-
-#### rebase工作流
-
-- 状态：已完成
-- 轮次：3
-
-#### devtree可视化
-
-- 状态：进行中
-- 轮次：4, 5
-
----
-
 ## 分类图例
 
 | 图标 | 类型 | 说明 |
@@ -49,7 +16,7 @@
 ## 可视化
 
 ```mermaid
-%%{init: {'flowchart': {'rankSpacing': 25}}}%%
+%%{init: {'flowchart': {'rankSpacing': 30, 'nodeSpacing': 20}}}%%
 graph TD
   classDef genesis  fill:#d4edda,stroke:#28a745,color:#155724,font-weight:bold
   classDef feature  fill:#cce5ff,stroke:#0d6efd,color:#003d8f,font-weight:bold
@@ -63,20 +30,21 @@ graph TD
   ROOT --> e_base
   ROOT --> e_struct
   ROOT --> toolchain["开发工具链"]:::epic
+  toolchain --> e_commit
+  toolchain --> e_rebase
+  toolchain --> e_devtree
 
   subgraph e_base["✅ 基础搭建"]
     direction TB
     N0["🌱 0 · 安装脚本"]:::genesis
+    N6["📦 6 · settings 合并机制"]:::infra
+    N0 ~~~ N6
   end
 
   subgraph e_struct["✅ 项目结构"]
     direction TB
     N2["🏗️ 2 · 重构项目CLAUDE文件结构"]:::refactor
   end
-
-  toolchain --> e_commit
-  toolchain --> e_rebase
-  toolchain --> e_devtree
 
   subgraph e_commit["✅ commit工作流"]
     direction TB
@@ -100,7 +68,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-04-20 | 共 6 轮
+> 最后更新：2026-04-22 | 共 7 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 |---|------|------|----------|-----------|
@@ -110,3 +78,37 @@ graph TD
 | 3 | 创建rebase-skill | ✨ 功能 | rebase工作流 | 创建 /rebase skill，诊断+分段引导本地分叉整理 |
 | 4 | 创建devtree-skill | ✨ 功能 | devtree可视化 | 创建 /devtree skill，可视化开发树并集成到 /finish 流程 |
 | 5 | 重构devtree-skill-epic模型 | 🏗️ 重构 | devtree可视化 | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案 |
+| 6 | settings 合并机制 | 📦 工程 | 基础搭建 | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集） |
+
+---
+
+## Epic 结构
+
+> 由作者手动维护。AI 只负责「可视化」和「节点索引」两个区块。
+
+### 基础搭建
+
+- 状态：已完成
+- 轮次：0, 6
+
+### 项目结构
+
+- 状态：已完成
+- 轮次：2
+
+### 开发工具链
+
+#### commit工作流
+
+- 状态：已完成
+- 轮次：1
+
+#### rebase工作流
+
+- 状态：已完成
+- 轮次：3
+
+#### devtree可视化
+
+- 状态：进行中
+- 轮次：4, 5

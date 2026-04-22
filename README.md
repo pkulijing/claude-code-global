@@ -4,12 +4,22 @@
 
 ## 工作原理
 
-Claude Code 会读取 `~/.claude/` 下的全局配置：
+Claude Code 会读取 `~/.claude/` 下的全局配置。本仓库通过 `install.sh` 按两种方式部署：
 
-- `~/.claude/CLAUDE.md` — 所有项目通用的指令（链接自本仓库的 `GLOBAL_CLAUDE.md`）
-- `~/.claude/skills/` — 全局可用的 slash commands
+| 仓库文件 | 部署到 | 方式 | 说明 |
+|---|---|---|---|
+| `GLOBAL_CLAUDE.md` | `~/.claude/CLAUDE.md` | 软链接 | 修改仓库即修改实际配置，`git pull` 即完成同步 |
+| `skills/*/` | `~/.claude/skills/*/` | 软链接（逐个子目录） | 不影响 `~/.claude/skills/` 下不属于本仓库的 skill |
+| `settings.base.json` | `~/.claude/settings.json` | **合并**（非破坏性） | 本机特有设置保留；仅追加/覆盖基线里声明的项 |
 
-本仓库通过 `install.sh` 将 `GLOBAL_CLAUDE.md` 和 `skills/` 以**符号链接**的方式部署到 `~/.claude/`，修改仓库文件即修改实际配置，`git pull` 即完成同步。
+`settings.json` 之所以不软链接，是因为它通常既含跨机共享设置（如 `permissions.allow`），又含本机特有偏好（如 `effortLevel`）。合并规则：
+
+- **object**：递归合并
+- **array**：并集去重（如 `permissions.allow` 会把仓库基线里的条目追加进本地已有的列表，而不是覆盖）
+- **scalar**：仓库基线胜出；不想跨机共享的标量就别写进 `settings.base.json`
+- 多次运行 `install.sh` 幂等；真正发生变化时会先备份成 `settings.json.bak.<timestamp>`
+
+合并依赖 `jq`（macOS 自带 `/usr/bin/jq`；Linux 各发行版用包管理器安装）。
 
 ## 安装
 
@@ -32,6 +42,8 @@ bash ~/Developer/claude-code-global/install.sh
 | **Python 开发规则** | 使用 uv 管理依赖（禁止 pip install），ruff 格式化，清华 + sjtu 镜像源 |
 
 ## Skills
+
+基线 `settings.base.json` 中预置了 `permissions.allow: ["Skill(*)"]`，让所有 slash command 默认放行，避免反复弹权限确认。
 
 ### `/start` — 开始一个新的开发项
 

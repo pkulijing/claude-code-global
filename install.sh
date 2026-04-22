@@ -15,6 +15,63 @@ info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
 success() { echo -e "${GREEN}[OK]${NC}   $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 
+# 合并基线 JSON 配置进本地配置文件（非破坏性）
+# 策略：object 递归合并 / array 并集去重 / 标量仓库胜出 / null 视为未设置
+# 用法: merge_settings <基线JSON> <目标JSON>
+merge_settings() {
+    local src="$1"
+    local dst="$2"
+    local name
+    name="$(basename "$dst")"
+
+    # 依赖 jq
+    if ! command -v jq >/dev/null 2>&1; then
+        warn "未找到 jq，跳过合并 ${name}（macOS 自带；其他系统请用包管理器安装）"
+        return
+    fi
+
+    # 本地没有：直接复制（不是软链接，本机需自行编辑）
+    if [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        success "已创建 ${name}（从 $(basename "$src") 初始化）"
+        return
+    fi
+
+    # 计算合并结果
+    # 注意：jq 函数参数是"滤镜表达式"，调用处会重新对当前 . 求值——
+    # 在 reduce 内部 . 会变成累加器，导致 a[$k] 被解成"索引累加器"而报错。
+    # 所以先用 `a as $a | b as $b` 把两侧绑定成真值再递归。
+    local merged
+    merged="$(jq -s '
+      def merge(a; b):
+        a as $a | b as $b |
+        if   ($a|type)=="object" and ($b|type)=="object" then
+          reduce (($a|keys_unsorted)+($b|keys_unsorted)|unique)[] as $k
+            ({}; .[$k] = merge($a[$k]; $b[$k]))
+        elif ($a|type)=="array"  and ($b|type)=="array"  then
+          ($a + $b) | unique
+        elif $b == null then $a
+        else $b
+        end;
+      merge(.[0]; .[1])
+    ' "$dst" "$src")"
+
+    # 等价性检查：把当前文件也过一遍 jq 规范化，再和合并结果比较，避免因空白差异误报变化
+    local current
+    current="$(jq '.' "$dst")"
+    if [ "$merged" = "$current" ]; then
+        info "已跳过 ${name}（内容已包含基线）"
+        return
+    fi
+
+    # 真的变了：备份后写入
+    local ts
+    ts="$(date +%Y%m%d-%H%M%S)"
+    cp "$dst" "${dst}.bak.${ts}"
+    printf '%s\n' "$merged" > "$dst"
+    success "已合并 ${name}（备份：${name}.bak.${ts}）"
+}
+
 # 创建一个符号链接，处理已存在的情况
 # 用法: link_item <源路径> <目标路径>
 link_item() {
@@ -73,6 +130,13 @@ if [ -d "$REPO_DIR/skills" ]; then
     done
 else
     warn "仓库中未找到 skills/ 目录，跳过"
+fi
+
+# 合并 settings.base.json → ~/.claude/settings.json（不软链接，需合并本机特有设置）
+if [ -f "$REPO_DIR/settings.base.json" ]; then
+    merge_settings "$REPO_DIR/settings.base.json" "$TARGET_DIR/settings.json"
+else
+    warn "仓库中未找到 settings.base.json，跳过"
 fi
 
 echo ""
