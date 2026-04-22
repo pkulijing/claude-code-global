@@ -1,12 +1,22 @@
-# BACKLOG
+# Backlog
 
-待启动的开发项登记簿。每项包含背景、目标、备注；启动时搬到 `docs/N-xxx/PROMPT.md` 并从本表移除。
+待启动的开发项清单。**本文件是权威来源**，取代各轮 `docs/N-*/SUMMARY.md` 里「后续 TODO」段的跨轮追踪职责 —— 那些段落继续保留，但只记录当轮发现的新线索；发现的新想法要立刻同步到这里。
+
+**工作流**：
+
+- **开新轮**时从下面的条目里挑一个作为 `docs/N-*/PROMPT.md` 的起点
+- **收尾一轮**时从本文件**删掉**已完成的条目（不是打勾，是整条删，避免腐烂）
+- **发现新想法**时立刻加进来，哪怕只写一行占位，之后再补完整
+
+条目没有固定优先级 —— 选哪个做下一个看当时的心情和痛点。每条都尽量写成"未来自己或后续 agent 读完能接得住"的格式：**动机 / 目标状态 / 候选方向 / 风险 / scope**。
 
 ---
 
-## 系统整理 Claude Code Permission 配置
+## 配置治理
 
-### 背景
+### 系统整理 Claude Code Permission 配置
+
+**动机**
 
 当前 `~/.claude/settings.json` 以及各项目 `.claude/settings.local.json` 的 `permissions.allow` 列表非常混乱，典型问题：
 
@@ -15,7 +25,7 @@
 - **反复弹窗**：像 `git commit -m "..."` 这样的常用命令，在很多项目里仍被反复提示要求授权，说明已有的授权条目并没有生效覆盖。
 - **无清晰心智模型**：我自己并不清楚 CC 的权限匹配规则到底怎么工作，每次加权限都是"试出来"的。
 
-### 目标
+**目标状态**
 
 系统性研究 Claude Code 权限系统，产出一套可复用的规范与清理后的配置：
 
@@ -27,8 +37,18 @@
    - 项目级只保留与项目相关的条目
 4. **修好 git commit 弹窗问题**：找到一条能稳定命中 `git commit -m "任意消息"` 的规则写法，写进 `settings.base.json`。
 
-### 备注
+**候选方向**
 
-- 入口文件：`~/.claude/settings.json`、各项目 `.claude/settings.local.json`、本仓库 `settings.base.json`。
-- 需要同时翻 Claude Code 官方文档关于 permissions / tool permission rules 的章节，以及实际抓几条弹窗时的原始命令字符串做样本对照。
-- 清理后的规则要反向写进 `settings.base.json`，让 `install.sh` 的合并机制下发到所有项目。
+- 先做一轮「抓弹窗样本」：开日常工作时把所有触发弹窗的原始命令字符串记下来，作为后续规则设计的测试用例
+- 翻 CC 官方文档关于 permissions / tool permission rules 的章节，配合样本反推匹配语义
+- 规则统一用通配符写法（而不是把参数写死），在 `settings.base.json` 里集中维护；项目级只加与项目代码相关的条目
+
+**风险 / 注意点**
+
+- 规则写得太宽可能误放行危险命令（`rm -rf` 等），要谨慎
+- `settings.base.json` 合并机制是数组并集，旧的重复条目需要先在各 `settings.local.json` 里手动清掉，否则会和新规范长期共存
+- 入口文件：`~/.claude/settings.json`、各项目 `.claude/settings.local.json`、本仓库 `settings.base.json`
+
+**scope**
+
+中。关键前置是「搞清匹配规则」的调研，半天到一天；调研完之后真正清理配置 + 写 `settings.base.json` 大约半天。
