@@ -33,6 +33,7 @@ graph TD
   toolchain --> e_commit
   toolchain --> e_rebase
   toolchain --> e_devtree
+  toolchain --> e_backlog
 
   subgraph e_base["✅ 基础搭建"]
     direction TB
@@ -62,13 +63,18 @@ graph TD
     N5["🏗️ 5 · 重构devtree-skill-epic模型"]:::refactor
     N4 ~~~ N5
   end
+
+  subgraph e_backlog["✅ backlog工作流"]
+    direction TB
+    N7["✨ 7 · 创建backlog-skill"]:::feature
+  end
 ```
 
 ---
 
 ## 节点索引
 
-> 最后更新：2026-04-22 | 共 7 轮
+> 最后更新：2026-04-22 | 共 8 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 |---|------|------|----------|-----------|
@@ -79,6 +85,7 @@ graph TD
 | 4 | 创建devtree-skill | ✨ 功能 | devtree可视化 | 创建 /devtree skill，可视化开发树并集成到 /finish 流程 |
 | 5 | 重构devtree-skill-epic模型 | 🏗️ 重构 | devtree可视化 | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案 |
 | 6 | settings 合并机制 | 📦 工程 | 基础搭建 | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集） |
+| 7 | 创建backlog-skill | ✨ 功能 | backlog工作流 | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md |
 
 ---
 
@@ -112,3 +119,8 @@ graph TD
 
 - 状态：进行中
 - 轮次：4, 5
+
+#### backlog工作流
+
+- 状态：已完成
+- 轮次：7
