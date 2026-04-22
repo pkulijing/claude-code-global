@@ -39,7 +39,8 @@ graph TD
     direction TB
     N0["🌱 0 · 安装脚本"]:::genesis
     N6["📦 6 · settings 合并机制"]:::infra
-    N0 ~~~ N6
+    N8["📦 8 · 权限配置治理与清理 skill"]:::infra
+    N0 ~~~ N6 ~~~ N8
   end
 
   subgraph e_struct["✅ 项目结构"]
@@ -74,7 +75,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-04-22 | 共 8 轮
+> 最后更新：2026-04-22 | 共 9 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 |---|------|------|----------|-----------|
@@ -86,6 +87,7 @@ graph TD
 | 5 | 重构devtree-skill-epic模型 | 🏗️ 重构 | devtree可视化 | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案 |
 | 6 | settings 合并机制 | 📦 工程 | 基础搭建 | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集） |
 | 7 | 创建backlog-skill | ✨ 功能 | backlog工作流 | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md |
+| 8 | 权限配置治理与清理skill | 📦 工程 | 基础搭建 | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条） |
 
 ---
 
@@ -96,7 +98,7 @@ graph TD
 ### 基础搭建
 
 - 状态：已完成
-- 轮次：0, 6
+- 轮次：0, 6, 8
 
 ### 项目结构
 
