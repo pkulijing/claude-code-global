@@ -1,7 +1,7 @@
 ---
 name: devtree
 description: 依据 docs/DEVTREE.md 中作者维护的 Epic 结构，重新生成可视化图表和节点索引
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 用户调用此 skill 表示 Epic 结构已更新，需要同步「可视化」和「节点索引」两个区块。

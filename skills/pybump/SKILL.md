@@ -1,7 +1,7 @@
 ---
 name: pybump
 description: 升级 Python 项目版本号，更新 pyproject.toml，提交代码并打 tag
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 用户调用此 skill 表示要发布 Python 项目的新版本。

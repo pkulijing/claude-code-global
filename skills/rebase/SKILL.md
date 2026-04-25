@@ -1,7 +1,7 @@
 ---
 name: rebase
 description: 诊断本地分支分叉并按清单引导完成 rebase，历史保持 FF 直线
-disable-model-invocation: false
+disable-model-invocation: true
 ---
 
 用户调用此 skill 表示当前本地有分支分叉，需要通过 rebase 把分叉整理成直线历史。
