@@ -104,6 +104,7 @@ link_item() {
 # 确保目标目录存在
 mkdir -p "$TARGET_DIR"
 mkdir -p "$TARGET_DIR/skills"
+mkdir -p "$TARGET_DIR/hooks"
 
 echo "=============================="
 echo " Claude Code 全局配置安装"
@@ -130,6 +131,18 @@ if [ -d "$REPO_DIR/skills" ]; then
     done
 else
     warn "仓库中未找到 skills/ 目录，跳过"
+fi
+
+# 链接 hooks（逐个文件）
+if [ -d "$REPO_DIR/hooks" ]; then
+    for hook_path in "$REPO_DIR/hooks"/*; do
+        # 检查是否真的有文件（glob 无匹配时会保留原样）
+        [ -e "$hook_path" ] || continue
+        hook_name="$(basename "$hook_path")"
+        link_item "$REPO_DIR/hooks/$hook_name" "$TARGET_DIR/hooks/$hook_name"
+    done
+else
+    warn "仓库中未找到 hooks/ 目录，跳过"
 fi
 
 # 合并 settings.base.json → ~/.claude/settings.json（不软链接，需合并本机特有设置）

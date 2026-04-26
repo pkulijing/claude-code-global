@@ -62,18 +62,33 @@ disable-model-invocation: true
 
 **不**调用内置 `/init`：空项目无可扫的代码，等代码长起来后由用户手动跑 `/init` 重写更合适。
 
-### Step 3：调用 `/devtree` 落 DEVTREE.md 骨架
+### Step 3：写 `.prettierrc`
+
+为了和全局 PostToolUse hook（`~/.claude/hooks/format-after-edit.sh`，markdown 编辑后跑 `prettier --write`）输出对齐，**避免 prettier 用默认配置强制换行中文长段落**，新建 `.prettierrc`：
+
+```json
+{
+  "proseWrap": "preserve"
+}
+```
+
+仅当项目根目录尚无 `.prettierrc` / `.prettierrc.json` / `.prettierrc.yaml` / `prettier.config.*` 任意一种时才写入；已存在则跳过并在收尾里说明。
+
+> 如果项目本身有 prettier 自定义需求（如 `printWidth`、`semi`），用户可以在生成后追加，但不要覆盖 `proseWrap: preserve`。
+
+### Step 4：调用 `/devtree` 落 DEVTREE.md 骨架
 
 直接调用 `/devtree`。`/devtree` 自身已支持「冷启动」：当 `docs/DEVTREE.md` 不存在或 Epic 结构为空时，会写入完整骨架（分类图例 + 可视化占位 + 节点索引占位 + Epic 结构占位）。
 
 **不要**在本 skill 里复制一份 DEVTREE 骨架模板 —— 单一事实来源在 `/devtree`。
 
-### Step 4：收尾反馈
+### Step 5：收尾反馈
 
-- echo-back 三个新建文件的路径：`README.md`、`CLAUDE.md`、`docs/DEVTREE.md`
+- echo-back 新建文件的路径：`README.md`、`CLAUDE.md`、`.prettierrc`、`docs/DEVTREE.md`（跳过的项注明「已存在，未覆盖」）
 - 给出下一步建议清单：
   1. 检查并补完 `README.md` 与 `CLAUDE.md` 的「待补充」段
   2. 在 `DEVTREE.md` 的「Epic 结构」区块下添加首批叶 Epic
-  3. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
-  4. 准备好后运行 `/start` 开启 round 0
+  3. 若使用 VS Code，按 [全局 Constitution](~/.claude/CLAUDE.md) 「项目本地推荐配置」段补 `.vscode/settings.json` 与 `.vscode/extensions.json`（formatOnSave + 推荐扩展）
+  4. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
+  5. 准备好后运行 `/start` 开启 round 0
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）

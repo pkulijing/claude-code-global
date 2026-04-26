@@ -77,6 +77,14 @@
   DEEPSEEK_BASEURL=https://api.deepseek.com
   ```
 
+## 项目本地推荐配置
+
+以下配置不在全局仓库维护（受项目根目录约束），但建议每个项目都加，与全局 `~/.claude/hooks/format-after-edit.sh`（PostToolUse 自动格式化 hook）保持输出对齐，避免「CC 编辑 → VS Code 保存触发 formatOnSave → 大 diff」的反复重排：
+
+- `.prettierrc`：`{ "proseWrap": "preserve" }`，防止 prettier 强制换行中文长段落
+- `.vscode/settings.json`：`[markdown]` / `[python]` 块设置 `formatOnSave + defaultFormatter`（markdown 用 `esbenp.prettier-vscode`，python 用 `charliermarsh.ruff`）
+- `.vscode/extensions.json`：推荐 `esbenp.prettier-vscode` / `charliermarsh.ruff` 给协作者
+
 ## Python 开发规则
 
 - 使用 uv 管理项目依赖，使用 `uv add` 添加依赖，在 `pyproject.toml` 中记录 (`uv add` 天然支持) 依赖列表，**禁止使用 `pip install` 或 `uv pip install`**
