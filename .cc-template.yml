@@ -1,0 +1,5 @@
+# 由 claude-code-global 管理，非必要请勿手动编辑
+source: https://github.com/pkulijing/claude-code-global
+template_commit: ecbb9d4b4e03aa93bc716384cc3141464ee4af04
+bootstrap_time: 2026-04-27T16:12:55Z
+stacks: []  # 本仓库是模板源，不绑定具体 stack；只 _common 自动应用
