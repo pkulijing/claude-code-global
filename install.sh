@@ -210,6 +210,19 @@ else
     warn "仓库中未找到 hooks/ 目录，跳过"
 fi
 
+# 链接 templates 目录到 ~/.claude/templates/
+# 让 /bootstrap 与 /sync-project-config 通过 stable 路径读取共享模板
+if [ -d "$REPO_DIR/templates" ]; then
+    link_item "$REPO_DIR/templates" "$TARGET_DIR/templates"
+else
+    warn "仓库中未找到 templates/ 目录，跳过"
+fi
+
+# 链接仓库根到 ~/.claude/global-repo/
+# 让 /sync-project-config 通过此 stable 路径访问 templates 的 git 历史，
+# 用于 git diff <old>..HEAD -- templates/<stack>/ 计算模板版本变化
+link_item "$REPO_DIR" "$TARGET_DIR/global-repo"
+
 # 合并 settings.base.json → ~/.claude/settings.json（不软链接，需合并本机特有设置）
 if [ -f "$REPO_DIR/settings.base.json" ]; then
     merge_settings "$REPO_DIR/settings.base.json" "$TARGET_DIR/settings.json"

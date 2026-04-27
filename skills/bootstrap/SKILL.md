@@ -62,19 +62,53 @@ disable-model-invocation: true
 
 **不**调用内置 `/init`：空项目无可扫的代码，等代码长起来后由用户手动跑 `/init` 重写更合适。
 
-### Step 3：写 `.prettierrc`
+### Step 3：模板初始化（按 stack）
 
-为了和全局 PostToolUse hook（`~/.claude/hooks/format-after-edit.sh`，markdown 编辑后跑 `prettier --write`）输出对齐，**避免 prettier 用默认配置强制换行中文长段落**，新建 `.prettierrc`：
+为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `pyproject.toml [tool.ruff]` 等。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
 
-```json
-{
-  "proseWrap": "preserve"
-}
+#### Step 3.1：探测可用 stack
+
+- 读取 `~/.claude/templates/` 下的非下划线开头子目录，得到 stack 列表（如 `python-uv`）
+- `~/.claude/templates/` 不存在 → 提示用户「尚未通过 install.sh 部署 templates，跳过模板初始化」并跳过 Step 3 整个段落
+
+#### Step 3.2：用户选 stack
+
+用 `AskUserQuestion` 让用户在以下选项中选一个：
+
+- 各 stack 名（每个 stack 一个选项）
+- 「跳过模板初始化（不推荐，但允许）」
+
+若选「跳过」→ 跳过 Step 3 剩下子步骤，进入 Step 4。
+
+#### Step 3.3：复制模板内容到项目
+
+设单 stack 项目 `path = .`：
+
+- 把 `~/.claude/templates/<stack>/__root__/` 下所有文件（含点文件、含子目录结构）复制到项目根
+- 把 `~/.claude/templates/<stack>/__subpath__/` 下所有文件复制到项目根（path 即 `.`）
+- 遇到目标已存在的文件：列入「冲突清单」，逐条向用户确认 take 模板 / 保留项目侧 / 智能合并；不要默认覆盖
+
+特殊处理：
+- `pyproject.toml.ruff.fragment` 不能直接落地为同名文件 —— 它是片段，需合并进项目根的 `pyproject.toml` 的 `[tool.ruff]` 段
+  - 项目根**没有** `pyproject.toml` → 提示用户先 `uv init` 后再运行 `/sync-project-config` 单独合并 ruff 段
+  - 项目根**有** `pyproject.toml` → 用 AI 智能合并：保留用户已有的字段，追加片段缺的；冲突字段询问用户
+
+#### Step 3.4：写 `.cc-template.yml` marker
+
+在项目根创建 `.cc-template.yml`，内容如下（字段来源详见 SCHEMA.md）：
+
+```yaml
+# 由 claude-code-global 管理，非必要请勿手动编辑
+source: <git -C ~/.claude/global-repo config --get remote.origin.url 的输出>
+template_commit: <git -C ~/.claude/global-repo rev-parse HEAD 的输出>
+bootstrap_time: <当前 UTC 时间的 ISO 8601 字符串>
+stacks:
+  - stack: <用户选的 stack 名>
+    path: .
+    skipped: []
 ```
 
-仅当项目根目录尚无 `.prettierrc` / `.prettierrc.json` / `.prettierrc.yaml` / `prettier.config.*` 任意一种时才写入；已存在则跳过并在收尾里说明。
-
-> 如果项目本身有 prettier 自定义需求（如 `printWidth`、`semi`），用户可以在生成后追加，但不要覆盖 `proseWrap: preserve`。
+`source` 取不到 origin 时填占位符 `https://github.com/<owner>/claude-code-global`，并在收尾里提示用户手动补全。
 
 ### Step 4：调用 `/devtree` 落 DEVTREE.md 骨架
 
@@ -84,11 +118,12 @@ disable-model-invocation: true
 
 ### Step 5：收尾反馈
 
-- echo-back 新建文件的路径：`README.md`、`CLAUDE.md`、`.prettierrc`、`docs/DEVTREE.md`（跳过的项注明「已存在，未覆盖」）
+- echo-back 新建文件的路径：`README.md`、`CLAUDE.md`、`docs/DEVTREE.md`，以及（若 Step 3 未跳过）模板复制的文件清单 + `.cc-template.yml`（跳过的项注明「已存在，未覆盖」或「用户在冲突清单中选择保留」）
 - 给出下一步建议清单：
   1. 检查并补完 `README.md` 与 `CLAUDE.md` 的「待补充」段
   2. 在 `DEVTREE.md` 的「Epic 结构」区块下添加首批叶 Epic
-  3. 若使用 VS Code，按 [全局 Constitution](~/.claude/CLAUDE.md) 「项目本地推荐配置」段补 `.vscode/settings.json` 与 `.vscode/extensions.json`（formatOnSave + 推荐扩展）
-  4. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
-  5. 准备好后运行 `/start` 开启 round 0
+  3. 若 Step 3 已套用 stack 模板：进项目跑 `pre-commit install` 启用 commit 闸门
+  4. 若 Step 3 跳过 / `pyproject.toml` 不存在：未来可运行 `/sync-project-config` 走 adopt 模式补全
+  5. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
+  6. 准备好后运行 `/start` 开启 round 0
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）

@@ -77,13 +77,26 @@
   DEEPSEEK_BASEURL=https://api.deepseek.com
   ```
 
-## 项目本地推荐配置
+## 项目本地推荐配置（由 stack 模板统一管理）
 
-以下配置不在全局仓库维护（受项目根目录约束），但建议每个项目都加，与全局 `~/.claude/hooks/format-after-edit.sh`（PostToolUse 自动格式化 hook）保持输出对齐，避免「CC 编辑 → VS Code 保存触发 formatOnSave → 大 diff」的反复重排：
+每个项目应配置一份与 `~/.claude/hooks/fix-after-edit.sh`（PostToolUse 自动 fix hook）输出对齐的本地工具链，避免「CC 编辑 → VS Code 保存触发 formatOnSave → 大 diff」的反复重排，并在 commit 前增加 lint 闸门。
+
+**这些配置不再由各项目手动维护，而是通过 stack 模板统一管理：**
+
+- 新项目 → `/bootstrap` 选 stack（如 `python-uv`），自动写入 `.prettierrc` / `.vscode/` / `.pre-commit-config.yaml` / `.gitignore` / `.github/workflows/lint.yml` / `pyproject.toml [tool.ruff]` 段、并生成 `.cc-template.yml` marker
+- 已有老项目 → `/sync-project-config` 进入 adopt 模式补全
+- 模板更新后 → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策）
+
+每个 stack 模板包含的具体内容见 `~/.claude/templates/<stack>/`，schema 与设计见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/`。
+
+模板核心要素（python-uv stack 示例，其他 stack 各自约定）：
 
 - `.prettierrc`：`{ "proseWrap": "preserve" }`，防止 prettier 强制换行中文长段落
-- `.vscode/settings.json`：`[markdown]` / `[python]` 块设置 `formatOnSave + defaultFormatter`（markdown 用 `esbenp.prettier-vscode`，python 用 `charliermarsh.ruff`）
-- `.vscode/extensions.json`：推荐 `esbenp.prettier-vscode` / `charliermarsh.ruff` 给协作者
+- `.vscode/settings.json`：`[python]` / `[markdown]` 块的 `formatOnSave + defaultFormatter`（python 用 `charliermarsh.ruff`，markdown 用 `esbenp.prettier-vscode`）+ `editor.codeActionsOnSave: { "source.fixAll": "explicit", "source.organizeImports": "explicit" }`
+- `.vscode/extensions.json`：推荐 `charliermarsh.ruff` / `esbenp.prettier-vscode` / `ms-python.python` 给协作者
+- `.pre-commit-config.yaml`：commit 前 lint 闸门，`ruff-check` + `ruff-format`（不带 `--fix`）+ `pre-commit-hooks` 通用项
+- `.github/workflows/lint.yml`：CI 兜底，跑 `ruff check` + `ruff format --check`
+- `pyproject.toml` 的 `[tool.ruff]` 段：line-length / 选 rule 集 / format 风格
 
 ## Python 开发规则
 
