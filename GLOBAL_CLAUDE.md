@@ -98,6 +98,37 @@
 - `.github/workflows/lint.yml`：CI 兜底，跑 `ruff check` + `ruff format --check`
 - `pyproject.toml` 的 `[tool.ruff]` 段：line-length / 选 rule 集 / format 风格
 
+## Backlog 与开发项管理（GitHub Issue 驱动）
+
+每个项目的开发项以 **GitHub Issues 为真源**：详情、讨论、跨轮上下文都沉淀在 issue 里；`docs/BACKLOG.md` 退化为 **未关闭 issue 的扁平索引**，方便一眼看待选清单。
+
+### 三轴 label
+
+每条 issue 必须打三个 label，由 `_common` 模板的 `.github/labels.yml` 维护：
+
+- **`type:*`**：`feat` / `bug` / `refactor` / `perf` / `test` / `docs`（项目无关，全集统一）
+- **`area:*`**：模块分类，**项目特异**（每个项目按自己模块改 labels.yml 中 `area:` 段）
+- **`priority:*`**：`P0` 必须做、不做有重大风险 / `P1` 重大新功能 / `P2` 一般小功能
+
+### Issue templates
+
+`.github/ISSUE_TEMPLATE/` 含三种（由 `_common` 模板提供）：`feat.md` / `bug.md` / `spike.md`，引导写动机 / 候选方向 / 风险 / scope 等结构化字段。
+
+### 三件套 skill 工作流
+
+- **`/backlog`**：新增想法 → 走 issue template → `gh issue create` 含三轴 label → 自动在 `docs/BACKLOG.md` 对应 priority 段加一行链接
+- **`/start <issue#>`**：开新轮 → `gh issue view` 拉详情 → 写到 `docs/N-*/PROMPT.md` 顶部
+- **`/finish`**：收尾 → SUMMARY.md → 在 commit message body 写 `Closes #<N>`（GitHub 自动关 issue）→ 从 BACKLOG.md 删对应那行
+
+### Closes #N 与 git history 双向链接
+
+commit/PR 描述里写 `Closes #N`，合并到 default branch 时 GitHub 自动关 issue。issue 永久保留（含评论历史），与对应 commit/PR 双向可查 —— 这是把跨轮上下文从 BACKLOG 文件搬到 issue 后**最关键的可追溯保证**。
+
+### 已完成 / 不再追踪
+
+- 已完成项不在 BACKLOG.md 追踪，直接看 GitHub closed issues
+- BACKLOG.md 末尾「## 已完成 / 不再追踪」段记录**刻意决定不做**的项 + 原因（避免未来翻 SUMMARY 误以为遗漏）
+
 ## Python 开发规则
 
 - 使用 uv 管理项目依赖，使用 `uv add` 添加依赖，在 `pyproject.toml` 中记录 (`uv add` 天然支持) 依赖列表，**禁止使用 `pip install` 或 `uv pip install`**

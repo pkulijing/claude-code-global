@@ -62,13 +62,18 @@ disable-model-invocation: true
 
 **不**调用内置 `/init`：空项目无可扫的代码，等代码长起来后由用户手动跑 `/init` 重写更合适。
 
-### Step 3：模板初始化（按 stack）
+### Step 3：模板初始化（_common + 按 stack）
 
-为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `pyproject.toml [tool.ruff]` 等。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
+为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `pyproject.toml [tool.ruff]` / `.github/ISSUE_TEMPLATE/` / `.github/labels.yml` / `.prettierrc` 等。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
+
+`~/.claude/templates/` 下有两类目录：
+- **`_common/`**：所有项目都套用，stack-无关（issue templates、labels.yml、.prettierrc 等通用资源），bootstrap 会**自动应用**，不让用户选择
+- **`<stack>/`**（如 `python-uv`）：技术栈特异资源，由用户选择套用其中之一
 
 #### Step 3.1：探测可用 stack
 
-- 读取 `~/.claude/templates/` 下的非下划线开头子目录，得到 stack 列表（如 `python-uv`）
+- 读取 `~/.claude/templates/` 下**非下划线开头**的子目录，得到可选 stack 列表（如 `python-uv`）
+- 下划线开头的目录（如 `_common/`）是伪 stack，自动应用，不进入用户选项
 - `~/.claude/templates/` 不存在 → 提示用户「尚未通过 install.sh 部署 templates，跳过模板初始化」并跳过 Step 3 整个段落
 
 #### Step 3.2：用户选 stack
@@ -78,20 +83,31 @@ disable-model-invocation: true
 - 各 stack 名（每个 stack 一个选项）
 - 「跳过模板初始化（不推荐，但允许）」
 
-若选「跳过」→ 跳过 Step 3 剩下子步骤，进入 Step 4。
+若选「跳过」→ 跳过 Step 3.3，但 **`_common` 仍然应用**（除非 `_common/` 也不存在）；若 `_common/` 不存在则 Step 3.3 完全跳过。
 
 #### Step 3.3：复制模板内容到项目
 
-设单 stack 项目 `path = .`：
+设单 stack 项目 `path = .`。**先应用 `_common`，再应用用户选的 `<stack>`**（同名文件以 `<stack>` 优先，但理论上不应有冲突 —— 见 `~/.claude/global-repo/docs/12-backlog改为issue驱动/SUMMARY.md` 中 _common 与 stack 的边界划分）。
 
-- 把 `~/.claude/templates/<stack>/__root__/` 下所有文件（含点文件、含子目录结构）复制到项目根
-- 把 `~/.claude/templates/<stack>/__subpath__/` 下所有文件复制到项目根（path 即 `.`）
+对每个生效目录（先 `_common/` 后 `<stack>/`）：
+
+- 把 `__root__/` 下所有文件（含点文件、含子目录结构）复制到项目根
+- 把 `__subpath__/` 下所有文件复制到项目根（path 即 `.`）
 - 遇到目标已存在的文件：列入「冲突清单」，逐条向用户确认 take 模板 / 保留项目侧 / 智能合并；不要默认覆盖
 
 特殊处理：
 - `pyproject.toml.ruff.fragment` 不能直接落地为同名文件 —— 它是片段，需合并进项目根的 `pyproject.toml` 的 `[tool.ruff]` 段
   - 项目根**没有** `pyproject.toml` → 提示用户先 `uv init` 后再运行 `/sync-project-config` 单独合并 ruff 段
   - 项目根**有** `pyproject.toml` → 用 AI 智能合并：保留用户已有的字段，追加片段缺的；冲突字段询问用户
+
+#### Step 3.3.5：同步 GitHub labels（如有 GitHub remote）
+
+复制完后，如果项目根出现了 `.github/labels.yml`（来自 `_common`），且 `git remote get-url origin` 指向 GitHub：
+
+- 解析 `.github/labels.yml`（YAML list of `{name, color, description}`）
+- 对每条调 `gh label create --force "<name>" --color "<color>" --description "<desc>"`（`--force` 在 gh ≥ 2.40 是更新已存在；旧版用 `|| true` 容错）
+
+无 GitHub remote 时跳过；在 Step 5 收尾里提示「先 `gh repo create` 关联 remote，再跑 `/sync-project-config` 走 adopt 把 labels 推上去」。
 
 #### Step 3.4：写 `.cc-template.yml` marker
 
@@ -124,6 +140,8 @@ stacks:
   2. 在 `DEVTREE.md` 的「Epic 结构」区块下添加首批叶 Epic
   3. 若 Step 3 已套用 stack 模板：进项目跑 `pre-commit install` 启用 commit 闸门
   4. 若 Step 3 跳过 / `pyproject.toml` 不存在：未来可运行 `/sync-project-config` 走 adopt 模式补全
-  5. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
-  6. 准备好后运行 `/start` 开启 round 0
+  5. 若 Step 3 已应用 `_common` 但**项目无 GitHub remote**（Step 3.3.5 跳过了 `gh label create`）：提示「先 `gh repo create` 关联 GitHub remote，再跑 `/sync-project-config` 把 labels 推上去」
+  6. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后再跑 Step 3.3.5 等价的 `gh label create` 同步」
+  7. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
+  8. 准备好后运行 `/start` 开启 round 0
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）

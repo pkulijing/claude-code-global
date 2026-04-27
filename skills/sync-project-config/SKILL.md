@@ -57,13 +57,15 @@ git -C ~/.claude/global-repo status --porcelain templates/
 
 ### 2.3 计算模板变更
 
+**两个源都要扫**：用户选定的 `<stack>/` + 自动应用的 `_common/`（如果 `~/.claude/templates/_common/` 存在）：
+
 ```bash
-git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack>/
+git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack>/ templates/_common/
 ```
 
 输出形如：
-- `M templates/python-uv/__root__/.gitignore`（修改）
-- `A templates/python-uv/__root__/.github/workflows/lint.yml`（新增）
+- `M templates/python-uv/__root__/.gitignore`（修改，来源 stack）
+- `A templates/_common/__root__/.github/ISSUE_TEMPLATE/feat.md`（新增，来源 _common）
 - `D templates/python-uv/__subpath__/.vscode/old.json`（删除）
 
 若输出为空 → 报告「模板自上次同步起未变化」，再继续走 skipped 重检（2.5）。
@@ -74,9 +76,11 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack
 - `__root__/<rel>` → 项目根的 `<rel>`
 - `__subpath__/<rel>` → `<path>/<rel>`（单 stack 项目 path = `.`）
 
-读取 3 份内容做对比：
-- 模板旧版：`git -C ~/.claude/global-repo show <old>:templates/<stack>/<scope>/<rel>`
-- 模板新版：直接读 `~/.claude/templates/<stack>/<scope>/<rel>`
+来源（stack 或 _common）只影响模板侧路径，**项目侧落点完全相同** —— 因此 stack 与 _common **不应有同名冲突**（设计约束）；万一有，stack 优先。
+
+读取 3 份内容做对比（`<source>` 是 `<stack>` 或 `_common`）：
+- 模板旧版：`git -C ~/.claude/global-repo show <old>:templates/<source>/<scope>/<rel>`
+- 模板新版：直接读 `~/.claude/templates/<source>/<scope>/<rel>`
 - 项目侧现状：直接 Read 项目侧路径
 
 四象限：
@@ -94,8 +98,9 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack
 ### 2.5 处理 skipped 持久化语义
 
 对 marker 中 `stacks[0].skipped` 每条：
-- 取 `file` 与 `skipped_at_commit`
-- 跑 `git -C ~/.claude/global-repo log --oneline <skipped_at_commit>..<new> -- templates/<stack>/<scope>/<file>`
+- 取 `file`（含来源 source 段，如 `__root__/.github/labels.yml`） 与 `skipped_at_commit`
+- 该文件实际来源（stack 或 _common）由 skill 在分析阶段记录到 file 字段或动态确定
+- 跑 `git -C ~/.claude/global-repo log --oneline <skipped_at_commit>..<new> -- templates/<source>/<file>`（`<source>` 是该文件实际来源 stack 或 _common）
 - 输出**为空**（该文件自 skip 之后未变） → **自动跳过、不进 TODO**
 - 输出**非空**（变了） → **重新进 TODO**，标注「上次 skip 在 commit X，之后又改过」
 
@@ -138,13 +143,19 @@ TODO 同步清单（共 N 项）：
 
 ### 4.3 全套用模板（含冲突询问）
 
-把 `~/.claude/templates/<stack>/__root__/*` 与 `__subpath__/*` 全部当作"待新增"列入 TODO：
+把以下两个源的 `__root__/*` + `__subpath__/*` 全部当作"待新增"列入 TODO：
+
+- `~/.claude/templates/_common/`（如存在，**自动应用**）
+- `~/.claude/templates/<stack>/`（用户选定）
+
+判断：
 
 - 项目侧不存在 → 默认建议「创建」
 - 项目侧已存在 → AI 对比模板内容与项目内容：
   - 完全一致 → 默认建议「无需操作（已等价）」
   - 不一致 → 默认建议「智能 merge」或询问 take / 保留 / merge
 - `pyproject.toml.ruff.fragment` 同 2.4 特殊处理
+- 含 `.github/labels.yml` 时：**额外把"调 `gh label create` 同步到 GitHub"作为单独一条 TODO**（依赖 `gh auth status` + GitHub remote；缺失则该条标 skipped 并提示）
 
 跳到第 5 节。
 
@@ -164,6 +175,7 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - **accept (修改/智能 merge)**：用 Edit / Write 写回合并后内容
 - **accept (删除)**：删文件
 - **accept (pyproject 段合并)**：把 fragment 合并进 `pyproject.toml [tool.ruff]` 段
+- **accept (gh label sync)**：解析 `.github/labels.yml`，对每条调 `gh label create --force "<name>" --color "<color>" --description "<desc>"`（无 GitHub remote / `gh auth` 失败则降级为提示，不阻塞）
 - **skip**：在 marker 的 `stacks[0].skipped[]` 中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
 
 注意：skipped[] 的更新策略：

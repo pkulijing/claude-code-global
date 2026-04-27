@@ -1,93 +1,135 @@
 ---
 name: backlog
-description: 向项目 docs/BACKLOG.md 追加一个 backlog 条目：先基于骨架模板扩写原始输入，再给出归类建议，人类确认后写入；文件不存在时用通用骨架初始化
+description: 把一条 backlog 创建成 GitHub Issue（含三轴 label）+ 在 docs/BACKLOG.md 索引中加一行链接
 disable-model-invocation: true
 ---
 
-用户调用此 skill 表示要向当前项目的 `docs/BACKLOG.md` **追加**一条待启动开发项。此 skill **只负责添加**，删除职责在 `/finish` 里。
+用户调用此 skill 表示要新增一条 backlog。本仓库工作流：**GitHub Issues 是真源**（详情、讨论、跨轮上下文都沉淀在 issue 里），`docs/BACKLOG.md` 退化为「未关闭 issue 的扁平索引」。本 skill 完成两件事：
+
+1. 走 issue template 创建一个 GitHub Issue（含三轴 label）
+2. 在 `docs/BACKLOG.md` 对应 priority 段加一行链接
+
+删除职责仍在 `/finish` 里（commit 含 `Closes #N` → 自动关 issue + 删 BACKLOG.md 那行）。
+
+## 前置检查
+
+按顺序，**任一失败立即停止并报告**：
+
+- `git rev-parse --is-inside-work-tree` → 必须是 git 仓库
+- `git remote get-url origin` → 必须有 remote（且 URL 包含 `github.com`）
+- `gh auth status` → gh CLI 必须已登录
+- `.github/ISSUE_TEMPLATE/feat.md` 等模板存在 → 否则提示「先 `/sync-project-config` 同步模板」
 
 ## 参数处理
 
-- **有参数**：参数是用户对这条 backlog 的原始描述（可能是一句话，也可能已经有半结构化内容），进入「扩写阶段」
-- **无参数**：追问"本次要加的 backlog 条目是什么？"，拿到描述后再继续
+- **有参数**：参数是这条 backlog 的原始描述（一句话或半结构化）
+- **无参数**：追问「本次要加的 backlog 条目是什么？」
 
 ## 执行流程
 
-### 阶段 1：扩写（基于骨架模板给草稿）
+### Step 1：选 issue 类型
 
-拿到原始输入后**不立即落盘**。按骨架约定的五字段给结构化草稿：
+`AskUserQuestion`：让用户选 `feat` / `bug` / `spike` 之一。决定走哪份模板。
 
-- **动机**：为什么要做 / 现状有什么问题
-- **目标状态**：希望达到的效果、硬约束
-- **候选方向**：可能的实现路径（至少 1-2 个候选，未验证的标注"需要 spike"）
-- **风险 / 注意点**：可预见的坑、耦合面、UX 冲突
-- **scope**：粗估规模（小 / 中 / 大），是否需要前置 spike
+### Step 2：协作填 body
 
-扩写原则：
+读对应模板（`.github/ISSUE_TEMPLATE/<type>.md`）。基于其骨架字段（如 feat 模板的「动机 / 希望达到 / 候选方向 / 风险 / scope」），AI 按字段引导用户填：
 
-- **信息不够就写 `待补充`，不要脑补内容**。模板价值在"提示缺哪些东西"，不是"帮 AI 造内容"。
-- 用中文，与现有文档风格一致。
-- 给一个简明的三级标题 `### xxx`。
-- 如果用户明确说「只写一行占位」或「先放着之后再补」，尊重意图，**跳过扩写**，直接按原始输入落一行（对应骨架里"哪怕只写一行占位，之后再补完整"）。
+- 信息够：直接基于参数 + 用户对话内容生成
+- 信息不够：写「待补充」，**不脑补**
+- 用户明示「先放着之后再补」：尊重，body 写最少必要字段
 
-### 阶段 2：归类（读现有分类给建议）
+对话来回 **1~2 轮够了**，不要拖。
 
-读 `docs/BACKLOG.md`：
+### Step 3：选 area
 
-- **文件不存在** → 跳到阶段 3 的「新建」分支；不做归类
-- **文件存在** → 解析所有 `## ` 级别的分类标题（跳过 `## 已完成 / 不再追踪` 这类 meta section），基于扩写草稿内容**推荐归属**：
-  - 归入某个已有分类，或
-  - 建议新建一个分类（给出建议的分类名）
+读 `.github/labels.yml`（或缺失时 `gh label list --json name`）拿 `area:*` 列表。
 
-### 阶段 3：确认（展示草稿 + 归类建议）
+`AskUserQuestion`：让用户从 area 列表中选一条。如列表为空（仅 placeholder），允许用户输入新 area 名（warn 一句「这个 area 不在 labels.yml 中，建议本轮结束后补到 labels.yml + `gh label create`」）。
 
-把**扩写草稿**和**归类建议**一并展示给人类，等待：
+### Step 4：选 priority
 
-- 直接通过
-- 调整某个字段（如"`scope` 改成小"、"去掉候选方向 2"）
-- 标"这条先不加 xxx"
-- 改标题
-- 改分类（换到其他已有分类、新建别的分类名、或选择"先不分类裸挂"）
+`AskUserQuestion`：选 `P0` / `P1` / `P2`，并要求**一句话说明优先级判断理由**（写到 issue body 顶部 blockquote 中）。
 
-**一定要等人类确认，不要擅自落盘。**
+### Step 5：回显草稿 + 三轴 label
 
-### 阶段 4：落盘
+把 title + body + 三个 label 一并展示，等用户确认。允许调整任意字段，**不自动落盘**。
 
-按确认结果写入文件：
+### Step 6：执行 —— 创建 issue + 加 BACKLOG 索引
 
-**文件不存在**：
+#### 6.1 创建 issue
 
-1. `mkdir -p docs`（如果 `docs/` 也没有）
-2. 写入内容 = 骨架 + 分类（如果人类给了） + 条目
-
-骨架模板：
-
-```markdown
-# Backlog
-
-待启动的开发项清单。**本文件是权威来源**，取代各轮 `docs/N-*/SUMMARY.md` 里「后续 TODO」段的跨轮追踪职责 —— 那些段落继续保留，但只记录当轮发现的新线索；发现的新想法要立刻同步到这里。
-
-**工作流**：
-
-- **开新轮**时从下面的条目里挑一个作为 `docs/N-*/PROMPT.md` 的起点
-- **收尾一轮**时从本文件**删掉**已完成的条目（不是打勾，是整条删，避免腐烂）
-- **发现新想法**时立刻加进来，哪怕只写一行占位，之后再补完整
-
-条目没有固定优先级 —— 选哪个做下一个看当时的心情和痛点。每条都尽量写成"未来自己或后续 agent 读完能接得住"的格式：**动机 / 目标状态 / 候选方向 / 风险 / scope**。
-
----
+```bash
+gh issue create \
+  --title "<标题>" \
+  --body "<body>" \
+  --label "type:<X>" \
+  --label "area:<Y>" \
+  --label "priority:<Z>"
 ```
 
-**文件存在**：
+输出包含 issue URL，从中提取 issue 号 `#N`。
 
-- 归入**已有分类** → 追加到该 `## ` section 的末尾（下一个 `## ` 之前，或文件末尾）
-- **新建分类** → 在文件末尾追加 `## 新分类名` + 条目
-- **不分类裸挂** → 直接追加到文件末尾
+#### 6.2 BACKLOG.md 不存在 → 用新骨架初始化
 
-条目之间用 `\n\n---\n\n` 分隔（与骨架末尾的 `---` 风格一致）。
+新骨架（`{owner}/{repo}` 由 `gh repo view --json nameWithOwner -q .nameWithOwner` 获取，`{项目名}` 默认取 git 仓库名）：
 
-### 阶段 5：反馈
+```markdown
+# {项目名} — Backlog
 
-打印刚追加的条目标题行做 echo-back，让人类确认位置对不对。
+未来开发项的**速览索引**。每条都对应一个 GitHub Issue，**详情、讨论、跨轮上下文都在 issue 里**。
 
-**不调用 `/commit`** —— 追加后是否立刻提交，由人类自行决定。
+**为什么这样组织**：GitHub Issues 是真源（permanent history + 通过 `Closes #N` 跟 commit/PR 永久关联，开发完归档进 closed 仍可检索）。这个文件是当前还没开发的项的扁平快照，方便一眼扫到全图、决定下一轮挑哪个。
+
+## 工作流
+
+- **新增想法** → `/backlog` 走 issue templates，挂三轴 label，建完顺手在本文件相应分组里加一行
+- **开新轮** → 从下面挑一条 → `/start <issue#>` 把 issue 详情贴进 PROMPT.md → 开干
+- **收尾一轮** → PR / commit message 写 `Closes #<issue 号>` 自动关 issue → `/finish` 删本文件这一行
+
+## 三轴分类约定
+
+- **type**：`type:feat` / `type:bug` / `type:refactor` / `type:perf` / `type:test` / `type:docs`
+- **area**：模块分类，按本项目 `.github/labels.yml` 中的 `area:*` 列表
+- **priority**：`P0`（必须做、不做有重大风险）/ `P1`（重大新功能 / 用户能感知的明显问题）/ `P2`（一般小功能 / 偶发问题 / 触发面窄）
+
+## P0 — 必须做
+
+(暂无)
+
+## P1 — 重大新功能
+
+(暂无)
+
+## P2 — 一般小功能小修复
+
+(暂无)
+
+## 已完成 / 不再追踪
+
+历史已完成项**不在本文件追踪**，直接看 [closed issues with priority labels](https://github.com/{owner}/{repo}/issues?q=is%3Aissue+is%3Aclosed+label%3Apriority%3AP0%2Cpriority%3AP1%2Cpriority%3AP2)。
+
+下面只列**刻意决定不做**的条目（避免未来翻老 SUMMARY 误以为是遗漏）：
+
+(暂无)
+```
+
+#### 6.3 在对应 priority 段追加一行
+
+行格式：
+
+```
+- [#N <标题>](URL) · `type:X` `area:Y` —— <一句话理由（来自 priority 判断）>
+```
+
+定位策略：
+- priority 是 P0 → 在 `## P0 — 必须做` 段最后一条之后追加
+- priority 是 P1 → 在 `## P1 — 重大新功能` 段最后一条之后追加
+- priority 是 P2 → 在 `## P2 — 一般小功能小修复` 段最后一条之后追加
+- 如果该段当前是 `(暂无)`，把 `(暂无)` 替换成新条目（不再保留 `(暂无)`）
+
+### Step 7：反馈
+
+打印新创建的 issue URL + BACKLOG.md 中追加的位置，让用户确认。
+
+**不调用 `/commit`** —— 是否立刻 commit BACKLOG.md 改动由用户决定。

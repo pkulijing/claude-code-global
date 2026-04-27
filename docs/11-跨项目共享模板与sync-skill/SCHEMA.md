@@ -116,3 +116,13 @@ stacks:
 - `__subpath__/<rel>` → 写到 `<stacks[].path>/<rel>`
 
 单 stack 项目 `path = .` 时，两种 scope 都落到项目根；语义差异在多 stack 时显现（多 stack 多 stack 共同贡献到 root，AI 跨 stack merge）。
+
+## 关于 `_common` 伪 stack（round 12 引入）
+
+`~/.claude/templates/_common/` 是承载完全 stack-无关的根级资源（如 issue templates、`.prettierrc`、`.github/labels.yml`）的"伪 stack"。
+
+- bootstrap / sync **自动应用** _common，**不**在 marker 的 `stacks` 列表中显式记录
+- 用户在 bootstrap / sync 选 stack 时，下划线开头的目录被过滤，`_common` 不出现在选项里
+- _common 与 stack 不应有同名冲突；万一有，stack 优先
+
+由此 `stacks` 列表只反映"用户选定的应用 stack"，_common 是约定的隐式行为。

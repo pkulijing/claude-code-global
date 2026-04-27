@@ -1,0 +1,52 @@
+# claude-code-global 的 GitHub Issues 三轴 label 集合。
+# 由 bootstrap / sync-project-config 通过 `gh label create --force` 同步到 GitHub。
+#
+# 颜色参考：红 B60205 / 橙 D93F0B / 黄 FBCA04 / 绿 0E8A16 / 蓝 1D76DB / 紫 5319E7 / 灰 BFD4F2
+
+# ---------- type ----------
+- name: "type:feat"
+  color: "0E8A16"
+  description: "新功能"
+- name: "type:bug"
+  color: "B60205"
+  description: "bug 修复"
+- name: "type:refactor"
+  color: "FBCA04"
+  description: "重构 / 内部结构调整"
+- name: "type:perf"
+  color: "D93F0B"
+  description: "性能优化"
+- name: "type:test"
+  color: "5319E7"
+  description: "测试基建"
+- name: "type:docs"
+  color: "1D76DB"
+  description: "文档"
+
+# ---------- priority ----------
+- name: "priority:P0"
+  color: "B60205"
+  description: "必须做、不做有重大风险"
+- name: "priority:P1"
+  color: "D93F0B"
+  description: "重大新功能 / 用户能感知的明显问题"
+- name: "priority:P2"
+  color: "FBCA04"
+  description: "一般小功能 / 偶发问题 / 触发面窄"
+
+# ---------- area ----------（claude-code-global 的实际模块）
+- name: "area:install"
+  color: "C5DEF5"
+  description: "install.sh / settings 合并 / 软链管理"
+- name: "area:skill"
+  color: "C5DEF5"
+  description: "skills/ 下的各 slash command（commit / devtree / start / finish / backlog 等）"
+- name: "area:hook"
+  color: "C5DEF5"
+  description: "hooks/ 下的 PostToolUse / PreToolUse 脚本"
+- name: "area:template"
+  color: "C5DEF5"
+  description: "templates/ 跨项目共享配置模板（_common / python-uv / ...）"
+- name: "area:doc"
+  color: "C5DEF5"
+  description: "GLOBAL_CLAUDE.md / docs/ 文档体系"

@@ -79,6 +79,8 @@ graph TD
   subgraph e_backlog["✅ backlog 工作流"]
     direction TB
     N7["✨ 7 · 创建 backlog-skill"]:::feature
+    N12["✨ 12 · backlog 改为 issue 驱动"]:::feature
+    N7 ~~~ N12
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -96,7 +98,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-04-27 | 共 12 轮
+> 最后更新：2026-04-27 | 共 13 轮
 
 | #   | 名称                          | 类型    | 所属 Epic      | 一句话描述                                                                                                          |
 | --- | ----------------------------- | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -112,6 +114,7 @@ graph TD
 | 9   | 创建 bootstrap-skill          | 📦 工程 | 项目初始化     | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查               |
 | 10  | 接入 prettier 格式化 hook     | 📦 工程 | 代码格式化     | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定      |
 | 11  | 跨项目共享模板与 sync-skill   | ✨ 功能 | 项目模板机制   | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理  |
+| 12  | backlog 改为 issue 驱动       | ✨ 功能 | backlog 工作流 | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 _common 伪 stack 承载 stack-无关资源 |
 
 ---
 
@@ -157,7 +160,7 @@ graph TD
 #### backlog工作流
 
 - 状态：已完成
-- 轮次：7
+- 轮次：7, 12
 
 #### 项目初始化
 
