@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $HOME/.claude/hooks/format-after-edit.sh",
+            "command": "bash $HOME/.claude/hooks/fix-after-edit.sh # @claude-code-global:fix-after-edit",
             "timeout": 30
           }
         ]

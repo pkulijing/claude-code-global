@@ -15,8 +15,41 @@ info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
 success() { echo -e "${GREEN}[OK]${NC}   $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 
+# 由本仓库管理的 hook 条目，command 末尾必须带这条 bash 注释作为身份标记。
+# 完整格式（严格匹配）：# @claude-code-global:<hook-name>
+# 例如：bash $HOME/.claude/hooks/fix-after-edit.sh # @claude-code-global:fix-after-edit
+#
+# 模型：把 settings.json 里所有带此标记的 hook 条目看作"由本仓库管理的 hook 集合"，
+# 用 hook-name 唯一标识。每次 install 做集合差分：
+#   - 旧 ∩ 新（同名）  → 用基线版本替换（字段变化也覆盖）
+#   - 旧 \ 新（仅旧有）→ 删除
+#   - 新 \ 旧（仅新有）→ 新增
+# 实现上等价于：剔除所有 managed 条目 → 合并基线 → 集合天然就等于基线 managed 集合。
+# 用户手动添加的 hook（不带此标记）始终保留。
+MANAGED_MARKER_REGEX="# *@claude-code-global:[A-Za-z0-9_-]+"
+
+# 从 settings JSON 提取所有 managed hook 的 name 列表（去重排序），输出空格分隔字符串
+# 用法: list_managed_names <json-file>
+list_managed_names() {
+    local file="$1"
+    [ -f "$file" ] || { echo ""; return; }
+    jq -r '
+      [
+        .hooks // {} | to_entries[].value[]?.hooks[]?
+        | (.command // "")
+        | select(test("# *@claude-code-global:[A-Za-z0-9_-]+"))
+        | capture("# *@claude-code-global:(?<n>[A-Za-z0-9_-]+)").n
+      ] | unique | join(" ")
+    ' "$file" 2>/dev/null || echo ""
+}
+
 # 合并基线 JSON 配置进本地配置文件（非破坏性）
-# 策略：object 递归合并 / array 并集去重 / 标量仓库胜出 / null 视为未设置
+# 策略：
+#   1. 计算 managed name 集合差分（旧/新 → added/removed/replaced），打印日志
+#   2. 剔除 dst 中所有 .hooks.<event>[].hooks[] 中 command 匹配 MANAGED_MARKER_REGEX 的条目
+#      连带空掉的 matcher 和 event 一并清理
+#   3. 与基线递归合并：object 递归 / array 并集去重 / 标量仓库胜出 / null 视为未设置
+#      合并后 managed 集合天然等于基线
 # 用法: merge_settings <基线JSON> <目标JSON>
 merge_settings() {
     local src="$1"
@@ -34,15 +67,47 @@ merge_settings() {
     if [ ! -f "$dst" ]; then
         cp "$src" "$dst"
         success "已创建 ${name}（从 $(basename "$src") 初始化）"
+        info "  managed hooks 新增: $(list_managed_names "$src")"
         return
     fi
 
-    # 计算合并结果
+    # Step 1: 计算 managed name 集合差分并打印
+    local old_names new_names
+    old_names="$(list_managed_names "$dst")"
+    new_names="$(list_managed_names "$src")"
+    if [ -n "$old_names" ] || [ -n "$new_names" ]; then
+        local added removed replaced
+        added="$(comm -13 <(echo "$old_names" | tr ' ' '\n' | sort -u) <(echo "$new_names" | tr ' ' '\n' | sort -u) | tr '\n' ' ' | sed 's/ *$//')"
+        removed="$(comm -23 <(echo "$old_names" | tr ' ' '\n' | sort -u) <(echo "$new_names" | tr ' ' '\n' | sort -u) | tr '\n' ' ' | sed 's/ *$//')"
+        replaced="$(comm -12 <(echo "$old_names" | tr ' ' '\n' | sort -u) <(echo "$new_names" | tr ' ' '\n' | sort -u) | tr '\n' ' ' | sed 's/ *$//')"
+        info "managed hooks 集合差分："
+        [ -n "$replaced" ] && info "  替换（同名覆盖）: $replaced"
+        [ -n "$added"    ] && info "  新增: $added"
+        [ -n "$removed"  ] && info "  删除: $removed"
+    fi
+
+    # Step 2: 剔除 dst 中所有 managed 条目（command 匹配 MANAGED_MARKER_REGEX）
+    local pruned
+    pruned="$(jq --arg re "$MANAGED_MARKER_REGEX" '
+      if .hooks then
+        .hooks |= (
+          with_entries(
+            .value |= (
+              map(.hooks |= map(select(((.command // "") | test($re)) | not)))
+              | map(select((.hooks // []) | length > 0))
+            )
+          )
+          | with_entries(select(.value | length > 0))
+        )
+      else . end
+    ' "$dst")"
+
+    # Step 3: 把 pruned 与基线递归合并
     # 注意：jq 函数参数是"滤镜表达式"，调用处会重新对当前 . 求值——
     # 在 reduce 内部 . 会变成累加器，导致 a[$k] 被解成"索引累加器"而报错。
     # 所以先用 `a as $a | b as $b` 把两侧绑定成真值再递归。
     local merged
-    merged="$(jq -s '
+    merged="$(jq -n --argjson a "$pruned" --slurpfile b "$src" '
       def merge(a; b):
         a as $a | b as $b |
         if   ($a|type)=="object" and ($b|type)=="object" then
@@ -53,8 +118,8 @@ merge_settings() {
         elif $b == null then $a
         else $b
         end;
-      merge(.[0]; .[1])
-    ' "$dst" "$src")"
+      merge($a; $b[0])
+    ')"
 
     # 等价性检查：把当前文件也过一遍 jq 规范化，再和合并结果比较，避免因空白差异误报变化
     local current
