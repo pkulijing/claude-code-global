@@ -22,11 +22,13 @@
 
 ## P1 — 重大新功能
 
-(暂无)
+- [#2 让 \_common / stack 模板支持 GitLab 项目（CI / issue templates 双轨）](https://github.com/pkulijing/claude-code-global/issues/2) · `type:feat` `area:template` —— GitLab 项目当前 sync-skill 流程直接走不通，issue templates 错位、CI workflow 平台不匹配
+- [#3 让 backlog / start / finish 等 skill 在 GitLab 项目上可用（gh ↔ glab 双轨）](https://github.com/pkulijing/claude-code-global/issues/3) · `type:feat` `area:skill` —— 三件套 skill 在 GitLab 项目上前置检查就卡死，是用户能感知的明显能力缺口
 
 ## P2 — 一般小功能小修复
 
-- [#1 /sync-project-config 支持「无 stack 只 _common」的 adopt 路径](https://github.com/pkulijing/claude-code-global/issues/1) · `type:feat` `area:skill` —— 当前断言挡住 stacks=[] 的 marker，本仓库 dogfood 时手写绕过，需正式支持
+- [#1 /sync-project-config 支持「无 stack 只 \_common」的 adopt 路径](https://github.com/pkulijing/claude-code-global/issues/1) · `type:feat` `area:skill` —— 当前断言挡住 stacks=[] 的 marker，本仓库 dogfood 时手写绕过，需正式支持
+- [#4 /finish skill 收尾时同步 review/更新 README](https://github.com/pkulijing/claude-code-global/issues/4) · `type:feat` `area:skill` —— README 没机制跟项目状态对齐，本仓库已出现明显漂移，触发面窄但属积累型小问题
 
 ## 已完成 / 不再追踪
 
