@@ -1,0 +1,17 @@
+# 与 .github/workflows/lint.yml 等价的 GitLab CI 版本：ruff check + ruff format --check
+# bootstrap / sync-project-config 会同时落两份；GitHub 项目 / GitLab 项目各看各家、互不干扰
+stages:
+  - lint
+
+ruff:
+  stage: lint
+  image: python:3.12-slim
+  before_script:
+    - pip install --quiet uv
+    - uv sync --frozen
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

@@ -81,10 +81,12 @@ bash ~/Developer/claude-code-global/install.sh
 
 `templates/` 下维护「跨项目共享开发配置模板」，由 `install.sh` 软链到 `~/.claude/templates/`，供 `/bootstrap` 与 `/sync-project-config` 在目标项目中铺设 / 同步。
 
-| 模板         | 适用项目                        | 内容（节选）                                                                                                                  |
-| ------------ | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `_common/`   | 所有项目（其他 stack 自动叠加） | 通用 issue templates、`.github/labels.yml` 三轴 label、`.prettierrc` 等                                                       |
-| `python-uv/` | Python 项目（uv + ruff）        | `.gitignore` / `.pre-commit-config.yaml` / `.vscode/`（formatOnSave + ruff）/ `pyproject.toml [tool.ruff]` 片段 / CI workflow |
+| 模板         | 适用项目                        | 内容（节选）                                                                                                                                                                            |
+| ------------ | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_common/`   | 所有项目（其他 stack 自动叠加） | 通用 issue templates（GitHub + GitLab 双轨）、`.github/labels.yml` 三轴 label、`.prettierrc` 等                                                                                         |
+| `python-uv/` | Python 项目（uv + ruff）        | `.gitignore` / `.pre-commit-config.yaml` / `.vscode/`（formatOnSave + ruff）/ `pyproject.toml [tool.ruff]` 片段 / CI workflow（GitHub Actions `lint.yml` + GitLab CI `.gitlab-ci.yml`） |
+
+**平台双兼容**（round 14 引入）：模板内容同时含 GitHub（`.github/...`）与 GitLab（`.gitlab/...` + `.gitlab-ci.yml`）两套等价文件，bootstrap / sync 一并落地——对端文件在另一平台等同于死文件，互不干扰。skill 中真正调命令行的步骤（如 `gh label create`）按 `git remote get-url origin` 的输出动态判定走哪一支（GitHub remote 才同步 labels，GitLab labels 同步留待后续 `gh→glab` 适配 issue）。详见 [docs/11-跨项目共享模板与sync-skill/SCHEMA.md](docs/11-跨项目共享模板与sync-skill/SCHEMA.md) 末尾「关于平台双兼容」一节。
 
 工作流：
 

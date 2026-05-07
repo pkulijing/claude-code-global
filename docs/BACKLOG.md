@@ -22,7 +22,6 @@
 
 ## P1 — 重大新功能
 
-- [#2 让 \_common / stack 模板支持 GitLab 项目（CI / issue templates 双轨）](https://github.com/pkulijing/claude-code-global/issues/2) · `type:feat` `area:template` —— GitLab 项目当前 sync-skill 流程直接走不通，issue templates 错位、CI workflow 平台不匹配
 - [#3 让 backlog / start / finish 等 skill 在 GitLab 项目上可用（gh ↔ glab 双轨）](https://github.com/pkulijing/claude-code-global/issues/3) · `type:feat` `area:skill` —— 三件套 skill 在 GitLab 项目上前置检查就卡死，是用户能感知的明显能力缺口
 
 ## P2 — 一般小功能小修复
@@ -35,4 +34,4 @@
 
 下面只列**刻意决定不做**的条目（避免未来翻老 SUMMARY 误以为是遗漏）：
 
-(暂无)
+- **平台双兼容下的「对端死文件清理」opt-out**（`area:template`）—— round 14 决定项目根永久同时落 GitHub + GitLab 两套文件，不引入 `.cc-template.yml` 的 `platforms: [...]` 字段或类似 opt-out 机制。代价：GitHub 项目里有 4 个 `.gitlab/...` 死文件、反之亦然。理由：成本（marker schema 变更 + bootstrap/sync 多一层过滤逻辑）大于收益（仅减 4 个对端不读取的死文件）。详见 [docs/14-模板支持GitLab双轨/SUMMARY.md](14-模板支持GitLab双轨/SUMMARY.md) §5.3

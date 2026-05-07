@@ -62,12 +62,14 @@ stack 应用到的项目子路径（相对项目根）。
 ##### `skipped[].file`（必填）
 
 模板内的相对路径，含 scope 子目录但不含 `templates/<stack>/` 前缀。例如：
+
 - `__root__/.gitignore`
 - `__subpath__/.vscode/settings.json`
 
 ##### `skipped[].skipped_at_commit`（必填）
 
 用户做出 skip 决策时的模板 commit hash。下一次 sync 时：
+
 - `git log <skipped_at_commit>..HEAD -- templates/<stack>/<file>` 输出**为空**（该文件之后未变）→ 自动跳过、不再提案
 - 输出**非空**（变了）→ 重新进 TODO 让用户重新决策（标注「上次 skip 在 commit X」）
 
@@ -121,8 +123,37 @@ stacks:
 
 `~/.claude/templates/_common/` 是承载完全 stack-无关的根级资源（如 issue templates、`.prettierrc`、`.github/labels.yml`）的"伪 stack"。
 
-- bootstrap / sync **自动应用** _common，**不**在 marker 的 `stacks` 列表中显式记录
+- bootstrap / sync **自动应用** \_common，**不**在 marker 的 `stacks` 列表中显式记录
 - 用户在 bootstrap / sync 选 stack 时，下划线开头的目录被过滤，`_common` 不出现在选项里
-- _common 与 stack 不应有同名冲突；万一有，stack 优先
+- \_common 与 stack 不应有同名冲突；万一有，stack 优先
 
-由此 `stacks` 列表只反映"用户选定的应用 stack"，_common 是约定的隐式行为。
+由此 `stacks` 列表只反映"用户选定的应用 stack"，\_common 是约定的隐式行为。
+
+## 关于平台双兼容（round 14 引入）
+
+`_common` 与各 stack 的模板内容**同时**包含 GitHub 与 GitLab 两个平台的等价物，由 bootstrap / sync 一起复制到目标项目，不按当前 remote 过滤：
+
+| 平台   | 文件                                          | 来源模板    |
+| ------ | --------------------------------------------- | ----------- |
+| GitHub | `.github/ISSUE_TEMPLATE/{feat,bug,spike}.md`  | `_common`   |
+| GitHub | `.github/labels.yml`                          | `_common`   |
+| GitHub | `.github/workflows/lint.yml`                  | `python-uv` |
+| GitLab | `.gitlab/issue_templates/{feat,bug,spike}.md` | `_common`   |
+| GitLab | `.gitlab-ci.yml`                              | `python-uv` |
+
+**互不干扰前提**：
+
+- GitHub Actions 只读 `.github/workflows/`、不看 `.gitlab-ci.yml`
+- GitLab CI 只读 `.gitlab-ci.yml`、不看 `.github/workflows/`
+- GitHub Issues 只读 `.github/ISSUE_TEMPLATE/`、GitLab Issues 只读 `.gitlab/issue_templates/`
+- 因此对端文件在另一平台等同于死文件，零意外行为
+
+`.cc-template.yml` 不增加 `platform` 字段；marker schema 不变。
+
+skill 中真正调命令行的步骤（如 `gh label create`）按 `git remote get-url origin` 的输出动态判定：
+
+- origin 含 `github.com` → 走 `gh` 分支
+- origin 含 `gitlab` 字样 → 当前**跳过**（本轮不实现 `glab` 调用）
+- 其他（无 origin / 自托管 GitLab URL 不含 `gitlab` 字样 / 等）→ 跳过 + 提示
+
+后续会有独立 issue 跟踪 skill 内 `gh issue *` / `gh label *` 等所有 `gh` 调用的双轨适配（含 GitLab labels 同步）。

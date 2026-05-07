@@ -58,6 +58,8 @@ graph TD
   subgraph e_template["🔄 项目模板机制"]
     direction TB
     N11["✨ 11 · 跨项目共享模板与 sync-skill"]:::feature
+    N14["✨ 14 · 模板支持 GitLab 双轨"]:::feature
+    N11 ~~~ N14
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -101,7 +103,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-07 | 共 14 轮
+> 最后更新：2026-05-07 | 共 15 轮
 
 | #   | 名称                         | 类型    | 所属 Epic     | 一句话描述                                                                                                                                             |
 | --- | ---------------------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -119,6 +121,7 @@ graph TD
 | 11  | 跨项目共享模板与 sync-skill  | ✨ 功能 | 项目模板机制  | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理                                     |
 | 12  | backlog 改为 issue 驱动      | ✨ 功能 | BACKLOG 管理  | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                        |
 | 13  | finish 收尾同步 README       | ✨ 功能 | 开发项收尾    | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流） |
+| 14  | 模板支持 GitLab 双轨         | ✨ 功能 | 项目模板机制  | \_common 与 python-uv 模板同时落 GitHub + GitLab 两套等价文件（issue templates + CI），bootstrap/sync 的 gh label create 按 origin 平台三分支判定      |
 
 ---
 
@@ -141,7 +144,7 @@ graph TD
 #### 项目模板机制
 
 - 状态：进行中
-- 轮次：11
+- 轮次：11, 14
 
 ### 开发工具链
 
