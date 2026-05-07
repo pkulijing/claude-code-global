@@ -28,17 +28,18 @@ graph TD
 
   ROOT["claude-code-global"]:::epic
   ROOT --> base["基础机制"]:::epic
-  ROOT --> toolchain["开发工具链 (Skill)"]:::epic
-  ROOT --> automation["自动化协同 (Hook)"]:::epic
+  ROOT --> toolchain["开发工具链"]:::epic
   base --> e_cc_reuse
   base --> e_cc_merge
   base --> e_template
-  toolchain --> e_commit
-  toolchain --> e_rebase
-  toolchain --> e_devtree
-  toolchain --> e_backlog
   toolchain --> e_bootstrap
-  automation --> e_format
+  toolchain --> e_finish
+  toolchain --> devmgmt["开发项管理"]:::epic
+  toolchain --> codemgmt["代码管理"]:::epic
+  devmgmt --> e_devtree
+  devmgmt --> e_backlog
+  codemgmt --> e_rebase
+  codemgmt --> e_format
 
   subgraph e_cc_reuse["✅ CC 工具复用"]
     direction TB
@@ -59,33 +60,35 @@ graph TD
     N11["✨ 11 · 跨项目共享模板与 sync-skill"]:::feature
   end
 
-  subgraph e_commit["✅ commit 工作流"]
+  subgraph e_bootstrap["✅ 项目初始化"]
+    direction TB
+    N9["📦 9 · 创建 bootstrap-skill"]:::infra
+  end
+
+  subgraph e_finish["✅ 开发项收尾"]
     direction TB
     N1["✨ 1 · 创建 commit-skill"]:::feature
+    N13["✨ 13 · finish 收尾同步 README"]:::feature
+    N1 ~~~ N13
   end
 
-  subgraph e_rebase["✅ rebase 工作流"]
-    direction TB
-    N3["✨ 3 · 创建 rebase-skill"]:::feature
-  end
-
-  subgraph e_devtree["✅ devtree 可视化"]
+  subgraph e_devtree["✅ DEVTREE 管理"]
     direction TB
     N4["✨ 4 · 创建 devtree-skill"]:::feature
     N5["🏗️ 5 · 重构 devtree-skill-epic 模型"]:::refactor
     N4 ~~~ N5
   end
 
-  subgraph e_backlog["✅ backlog 工作流"]
+  subgraph e_backlog["✅ BACKLOG 管理"]
     direction TB
     N7["✨ 7 · 创建 backlog-skill"]:::feature
     N12["✨ 12 · backlog 改为 issue 驱动"]:::feature
     N7 ~~~ N12
   end
 
-  subgraph e_bootstrap["✅ 项目初始化"]
+  subgraph e_rebase["✅ rebase 工作流"]
     direction TB
-    N9["📦 9 · 创建 bootstrap-skill"]:::infra
+    N3["✨ 3 · 创建 rebase-skill"]:::feature
   end
 
   subgraph e_format["🔄 代码格式化"]
@@ -98,23 +101,24 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-04-27 | 共 13 轮
+> 最后更新：2026-05-07 | 共 14 轮
 
-| #   | 名称                          | 类型    | 所属 Epic      | 一句话描述                                                                                                          |
-| --- | ----------------------------- | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------- |
-| 0   | 安装脚本                      | 🌱 初建 | CC 工具复用    | 通过符号链接将 CLAUDE.md 与 skills 部署到 ~/.claude/                                                                |
-| 1   | 创建 commit-skill             | ✨ 功能 | commit 工作流  | 创建 /commit skill，补全 /finish 流程的最后一环                                                                     |
-| 2   | 重构项目 CLAUDE 文件结构      | 🏗️ 重构 | CC 工具复用    | 分离全局规范与项目说明，解决 CLAUDE.md 语义错位                                                                     |
-| 3   | 创建 rebase-skill             | ✨ 功能 | rebase 工作流  | 创建 /rebase skill，诊断+分段引导本地分叉整理                                                                       |
-| 4   | 创建 devtree-skill            | ✨ 功能 | devtree 可视化 | 创建 /devtree skill，可视化开发树并集成到 /finish 流程                                                              |
-| 5   | 重构 devtree-skill-epic 模型  | 🏗️ 重构 | devtree 可视化 | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案                                                              |
-| 6   | settings 合并机制             | 📦 工程 | CC 配置合并    | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集）                        |
-| 7   | 创建 backlog-skill            | ✨ 功能 | backlog 工作流 | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                  |
-| 8   | 权限配置治理与清理 skill      | 📦 工程 | CC 配置合并    | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条） |
-| 9   | 创建 bootstrap-skill          | 📦 工程 | 项目初始化     | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查               |
-| 10  | 接入 prettier 格式化 hook     | 📦 工程 | 代码格式化     | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定      |
-| 11  | 跨项目共享模板与 sync-skill   | ✨ 功能 | 项目模板机制   | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理  |
-| 12  | backlog 改为 issue 驱动       | ✨ 功能 | backlog 工作流 | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 _common 伪 stack 承载 stack-无关资源 |
+| #   | 名称                         | 类型    | 所属 Epic     | 一句话描述                                                                                                                                             |
+| --- | ---------------------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | 安装脚本                     | 🌱 初建 | CC 工具复用   | 通过符号链接将 CLAUDE.md 与 skills 部署到 ~/.claude/                                                                                                   |
+| 1   | 创建 commit-skill            | ✨ 功能 | 开发项收尾    | 创建 /commit skill，补全 /finish 流程的最后一环                                                                                                        |
+| 2   | 重构项目 CLAUDE 文件结构     | 🏗️ 重构 | CC 工具复用   | 分离全局规范与项目说明，解决 CLAUDE.md 语义错位                                                                                                        |
+| 3   | 创建 rebase-skill            | ✨ 功能 | rebase 工作流 | 创建 /rebase skill，诊断+分段引导本地分叉整理                                                                                                          |
+| 4   | 创建 devtree-skill           | ✨ 功能 | DEVTREE 管理  | 创建 /devtree skill，可视化开发树并集成到 /finish 流程                                                                                                 |
+| 5   | 重构 devtree-skill-epic 模型 | 🏗️ 重构 | DEVTREE 管理  | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案                                                                                                 |
+| 6   | settings 合并机制            | 📦 工程 | CC 配置合并   | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集）                                                           |
+| 7   | 创建 backlog-skill           | ✨ 功能 | BACKLOG 管理  | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                                                     |
+| 8   | 权限配置治理与清理 skill     | 📦 工程 | CC 配置合并   | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条）                                    |
+| 9   | 创建 bootstrap-skill         | 📦 工程 | 项目初始化    | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查                                                  |
+| 10  | 接入 prettier 格式化 hook    | 📦 工程 | 代码格式化    | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定                                         |
+| 11  | 跨项目共享模板与 sync-skill  | ✨ 功能 | 项目模板机制  | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理                                     |
+| 12  | backlog 改为 issue 驱动      | ✨ 功能 | BACKLOG 管理  | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                        |
+| 13  | finish 收尾同步 README       | ✨ 功能 | 开发项收尾    | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流） |
 
 ---
 
@@ -139,37 +143,38 @@ graph TD
 - 状态：进行中
 - 轮次：11
 
-
-### 开发工具链 (Skill)
-
-#### commit工作流
-
-- 状态：已完成
-- 轮次：1
-
-#### rebase工作流
-
-- 状态：已完成
-- 轮次：3
-
-#### devtree可视化
-
-- 状态：已完成
-- 轮次：4, 5
-
-#### backlog工作流
-
-- 状态：已完成
-- 轮次：7, 12
+### 开发工具链
 
 #### 项目初始化
 
 - 状态：已完成
 - 轮次：9
 
-### 自动化协同 (Hook)
+#### 开发项收尾
 
-#### 代码格式化
+- 状态：已完成
+- 轮次：1, 13
+
+#### 开发项管理
+
+##### DEVTREE 管理
+
+- 状态：已完成
+- 轮次：4, 5
+
+##### BACKLOG 管理
+
+- 状态：已完成
+- 轮次：7, 12
+
+#### 代码管理
+
+##### rebase工作流
+
+- 状态：已完成
+- 轮次：3
+
+##### 代码格式化
 
 - 状态：进行中
 - 轮次：10

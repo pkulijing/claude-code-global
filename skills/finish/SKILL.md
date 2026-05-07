@@ -37,9 +37,43 @@ disable-model-invocation: true
 
 调用 `/devtree` 更新开发树（`docs/DEVTREE.md`）。
 
+## Step 3.5：README review & update
+
+仅当本轮变更命中下述触发清单才进入此步；否则打印一行「README review skipped: 本轮变更不在触发清单」并跳过。
+
+放在 commit 之前是为了让 README 改动跟本轮代码进同一 commit。
+
+### 触发条件清单
+
+满足任一即触发：
+
+1. **skill 增减**：`skills/<name>/` 子目录新增或删除
+2. **hook 增减**：`hooks/*` 文件新增或删除
+3. **顶层目录结构变化**：仓库根目录、`skills/` / `templates/` / `hooks/` 这几层出现新增 / 删除子目录
+4. **面向用户的工作流改动**：本轮 PROMPT.md 或 SUMMARY.md 中明示「面向用户的入口/约定改了」（例：BACKLOG / issue 驱动、安装方式、模板使用方式、命令行接口）
+
+明示**不触发**：
+
+- 纯内部重构（重命名变量、抽函数、调整文件分割）
+- bug fix
+- 仅改 `docs/` 下的开发记录
+- 依赖升级
+
+### 判定数据源
+
+- `git status --porcelain` + `git diff --cached --name-status` 的并集（本步在 commit 前跑，未提交变更也要算）
+- **明示忽略**前面几步刚改的 `SUMMARY.md` / `DEVTREE.md` / `BACKLOG.md` 自身 —— 它们不应触发 README review
+
+### 触发后子步
+
+1. 读 `README.md` + 本轮 `PROMPT.md` / `SUMMARY.md`
+2. 列出 README 中需要新增 / 修改的具体段落（**只动相关段落，不重写整篇**）
+3. 直接 Edit `README.md`
+4. 一句话告知用户改了什么（例：「README 已更新：在 Skills 段新增 `/foo` 一节」）
+
 ## Step 4：调用 `/commit`
 
-调用 `/commit` 提交所有变更（包括 SUMMARY.md / DEVTREE.md / 本次 BACKLOG.md 的变化）。
+调用 `/commit` 提交所有变更（包括 SUMMARY.md / DEVTREE.md / 本次 BACKLOG.md / README.md 的变化）。
 
 **关键**：如果 Step 2 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N` 这一行（不要嵌入 title）。
 
