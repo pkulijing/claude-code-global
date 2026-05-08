@@ -22,7 +22,7 @@
 
 ## P1 — 重大新功能
 
-(暂无)
+- [#5 python-uv 模板首次接入时自动 bootstrap 项目](https://github.com/pkulijing/claude-code-global/issues/5) · `type:feat` `area:template` —— 模板核心可用性问题，sync 完还要手敲 4 步（uv init / dev deps / 装 pre-commit / pre-commit install）才能开发，体验断裂
 
 ## P2 — 一般小功能小修复
 
