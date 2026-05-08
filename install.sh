@@ -170,6 +170,7 @@ link_item() {
 mkdir -p "$TARGET_DIR"
 mkdir -p "$TARGET_DIR/skills"
 mkdir -p "$TARGET_DIR/hooks"
+mkdir -p "$TARGET_DIR/scripts"
 
 echo "=============================="
 echo " Claude Code 全局配置安装"
@@ -208,6 +209,19 @@ if [ -d "$REPO_DIR/hooks" ]; then
     done
 else
     warn "仓库中未找到 hooks/ 目录，跳过"
+fi
+
+# 链接 scripts（逐个文件）
+# 这些是被 SKILL.md 显式调用的稳定脚本（如 platform_issue.py），
+# 由 SKILL.md 通过 $HOME/.claude/scripts/<name> 引用
+if [ -d "$REPO_DIR/scripts" ]; then
+    for script_path in "$REPO_DIR/scripts"/*; do
+        [ -e "$script_path" ] || continue
+        script_name="$(basename "$script_path")"
+        link_item "$REPO_DIR/scripts/$script_name" "$TARGET_DIR/scripts/$script_name"
+    done
+else
+    warn "仓库中未找到 scripts/ 目录，跳过"
 fi
 
 # 链接 templates 目录到 ~/.claude/templates/

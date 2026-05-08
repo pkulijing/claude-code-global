@@ -2,14 +2,14 @@
 
 ## 分类图例
 
-| 图标 | 类型 | 说明                       |
-| ---- | ---- | -------------------------- |
-| 🌱   | 初建 | 某功能域首次从零建立       |
-| ✨   | 功能 | 扩展用户可感知的能力       |
-| 🐛   | 修复 | 纠正缺陷或回归             |
-| 🏗️   | 重构 | 内部结构改善，用户行为不变 |
-| 📦   | 工程 | 打包/CI/分发/工具链        |
-| 🔬   | 探索 | 调研，可能被搁置           |
+| 图标 | 类型 | 说明                      |
+| ---- | ---- | ------------------------- |
+| 🌱   | 初建 | 某功能域首次从零建立      |
+| ✨   | 功能 | 扩展用户可感知的能力      |
+| 🐛   | 修复 | 纠正缺陷或回归            |
+| 🏗️   | 重构 | 内部结构改善,用户行为不变 |
+| 📦   | 工程 | 打包/CI/分发/工具链       |
+| 🔬   | 探索 | 调研,可能被搁置           |
 
 ---
 
@@ -59,7 +59,9 @@ graph TD
     direction TB
     N11["✨ 11 · 跨项目共享模板与 sync-skill"]:::feature
     N14["✨ 14 · 模板支持 GitLab 双轨"]:::feature
+    N15["✨ 15 · 三件套 skill 支持 GitLab 双轨"]:::feature
     N11 ~~~ N14
+    N14 ~~~ N15
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -103,25 +105,26 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-07 | 共 15 轮
+> 最后更新：2026-05-08 | 共 16 轮
 
-| #   | 名称                         | 类型    | 所属 Epic     | 一句话描述                                                                                                                                             |
-| --- | ---------------------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0   | 安装脚本                     | 🌱 初建 | CC 工具复用   | 通过符号链接将 CLAUDE.md 与 skills 部署到 ~/.claude/                                                                                                   |
-| 1   | 创建 commit-skill            | ✨ 功能 | 开发项收尾    | 创建 /commit skill，补全 /finish 流程的最后一环                                                                                                        |
-| 2   | 重构项目 CLAUDE 文件结构     | 🏗️ 重构 | CC 工具复用   | 分离全局规范与项目说明，解决 CLAUDE.md 语义错位                                                                                                        |
-| 3   | 创建 rebase-skill            | ✨ 功能 | rebase 工作流 | 创建 /rebase skill，诊断+分段引导本地分叉整理                                                                                                          |
-| 4   | 创建 devtree-skill           | ✨ 功能 | DEVTREE 管理  | 创建 /devtree skill，可视化开发树并集成到 /finish 流程                                                                                                 |
-| 5   | 重构 devtree-skill-epic 模型 | 🏗️ 重构 | DEVTREE 管理  | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案                                                                                                 |
-| 6   | settings 合并机制            | 📦 工程 | CC 配置合并   | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集）                                                           |
-| 7   | 创建 backlog-skill           | ✨ 功能 | BACKLOG 管理  | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                                                     |
-| 8   | 权限配置治理与清理 skill     | 📦 工程 | CC 配置合并   | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条）                                    |
-| 9   | 创建 bootstrap-skill         | 📦 工程 | 项目初始化    | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查                                                  |
-| 10  | 接入 prettier 格式化 hook    | 📦 工程 | 代码格式化    | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定                                         |
-| 11  | 跨项目共享模板与 sync-skill  | ✨ 功能 | 项目模板机制  | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理                                     |
-| 12  | backlog 改为 issue 驱动      | ✨ 功能 | BACKLOG 管理  | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                        |
-| 13  | finish 收尾同步 README       | ✨ 功能 | 开发项收尾    | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流） |
-| 14  | 模板支持 GitLab 双轨         | ✨ 功能 | 项目模板机制  | \_common 与 python-uv 模板同时落 GitHub + GitLab 两套等价文件（issue templates + CI），bootstrap/sync 的 gh label create 按 origin 平台三分支判定      |
+| #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                             |
+| --- | ----------------------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | 安装脚本                      | 🌱 初建 | CC 工具复用   | 通过符号链接将 CLAUDE.md 与 skills 部署到 ~/.claude/                                                                                                   |
+| 1   | 创建 commit-skill             | ✨ 功能 | 开发项收尾    | 创建 /commit skill，补全 /finish 流程的最后一环                                                                                                        |
+| 2   | 重构项目 CLAUDE 文件结构      | 🏗️ 重构 | CC 工具复用   | 分离全局规范与项目说明，解决 CLAUDE.md 语义错位                                                                                                        |
+| 3   | 创建 rebase-skill             | ✨ 功能 | rebase 工作流 | 创建 /rebase skill，诊断+分段引导本地分叉整理                                                                                                          |
+| 4   | 创建 devtree-skill            | ✨ 功能 | DEVTREE 管理  | 创建 /devtree skill，可视化开发树并集成到 /finish 流程                                                                                                 |
+| 5   | 重构 devtree-skill-epic 模型  | 🏗️ 重构 | DEVTREE 管理  | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案                                                                                                 |
+| 6   | settings 合并机制             | 📦 工程 | CC 配置合并   | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集）                                                           |
+| 7   | 创建 backlog-skill            | ✨ 功能 | BACKLOG 管理  | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                                                     |
+| 8   | 权限配置治理与清理 skill      | 📦 工程 | CC 配置合并   | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条）                                    |
+| 9   | 创建 bootstrap-skill          | 📦 工程 | 项目初始化    | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查                                                  |
+| 10  | 接入 prettier 格式化 hook     | 📦 工程 | 代码格式化    | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定                                         |
+| 11  | 跨项目共享模板与 sync-skill   | ✨ 功能 | 项目模板机制  | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理                                     |
+| 12  | backlog 改为 issue 驱动       | ✨ 功能 | BACKLOG 管理  | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                        |
+| 13  | finish 收尾同步 README        | ✨ 功能 | 开发项收尾    | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流） |
+| 14  | 模板支持 GitLab 双轨          | ✨ 功能 | 项目模板机制  | \_common 与 python-uv 模板同时落 GitHub + GitLab 两套等价文件（issue templates + CI），bootstrap/sync 的 gh label create 按 origin 平台三分支判定      |
+| 15  | 三件套 skill 支持 GitLab 双轨 | ✨ 功能 | 项目模板机制  | 新增 scripts/platform_issue.py helper（封装 gh ↔ glab 双轨调用），让 /backlog /start /finish /bootstrap /sync-project-config 在 GitLab 项目上等价可用  |
 
 ---
 
@@ -144,7 +147,7 @@ graph TD
 #### 项目模板机制
 
 - 状态：进行中
-- 轮次：11, 14
+- 轮次：11, 14, 15
 
 ### 开发工具链
 

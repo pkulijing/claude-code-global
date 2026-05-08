@@ -98,13 +98,15 @@
 - `.github/workflows/lint.yml`：CI 兜底，跑 `ruff check` + `ruff format --check`
 - `pyproject.toml` 的 `[tool.ruff]` 段：line-length / 选 rule 集 / format 风格
 
-## Backlog 与开发项管理（GitHub Issue 驱动）
+## Backlog 与开发项管理（Issue 驱动，GitHub / GitLab 双轨）
 
-每个项目的开发项以 **GitHub Issues 为真源**：详情、讨论、跨轮上下文都沉淀在 issue 里；`docs/BACKLOG.md` 退化为 **未关闭 issue 的扁平索引**，方便一眼看待选清单。
+每个项目的开发项以 **issue 为真源**：详情、讨论、跨轮上下文都沉淀在 issue 里；`docs/BACKLOG.md` 退化为 **未关闭 issue 的扁平索引**，方便一眼看待选清单。
+
+平台由 `git remote get-url origin` 自动判定 GitHub / GitLab —— 三件套 skill 不直接调 `gh` / `glab`，全部走 `~/.claude/scripts/platform_issue.py` helper（封装平台 dispatch + 字段归一）。
 
 ### 三轴 label
 
-每条 issue 必须打三个 label，由 `_common` 模板的 `.github/labels.yml` 维护：
+每条 issue 必须打三个 label，由 `_common` 模板的 `.github/labels.yml` 维护（schema 跨平台一致，GitLab 项目下也读同一份）：
 
 - **`type:*`**：`feat` / `bug` / `refactor` / `perf` / `test` / `docs`（项目无关，全集统一）
 - **`area:*`**：模块分类，**项目特异**（每个项目按自己模块改 labels.yml 中 `area:` 段）
@@ -112,21 +114,26 @@
 
 ### Issue templates
 
-`.github/ISSUE_TEMPLATE/` 含三种（由 `_common` 模板提供）：`feat.md` / `bug.md` / `spike.md`，引导写动机 / 候选方向 / 风险 / scope 等结构化字段。
+`_common` 模板**双轨**提供：
+
+- GitHub：`.github/ISSUE_TEMPLATE/{feat,bug,spike}.md`（frontmatter `labels:` 自动打 type label）
+- GitLab：`.gitlab/issue_templates/{feat,bug,spike}.md`（首行 `/label ~"type:..."` quick action 自动打 type label）
+
+两套同时落到所有项目（互不干扰，对端文件被平台忽略）。
 
 ### 三件套 skill 工作流
 
-- **`/backlog`**：新增想法 → 走 issue template → `gh issue create` 含三轴 label → 自动在 `docs/BACKLOG.md` 对应 priority 段加一行链接
-- **`/start <issue#>`**：开新轮 → `gh issue view` 拉详情 → 写到 `docs/N-*/PROMPT.md` 顶部
-- **`/finish`**：收尾 → SUMMARY.md → 在 commit message body 写 `Closes #<N>`（GitHub 自动关 issue）→ 从 BACKLOG.md 删对应那行
+- **`/backlog`**：新增想法 → 走 issue template → 调 helper `issue-create` 含三轴 label → 自动在 `docs/BACKLOG.md` 对应 priority 段加一行链接
+- **`/start <issue#>`**：开新轮 → 调 helper `issue-view` 拉详情（输出归一为 GitHub 风格 schema） → 写到 `docs/N-*/PROMPT.md` 顶部
+- **`/finish`**：收尾 → SUMMARY.md → 在 commit message body 写 `Closes #<N>` → 从 BACKLOG.md 删对应那行
 
 ### Closes #N 与 git history 双向链接
 
-commit/PR 描述里写 `Closes #N`，合并到 default branch 时 GitHub 自动关 issue。issue 永久保留（含评论历史），与对应 commit/PR 双向可查 —— 这是把跨轮上下文从 BACKLOG 文件搬到 issue 后**最关键的可追溯保证**。
+commit/PR 描述里写 `Closes #N`，合并到 default branch 时**自动关 issue** —— GitHub 与 GitLab 均原生支持（GitLab 还支持 `Fixes` / `Resolves` / `Implements` 等更多关键词与 cross-project `Closes group/project#N` 引用）。issue 永久保留（含评论历史），与对应 commit/MR 双向可查 —— 这是把跨轮上下文从 BACKLOG 文件搬到 issue 后**最关键的可追溯保证**。
 
 ### 已完成 / 不再追踪
 
-- 已完成项不在 BACKLOG.md 追踪，直接看 GitHub closed issues
+- 已完成项不在 BACKLOG.md 追踪，直接看 GitHub / GitLab closed issues
 - BACKLOG.md 末尾「## 已完成 / 不再追踪」段记录**刻意决定不做**的项 + 原因（避免未来翻 SUMMARY 误以为遗漏）
 
 ## Python 开发规则
@@ -136,5 +143,5 @@ commit/PR 描述里写 `Closes #N`，合并到 default branch 时 GitHub 自动�
 - 使用 ruff 做代码格式化和 python 语法检查
 - pypi index指南：为了提高中国的下载速度，我们使用两个指定的源
   - 普通库从[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)下载
-  - `torch/torchaudio/torchvision` 等 `torch` 相关的库从[aliyun镜像站]( https://mirrors.aliyun.com/pytorch-wheels/cu121/) 下载. 你这个进程并不是一个完整的pypi源，需要使用 `extra` 方式在 `pyproject.toml` 中指定
+  - `torch/torchaudio/torchvision` 等 `torch` 相关的库从[aliyun镜像站](https://mirrors.aliyun.com/pytorch-wheels/cu121/) 下载. 你这个进程并不是一个完整的pypi源，需要使用 `extra` 方式在 `pyproject.toml` 中指定
   - `torch` 使用 2.5.1 版本，cu121

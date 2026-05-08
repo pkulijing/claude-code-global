@@ -10,7 +10,9 @@ disable-model-invocation: true
 
 **参数处理**：调用时可能附带参数（args），参数有两种形态：
 
-- **issue 驱动**（推荐）：参数是 `#<数字>` 或完整 GitHub issue URL（形如 `https://github.com/owner/repo/issues/N`）
+- **issue 驱动**（推荐）：参数是 `#<数字>` 或完整 issue URL：
+  - GitHub: `https://github.com/owner/repo/issues/N`
+  - GitLab: `https://gitlab.com/<namespace>/<project>/-/issues/N`（自托管把 host 换为对应实例域名）
   - 走「issue 驱动分支」（见下文）
 - **自由描述**：参数是对需求的自由文字描述
   - 走「自由描述分支」（与原流程一致）
@@ -28,9 +30,28 @@ disable-model-invocation: true
 
 ### issue 驱动分支
 
-参数命中 `#数字` 或 `https://github.com/.../issues/N` 时：
+参数命中 `#数字` 或上述任一平台的 issue URL 时：
 
-1. **拉 issue 详情**：`gh issue view <N> --json title,body,url,labels`（如参数是完整 URL，从中提取 N；可能需要 `--repo owner/repo`）
+1. **拉 issue 详情**：调 helper（自动按 `git remote get-url origin` 走 GitHub 或 GitLab）：
+
+   ```bash
+   python3 $HOME/.claude/scripts/platform_issue.py issue-view <N>
+   ```
+
+   如参数是完整 URL，先从中提取 N。helper stdout 输出归一 json（GitHub 风格字段），schema 固定为：
+
+   ```json
+   {
+     "number": 3,
+     "title": "...",
+     "body": "...",
+     "url": "https://...",
+     "labels": ["type:X", "area:Y", "priority:Z"]
+   }
+   ```
+
+   GitLab 端的 `iid` / `web_url` / `description` 已在 helper 内归一为 `number` / `url` / `body`，本 SKILL 直接按上述 schema 读字段。
+
 2. **PROMPT.md 顶部**写一段引用块（让未来的人或 AI 一眼看到来源）：
 
    ```markdown

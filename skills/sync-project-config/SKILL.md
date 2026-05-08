@@ -163,7 +163,7 @@ TODO 同步清单（共 N 项）：
   - 完全一致 → 默认建议「无需操作（已等价）」
   - 不一致 → 默认建议「智能 merge」或询问 take / 保留 / merge
 - `pyproject.toml.ruff.fragment` 同 2.4 特殊处理
-- 含 `.github/labels.yml` 时：**额外把"调 `gh label create` 同步到 GitHub"作为单独一条 TODO**。是否真正下发由 `git remote get-url origin` 判定（详见第 6 节执行步骤）：origin 含 `github.com` → 走 GitHub 同步；origin 含 `gitlab` 字样 → 该条标 skipped 并提示「检测到 GitLab remote，labels 同步留待后续 `gh→glab` 适配 issue」；其他（无 origin / 自托管 GitLab 等）→ 该条标 skipped 并提示「无法从 origin 判定平台，labels 同步跳过」
+- 含 `.github/labels.yml` 时：**额外把"调 helper `label-sync-from-file` 同步 labels 到远端"作为单独一条 TODO**。helper 自动按 `git remote` 判定走 `gh` / `glab`（详见第 6 节执行步骤）。`.github/labels.yml` schema 跨平台一致，GitLab 项目下也读 `.github/` 路径同一份（不新建 `.gitlab/labels.yml` 副本）。
 
 跳到第 5 节。
 
@@ -183,11 +183,17 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - **accept (修改/智能 merge)**：用 Edit / Write 写回合并后内容
 - **accept (删除)**：删文件
 - **accept (pyproject 段合并)**：把 fragment 合并进 `pyproject.toml [tool.ruff]` 段
-- **accept (gh label sync)**：先按 origin URL 判定平台再决定动作：
-  - `git remote get-url origin` 含 `github.com` → 解析 `.github/labels.yml`，对每条调 `gh label create --force "<name>" --color "<color>" --description "<desc>"`（`gh auth` 失败则降级为提示，不阻塞）
-  - origin 含 `gitlab` 字样（含自托管时含 `gitlab` 字样的 URL）→ **跳过**，打印「检测到 GitLab remote，labels 同步将在后续 `gh→glab` 适配 issue 落地，本轮请手动维护或暂缓」
-  - 其他（无 origin / 自托管 GitLab URL 不含 `gitlab` 字样 / 等）→ **跳过**，打印「无法从 origin 判定平台，labels 同步跳过；如确为 GitHub 请补 origin remote 后重跑 sync，如为 GitLab 暂留待后续 issue 落地」
-  - 本轮**不**调 `glab label create`（GitLab labels 同步整体留给后续 issue）
+- **accept (label sync)**：调 helper 自动按平台 dispatch：
+  ```bash
+  python3 $HOME/.claude/scripts/platform_issue.py label-sync-from-file .github/labels.yml
+  ```
+
+  - GitHub → 内部对每条 yml 调 `gh label create --force ...`（`--force` 在已存在时覆盖更新）
+  - GitLab → 内部先 `glab label list --output json` 拿现存 name→id 映射，存在则 `glab label edit -l <id> -c #<hex> -d <desc>`，否则 `glab label create -n <name> -c #<hex> -d <desc>`；color 自动加 `#` 前缀
+  - helper exit 2（unknown 平台 / 无 origin / 自托管 URL 不含 `gitlab` 字样）→ 降级为提示「labels 同步跳过；如确为 GitHub 请补 origin remote，如确为自托管 GitLab 加 `--platform gitlab` override 重跑」
+  - helper exit 3（auth 失败）→ 降级为提示「跑 `gh auth login` 或 `glab auth login` 后重试」，不阻塞其他 accept 项
+  - helper exit 4（CLI 缺失）→ 降级为提示「先 `brew install gh` / `brew install glab`」
+  - stdout 输出每条 label 的 TSV 同步结果与 summary，原样展示给用户
 - **skip**：在 marker 的 `stacks[0].skipped[]` 中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
 
 注意：skipped[] 的更新策略：

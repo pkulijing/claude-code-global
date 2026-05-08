@@ -64,7 +64,7 @@ disable-model-invocation: true
 
 ### Step 3：模板初始化（\_common + 按 stack）
 
-为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `.gitlab-ci.yml` / `pyproject.toml [tool.ruff]` / `.github/ISSUE_TEMPLATE/` / `.gitlab/issue_templates/` / `.github/labels.yml` / `.prettierrc` 等。**GitHub 与 GitLab 双轨同时落**（互不干扰：GitHub Actions 不读 `.gitlab-ci.yml`、GitLab CI 不读 `.github/workflows/`，issue templates 同理），skill 中实际调命令行的步骤（如 `gh label create`）按当前 `git remote` 判定走哪一支。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
+为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `.gitlab-ci.yml` / `pyproject.toml [tool.ruff]` / `.github/ISSUE_TEMPLATE/` / `.gitlab/issue_templates/` / `.github/labels.yml` / `.prettierrc` 等。**GitHub 与 GitLab 双轨同时落**（互不干扰：GitHub Actions 不读 `.gitlab-ci.yml`、GitLab CI 不读 `.github/workflows/`，issue templates 同理）。`.github/labels.yml` schema 跨平台一致，是 helper 私有输入而非平台读的死文件 —— GitLab 项目下也读 `.github/` 路径同一份。skill 中实际调命令行的步骤（如 labels 同步）由 helper `python3 $HOME/.claude/scripts/platform_issue.py` 按 `git remote` 自动 dispatch 到 `gh` / `glab`。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
 
 `~/.claude/templates/` 下有两类目录：
 
@@ -102,17 +102,24 @@ disable-model-invocation: true
   - 项目根**没有** `pyproject.toml` → 提示用户先 `uv init` 后再运行 `/sync-project-config` 单独合并 ruff 段
   - 项目根**有** `pyproject.toml` → 用 AI 智能合并：保留用户已有的字段，追加片段缺的；冲突字段询问用户
 
-#### Step 3.3.5：同步 labels（按 origin 平台判定）
+#### Step 3.3.5：同步 labels（helper 自动按平台 dispatch）
 
-复制完后，如果项目根出现了 `.github/labels.yml`（来自 `_common`），按 `git remote get-url origin` 的输出分支处理：
+复制完后，如果项目根出现了 `.github/labels.yml`（来自 `_common`），调 helper：
 
-- origin 含 `github.com` → **跑 GitHub label 同步**：
-  - 解析 `.github/labels.yml`（YAML list of `{name, color, description}`）
-  - 对每条调 `gh label create --force "<name>" --color "<color>" --description "<desc>"`（`--force` 在 gh ≥ 2.40 是更新已存在；旧版用 `|| true` 容错）
-- origin 含 `gitlab` 字样（含自托管时 URL 含 `gitlab` 字样）→ **跳过**，打印「检测到 GitLab remote，labels 同步将在后续 `gh→glab` 适配 issue 落地，本轮请手动维护或暂缓」
-- 其他（无 origin / 自托管 GitLab URL 不含 `gitlab` 字样 / 未知平台）→ **跳过**，打印「无法从 origin 判定平台，labels 同步跳过；如确为 GitHub 请补 origin 后跑 `/sync-project-config`，如为 GitLab 暂留待后续 issue 落地」
+```bash
+python3 $HOME/.claude/scripts/platform_issue.py label-sync-from-file .github/labels.yml
+```
 
-本轮**不**调 `glab label create`（GitLab labels 同步整体留给后续 issue）。
+helper 内部行为：
+
+- 自动 detect 平台：`github` / `gitlab` / `unknown`
+- GitHub → 对每条调 `gh label create --force <name> --color <hex> --description <desc>`（`--force` 在已存在时自动覆盖更新）
+- GitLab → 先 `glab label list --output json` 拿现存 name→id 映射；存在则 `glab label edit -l <id> -c #<hex> -d <desc>`，否则 `glab label create -n <name> -c #<hex> -d <desc>`
+- color 格式由 helper 自动转换：GitHub 用裸 hex（`0E8A16`），GitLab 加 `#` 前缀（`#0E8A16`）
+- unknown 平台（无 origin / 自托管 URL 不含 `gitlab` 字样）→ helper exit 2，打印 stderr 错误；本步降级为打印「无法判定平台，labels 同步跳过；如确为 GitHub 请补 origin 后跑 `/sync-project-config`，如为自托管 GitLab 可加 `--platform gitlab` override」
+- helper exit 3（认证失败）→ 提示用户跑 `gh auth login` 或 `glab auth login`
+
+helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>]`），末行 `summary: N synced, M error`。一并展示给用户。
 
 #### Step 3.4：写 `.cc-template.yml` marker
 
@@ -146,10 +153,10 @@ stacks:
   3. 若 Step 3 已套用 stack 模板：进项目跑 `pre-commit install` 启用 commit 闸门
   4. 若 Step 3 跳过 / `pyproject.toml` 不存在：未来可运行 `/sync-project-config` 走 adopt 模式补全
   5. 若 Step 3.3.5 跳过了 labels 同步：
-     - origin 是 GitHub 但 `gh auth` 失败：提示「跑 `gh auth login` 后再 `/sync-project-config`」
-     - 无 origin：提示「先 `gh repo create` / `glab repo create` 关联 remote，再跑 `/sync-project-config` 把 labels 推上去（GitHub 自动；GitLab 暂留待后续 issue）」
-     - origin 是 GitLab：提示「GitLab labels 同步将在后续 `gh→glab` 适配 issue 落地，可关注 #2 的关联 issue」
-  6. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后（GitHub 项目）再跑 Step 3.3.5 等价的 `gh label create` 同步」
+     - helper exit 3（auth 失败）：提示「跑 `gh auth login` 或 `glab auth login` 后再 `/sync-project-config`」
+     - helper exit 2（无 origin / 自托管 URL 不含 `gitlab` 字样）：提示「先 `gh repo create` / `glab repo create` 关联 remote，再跑 `/sync-project-config`；或如已知是自托管 GitLab，跑 `python3 $HOME/.claude/scripts/platform_issue.py --platform gitlab label-sync-from-file .github/labels.yml`」
+     - helper exit 4（CLI 缺失）：提示安装对应 CLI（macOS：`brew install gh` / `brew install glab`）
+  6. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后跑 `/sync-project-config` 重新同步 labels」
   7. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
   8. 准备好后运行 `/start` 开启 round 0
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）

@@ -1,24 +1,26 @@
 ---
 name: backlog
-description: 把一条 backlog 创建成 GitHub Issue（含三轴 label）+ 在 docs/BACKLOG.md 索引中加一行链接
+description: 把一条 backlog 创建成 issue（GitHub / GitLab 自动双轨，含三轴 label）+ 在 docs/BACKLOG.md 索引中加一行链接
 disable-model-invocation: true
 ---
 
-用户调用此 skill 表示要新增一条 backlog。本仓库工作流：**GitHub Issues 是真源**（详情、讨论、跨轮上下文都沉淀在 issue 里），`docs/BACKLOG.md` 退化为「未关闭 issue 的扁平索引」。本 skill 完成两件事：
+用户调用此 skill 表示要新增一条 backlog。本仓库工作流：**issue 是真源**（详情、讨论、跨轮上下文都沉淀在 issue 里），`docs/BACKLOG.md` 退化为「未关闭 issue 的扁平索引」。本 skill 完成两件事：
 
-1. 走 issue template 创建一个 GitHub Issue（含三轴 label）
+1. 走 issue template 创建一个 issue（含三轴 label）—— 平台由 `git remote get-url origin` 自动判定 GitHub / GitLab
 2. 在 `docs/BACKLOG.md` 对应 priority 段加一行链接
 
-删除职责仍在 `/finish` 里（commit 含 `Closes #N` → 自动关 issue + 删 BACKLOG.md 那行）。
+删除职责仍在 `/finish` 里（commit 含 `Closes #N` → 自动关 issue + 删 BACKLOG.md 那行；`Closes #N` 在 GitHub / GitLab 默认分支均自动关 issue）。
+
+所有平台耦合的 CLI 调用都通过 helper `python3 $HOME/.claude/scripts/platform_issue.py <subcommand>`，本 SKILL 不直接调 `gh` / `glab`。
 
 ## 前置检查
 
 按顺序，**任一失败立即停止并报告**：
 
 - `git rev-parse --is-inside-work-tree` → 必须是 git 仓库
-- `git remote get-url origin` → 必须有 remote（且 URL 包含 `github.com`）
-- `gh auth status` → gh CLI 必须已登录
-- `.github/ISSUE_TEMPLATE/feat.md` 等模板存在 → 否则提示「先 `/sync-project-config` 同步模板」
+- `python3 $HOME/.claude/scripts/platform_issue.py detect-platform` → exit 0 表示已识别 GitHub / GitLab；exit 2 表示无法判定平台（提示用户配 origin remote 或用 `--platform <p>` override）
+- `python3 $HOME/.claude/scripts/platform_issue.py auth-status` → 对应平台 CLI 必须已登录（exit 3 提示用户跑 `gh auth login` 或 `glab auth login`；exit 4 提示安装对应 CLI）
+- `.github/ISSUE_TEMPLATE/feat.md` 等模板存在 → 否则提示「先 `/sync-project-config` 同步模板」（round 14 后两端模板共存于同一项目，本检查项目侧均适用）
 
 ## 参数处理
 
@@ -43,9 +45,9 @@ disable-model-invocation: true
 
 ### Step 3：选 area
 
-读 `.github/labels.yml`（或缺失时 `gh label list --json name`）拿 `area:*` 列表。
+读 `.github/labels.yml`（或缺失时 `python3 $HOME/.claude/scripts/platform_issue.py label-list` 取 fallback）拿 `area:*` 列表。labels.yml 在 GitLab 项目下也读 `.github/` 路径 —— round 15 后该文件 schema 跨平台共用，是 helper 私有输入而非平台读的死文件。
 
-`AskUserQuestion`：让用户从 area 列表中选一条。如列表为空（仅 placeholder），允许用户输入新 area 名（warn 一句「这个 area 不在 labels.yml 中，建议本轮结束后补到 labels.yml + `gh label create`」）。
+`AskUserQuestion`：让用户从 area 列表中选一条。如列表为空（仅 placeholder），允许用户输入新 area 名（warn 一句「这个 area 不在 labels.yml 中，建议本轮结束后补到 labels.yml + 跑 `/sync-project-config` 同步到远端 labels」）。
 
 ### Step 4：选 priority
 
@@ -59,27 +61,29 @@ disable-model-invocation: true
 
 #### 6.1 创建 issue
 
+把 Step 5 确认过的 body 内容写到临时文件 `/tmp/backlog-body.md`（用 Write 工具），再调 helper：
+
 ```bash
-gh issue create \
+python3 $HOME/.claude/scripts/platform_issue.py issue-create \
   --title "<标题>" \
-  --body "<body>" \
+  --body-file /tmp/backlog-body.md \
   --label "type:<X>" \
   --label "area:<Y>" \
   --label "priority:<Z>"
 ```
 
-输出包含 issue URL，从中提取 issue 号 `#N`。
+helper stdout 输出新建 issue 的 URL（单行），从中提取 issue 号 `#N`。GitHub URL pattern: `.../issues/N`；GitLab URL pattern: `.../-/issues/N`。
 
 #### 6.2 BACKLOG.md 不存在 → 用新骨架初始化
 
-新骨架（`{owner}/{repo}` 由 `gh repo view --json nameWithOwner -q .nameWithOwner` 获取，`{项目名}` 默认取 git 仓库名）：
+新骨架（`{slug}` 由 `python3 $HOME/.claude/scripts/platform_issue.py repo-slug` 获取 —— GitHub 端为 `owner/repo`，GitLab 端为 `namespace/project`；`{项目名}` 默认取 git 仓库名；`{closed-issues-url}` 按 `detect-platform` 输出生成：GitHub 用 `https://github.com/{slug}/issues?q=is%3Aissue+is%3Aclosed+label%3Apriority%3AP0%2Cpriority%3AP1%2Cpriority%3AP2`，GitLab 用 `https://gitlab.com/{slug}/-/issues?state=closed&label_name[]=priority:P0&label_name[]=priority:P1&label_name[]=priority:P2`，自托管 GitLab 把 host 替换为对应实例域名）：
 
 ```markdown
 # {项目名} — Backlog
 
-未来开发项的**速览索引**。每条都对应一个 GitHub Issue，**详情、讨论、跨轮上下文都在 issue 里**。
+未来开发项的**速览索引**。每条都对应一个 issue（GitHub / GitLab 自动判定），**详情、讨论、跨轮上下文都在 issue 里**。
 
-**为什么这样组织**：GitHub Issues 是真源（permanent history + 通过 `Closes #N` 跟 commit/PR 永久关联，开发完归档进 closed 仍可检索）。这个文件是当前还没开发的项的扁平快照，方便一眼扫到全图、决定下一轮挑哪个。
+**为什么这样组织**：issue 是真源（permanent history + 通过 `Closes #N` 跟 commit/PR 永久关联，开发完归档进 closed 仍可检索）。这个文件是当前还没开发的项的扁平快照，方便一眼扫到全图、决定下一轮挑哪个。
 
 ## 工作流
 
@@ -107,7 +111,7 @@ gh issue create \
 
 ## 已完成 / 不再追踪
 
-历史已完成项**不在本文件追踪**，直接看 [closed issues with priority labels](https://github.com/{owner}/{repo}/issues?q=is%3Aissue+is%3Aclosed+label%3Apriority%3AP0%2Cpriority%3AP1%2Cpriority%3AP2)。
+历史已完成项**不在本文件追踪**，直接看 [closed issues with priority labels]({closed-issues-url})。
 
 下面只列**刻意决定不做**的条目（避免未来翻老 SUMMARY 误以为是遗漏）：
 
@@ -123,6 +127,7 @@ gh issue create \
 ```
 
 定位策略：
+
 - priority 是 P0 → 在 `## P0 — 必须做` 段最后一条之后追加
 - priority 是 P1 → 在 `## P1 — 重大新功能` 段最后一条之后追加
 - priority 是 P2 → 在 `## P2 — 一般小功能小修复` 段最后一条之后追加

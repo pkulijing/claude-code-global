@@ -1,6 +1,6 @@
 ---
 name: finish
-description: 完成当前开发项：撰写 SUMMARY.md，关联并关闭 GitHub issue（如有），更新 BACKLOG.md，提交代码
+description: 完成当前开发项：撰写 SUMMARY.md，关联并关闭 issue（GitHub / GitLab，如有），更新 BACKLOG.md，提交代码
 disable-model-invocation: true
 ---
 
@@ -29,7 +29,7 @@ disable-model-invocation: true
 读 `docs/<本轮编号>-*/PROMPT.md` 顶部，看是否有 `> 来自 [#<N> ...](<URL>)` 引用块（由 `/start <issue#>` 写入）：
 
 - **有 issue 关联** → 提取 issue 号 `#N` 与 URL，记下用于后续：
-  - 让 `/commit` 在 message body 写 `Closes #N`，commit/PR 合并到 default branch 时 GitHub 自动关 issue
+  - 让 `/commit` 在 message body 写 `Closes #N`，commit/PR 合并到 default branch 时**自动关 issue** —— 该关键字在 GitHub 与 GitLab 默认分支均原生生效（GitLab 还支持 `Fixes` / `Resolves` / `Implements` 等更多关键词与 cross-project `Closes group/project#N` 引用），本 SKILL 不需要平台分支处理
   - 从 `docs/BACKLOG.md` 索引中**删除**对应 URL 那一行（无 BACKLOG.md 文件则跳过）
 - **无 issue 关联**（自由描述分支） → 仅按本步骤剩余动作走，不涉及 issue/BACKLOG
 
@@ -75,7 +75,7 @@ disable-model-invocation: true
 
 调用 `/commit` 提交所有变更（包括 SUMMARY.md / DEVTREE.md / 本次 BACKLOG.md / README.md 的变化）。
 
-**关键**：如果 Step 2 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N` 这一行（不要嵌入 title）。
+**关键**：如果 Step 2 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N` 这一行（不要嵌入 title）。GitHub / GitLab 均原生识别此关键字，无需平台分支。
 
 ## Step 5：轻量提示
 

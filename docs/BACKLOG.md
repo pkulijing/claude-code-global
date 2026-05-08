@@ -22,7 +22,7 @@
 
 ## P1 — 重大新功能
 
-- [#3 让 backlog / start / finish 等 skill 在 GitLab 项目上可用（gh ↔ glab 双轨）](https://github.com/pkulijing/claude-code-global/issues/3) · `type:feat` `area:skill` —— 三件套 skill 在 GitLab 项目上前置检查就卡死，是用户能感知的明显能力缺口
+(暂无)
 
 ## P2 — 一般小功能小修复
 
