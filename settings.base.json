@@ -17,6 +17,8 @@
     "allow": [
       "Skill(*)",
 
+      "Read(~/.claude/**)",
+
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
