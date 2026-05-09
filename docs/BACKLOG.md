@@ -27,6 +27,7 @@
 ## P2 — 一般小功能小修复
 
 - [#1 /sync-project-config 支持「无 stack 只 \_common」的 adopt 路径](https://github.com/pkulijing/claude-code-global/issues/1) · `type:feat` `area:skill` —— 当前断言挡住 stacks=[] 的 marker，本仓库 dogfood 时手写绕过，需正式支持
+- [#6 /finish 收尾时主动识别「可沉淀项」并提醒用户](https://github.com/pkulijing/claude-code-global/issues/6) · `type:feat` `area:skill` —— 让单轮经验（模板字段 / 新工作流 / 项目级 skill）能被稳定捡起，不再散落在 SUMMARY 后续 TODO 里靠人主动捞
 
 ## 已完成 / 不再追踪
 
