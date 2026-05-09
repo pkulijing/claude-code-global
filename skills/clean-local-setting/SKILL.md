@@ -1,7 +1,7 @@
 ---
 name: clean-local-setting
 description: 清理当前项目 .claude/settings.local.json 中的 permissions 列表 —— 分类每条规则（删除/提升/重写/保留），交互确认后安全写回，全程保留备份
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 用户调用此 skill 表示要整治当前项目的 `.claude/settings.local.json` —— 移除一次性调试残留、重写低效规则、去掉已被 base 覆盖的重复项，让 local 只保留真正的项目专属条目。

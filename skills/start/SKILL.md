@@ -1,7 +1,7 @@
 ---
 name: start
 description: 开始一个新的开发项：创建文档目录，撰写 PROMPT.md 和 PLAN.md，确认后再开始写代码
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 用户调用此 skill 表示要开始一个新的开发项。

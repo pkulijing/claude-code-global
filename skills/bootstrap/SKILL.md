@@ -1,7 +1,7 @@
 ---
 name: bootstrap
 description: 为空项目搭建文档骨架（README.md / CLAUDE.md / DEVTREE.md），仅在项目首次开发前调用一次
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 用户调用此 skill 表示要为一个**全新空项目**搭建文档骨架。本 skill 是一次性脚手架，**不**用于已有 `docs/` 历史的项目。

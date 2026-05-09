@@ -1,7 +1,7 @@
 ---
 name: backlog
 description: 把一条 backlog 创建成 issue（GitHub / GitLab 自动双轨，含三轴 label）+ 在 docs/BACKLOG.md 索引中加一行链接
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 用户调用此 skill 表示要新增一条 backlog。本仓库工作流：**issue 是真源**（详情、讨论、跨轮上下文都沉淀在 issue 里），`docs/BACKLOG.md` 退化为「未关闭 issue 的扁平索引」。本 skill 完成两件事：

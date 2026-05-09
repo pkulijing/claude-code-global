@@ -1,7 +1,7 @@
 ---
 name: finish
 description: 完成当前开发项：撰写 SUMMARY.md，关联并关闭 issue（GitHub / GitLab，如有），更新 BACKLOG.md，提交代码
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 用户调用此 skill 表示当前开发项已完成。
