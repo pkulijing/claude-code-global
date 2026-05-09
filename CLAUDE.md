@@ -9,6 +9,8 @@
 - `install.sh` — 安装脚本，负责软链接 + 基线 settings 合并
 - `skills/` — 全局 slash commands（`/start`、`/finish`、`/commit`、`/pybump`、`/rebase`、`/devtree`）
 - `hooks/` — 全局 hook 脚本（如 `format-after-edit.sh`），通过 `install.sh` 软链到 `~/.claude/hooks/`，由 `settings.base.json` 中的 hook 条目通过绝对路径 `$HOME/.claude/hooks/...` 引用
+- `scripts/` — 被引用的稳定脚本，通过 `install.sh` 软链到 `~/.claude/scripts/`。包括 `auto-update.sh`（多设备自动同步本仓库的 pull + install，由 OS 调度器和 Claude SessionStart hook 共用）
+- `scheduler/` — OS 层调度器注册脚本与模板（macOS launchd / Linux systemd user timer），由 `install.sh` 末尾自动调用，注册"登录跑 + 每小时跑"的自动同步任务。逃生舱：`bash scheduler/uninstall.sh`
 - `docs/` — 开发记录，按轮次编号
 
 ## 开发注意事项

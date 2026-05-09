@@ -244,6 +244,14 @@ else
     warn "仓库中未找到 settings.base.json，跳过"
 fi
 
+# 注册 OS 自动同步调度器（launchd / systemd user timer）
+# 让 scripts/auto-update.sh 自动跑「登录 + 每小时」
+# 失败 warn 不阻塞主 install
+if [ -x "$REPO_DIR/scheduler/install.sh" ]; then
+    echo ""
+    bash "$REPO_DIR/scheduler/install.sh" || warn "调度器注册失败，可手动：bash $REPO_DIR/scheduler/install.sh"
+fi
+
 echo ""
 echo "=============================="
 echo " 安装完成"

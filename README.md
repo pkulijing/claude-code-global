@@ -1,6 +1,6 @@
 # Claude Code 全局配置
 
-通过 GitHub 仓库管理 Claude Code 的全局配置（`CLAUDE.md` / `skills/` / `hooks/` / `scripts/` / `settings.base.json`）和「跨项目共享开发配置模板」（`templates/`），支持多设备同步与跨项目复用。
+通过 GitHub 仓库管理 Claude Code 的全局配置（`CLAUDE.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json`）和「跨项目共享开发配置模板」（`templates/`），支持多设备同步与跨项目复用。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
 
 开发流程遵循 [`GLOBAL_CLAUDE.md`](GLOBAL_CLAUDE.md) 中定义的「需求 → 计划 → 执行 → 总结」四步模式，开发项以 issue 为真源（GitHub / GitLab 双轨自动判定，详见下文「Backlog 与开发项管理」）。
 
@@ -8,15 +8,16 @@
 
 Claude Code 会读取 `~/.claude/` 下的全局配置。本仓库通过 `install.sh` 按两种方式部署（软链接 / 合并）：
 
-| 仓库文件             | 部署到                    | 方式                 | 说明                                                                                                     |
-| -------------------- | ------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
-| `GLOBAL_CLAUDE.md`   | `~/.claude/CLAUDE.md`     | 软链接               | 修改仓库即修改实际配置，`git pull` 即完成同步                                                            |
-| `skills/*/`          | `~/.claude/skills/*/`     | 软链接（逐个子目录） | 不影响 `~/.claude/skills/` 下不属于本仓库的 skill                                                        |
-| `hooks/*`            | `~/.claude/hooks/*`       | 软链接（逐个文件）   | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用      |
-| `scripts/*`          | `~/.claude/scripts/*`     | 软链接（逐个文件）   | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用 |
-| `templates/`         | `~/.claude/templates/`    | 软链接（整目录）     | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                    |
-| 仓库根目录           | `~/.claude/global-repo/`  | 软链接               | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                          |
-| `settings.base.json` | `~/.claude/settings.json` | **合并**（非破坏性） | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                              |
+| 仓库文件             | 部署到                    | 方式                     | 说明                                                                                                       |
+| -------------------- | ------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `GLOBAL_CLAUDE.md`   | `~/.claude/CLAUDE.md`     | 软链接                   | 修改仓库即修改实际配置，`git pull` 即完成同步                                                              |
+| `skills/*/`          | `~/.claude/skills/*/`     | 软链接（逐个子目录）     | 不影响 `~/.claude/skills/` 下不属于本仓库的 skill                                                          |
+| `hooks/*`            | `~/.claude/hooks/*`       | 软链接（逐个文件）       | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用        |
+| `scripts/*`          | `~/.claude/scripts/*`     | 软链接（逐个文件）       | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用   |
+| `templates/`         | `~/.claude/templates/`    | 软链接（整目录）         | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                      |
+| 仓库根目录           | `~/.claude/global-repo/`  | 软链接                   | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                            |
+| `settings.base.json` | `~/.claude/settings.json` | **合并**（非破坏性）     | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                |
+| `scheduler/`         | （不部署）                | 由 `install.sh` 末尾消费 | 渲染模板后写到 `~/Library/LaunchAgents/`（macOS）或 `~/.config/systemd/user/`（Linux），注册自动同步调度器 |
 
 `settings.json` 之所以不软链接，是因为它通常既含跨机共享设置（如 `permissions.allow`），又含本机特有偏好（如 `effortLevel`）。合并规则：
 
@@ -72,9 +73,10 @@ bash ~/Developer/claude-code-global/install.sh
 
 `hooks/` 下放跨项目共用的 hook 脚本，由 `install.sh` 软链到 `~/.claude/hooks/`，并由 `settings.base.json` 中的 hook 条目以绝对路径 `$HOME/.claude/hooks/...` 引用。
 
-| Hook                | 触发时机                  | 作用                                                                                                                                                       |
-| ------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fix-after-edit.sh` | PostToolUse（Edit/Write） | 编辑后自动跑项目本地工具链（如 `ruff check --fix`、`prettier --write`），让 AI 改动跟项目 formatter 输出对齐，避免 VS Code 保存时 formatOnSave 触发大 diff |
+| Hook                               | 触发时机                  | 作用                                                                                                                                                       |
+| ---------------------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fix-after-edit.sh`                | PostToolUse（Edit/Write） | 编辑后自动跑项目本地工具链（如 `ruff check --fix`、`prettier --write`），让 AI 改动跟项目 formatter 输出对齐，避免 VS Code 保存时 formatOnSave 触发大 diff |
+| `scripts/auto-update.sh --session` | SessionStart（startup）   | 新 Claude session 启动时静默拉本仓库更新；输出当前版本 hash + GitHub commit 链接，更新后追加重启提醒。详见下文「多设备自动同步」                           |
 
 由本仓库管理的 hook 条目以 `# @claude-code-global:<hook-name>` 注释作为身份标记；`install.sh` 通过这个标记做集合差分（增 / 删 / 同名替换），不影响用户手动添加的 hook。
 
@@ -85,6 +87,7 @@ bash ~/Developer/claude-code-global/install.sh
 | Script              | 用途                                                                                                                                                                                                                        |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `platform_issue.py` | 跨平台 issue / label / repo helper：封装 `gh` ↔ `glab` 双轨调用，按 `git remote get-url origin` 自动 dispatch。被 `/backlog` `/start` `/bootstrap` `/sync-project-config` 调用。零第三方依赖（仅 stdlib），含 `--self-test` |
+| `auto-update.sh`    | 多设备自动同步主脚本：跑 `git fetch` → ff-only `git pull` → `bash install.sh`，被 OS 调度器（launchd/systemd）和 Claude SessionStart hook 共用，30min 共享节流。详见下文「多设备自动同步」                                  |
 
 ### 私有化部署 GitLab 的 glab 证书问题
 
@@ -123,6 +126,26 @@ bash ~/Developer/claude-code-global/install.sh
 - **新项目** → `/bootstrap` 选 stack（如 `python-uv`），自动写入相关配置 + 生成 `.cc-template.yml` marker
 - **已有老项目** → `/sync-project-config` 进入 adopt 模式补全 marker 并铺模板
 - **模板更新后** → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策）
+
+## 多设备自动同步
+
+每次换设备都手动 `git pull && bash install.sh` 很烦。本仓库提供**双触发**自动同步机制（共用 [scripts/auto-update.sh](scripts/auto-update.sh)，30min 共享节流互不重复）：
+
+| 触发方                                                    | 时机              | 模式        | 输出                                                                                |
+| --------------------------------------------------------- | ----------------- | ----------- | ----------------------------------------------------------------------------------- |
+| **OS 调度器**（macOS launchd / Linux systemd user timer） | 登录跑 + 每小时跑 | 后台        | 完整日志 → `~/.claude/logs/auto-update.log`，stdout 静默                            |
+| **Claude SessionStart hook**                              | 新 session 启动   | `--session` | install 详情入日志；stdout 输出当前版本 + GitHub commit URL，更新后追加 ⚠️ 重启提醒 |
+
+**`bash install.sh` 末尾自动调 [scheduler/install.sh](scheduler/install.sh)** 注册 OS 调度器（macOS 写 `~/Library/LaunchAgents/com.claude-code-global.auto-update.plist` + `launchctl load -w`；Linux 写 `~/.config/systemd/user/` + `systemctl --user enable --now`）。失败 warn 不阻塞主 install。
+
+**关键行为**：
+
+- dirty working tree / non-fast-forward / 网络错误 → 跳过 + 写日志 + **不更新时间戳**（下次重试）
+- 只在 master 分支自动 pull
+- 第一台设备首次仍要手动 `git clone + bash install.sh`（hook 自举的硬限制）
+- 正在跑的旧 Claude session 不会自动应用新配置 —— SessionStart 模式输出会提醒用户 `/exit` 重开
+
+**逃生舱**：取消调度器注册跑 `bash scheduler/uninstall.sh`。详细设计见 [docs/16-自动同步全局配置/SUMMARY.md](docs/16-自动同步全局配置/SUMMARY.md)。
 
 ## Backlog 与开发项管理
 

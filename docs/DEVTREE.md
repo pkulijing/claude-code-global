@@ -45,7 +45,9 @@ graph TD
     direction TB
     N0["🌱 0 · 安装脚本"]:::genesis
     N2["🏗️ 2 · 重构项目 CLAUDE 文件结构"]:::refactor
+    N16["📦 16 · 自动同步全局配置"]:::infra
     N0 ~~~ N2
+    N2 ~~~ N16
   end
 
   subgraph e_cc_merge["✅ CC 配置合并"]
@@ -105,7 +107,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-08 | 共 16 轮
+> 最后更新：2026-05-09 | 共 17 轮
 
 | #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                             |
 | --- | ----------------------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -125,6 +127,7 @@ graph TD
 | 13  | finish 收尾同步 README        | ✨ 功能 | 开发项收尾    | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流） |
 | 14  | 模板支持 GitLab 双轨          | ✨ 功能 | 项目模板机制  | \_common 与 python-uv 模板同时落 GitHub + GitLab 两套等价文件（issue templates + CI），bootstrap/sync 的 gh label create 按 origin 平台三分支判定      |
 | 15  | 三件套 skill 支持 GitLab 双轨 | ✨ 功能 | 项目模板机制  | 新增 scripts/platform_issue.py helper（封装 gh ↔ glab 双轨调用），让 /backlog /start /finish /bootstrap /sync-project-config 在 GitLab 项目上等价可用  |
+| 16  | 自动同步全局配置              | 📦 工程 | CC 工具复用   | scripts/auto-update.sh + scheduler/(launchd/systemd) + SessionStart hook 三位一体，多设备自动 git pull + install 并在 Claude 启动时反馈版本/更新       |
 
 ---
 
@@ -137,7 +140,7 @@ graph TD
 #### CC 工具复用
 
 - 状态：已完成
-- 轮次：0, 2
+- 轮次：0, 2, 16
 
 #### CC 配置合并
 
