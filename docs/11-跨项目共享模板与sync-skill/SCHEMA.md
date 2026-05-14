@@ -20,6 +20,11 @@ stacks:
       - file: <string, 模板内的相对路径，含 scope 后部分>
         skipped_at_commit: <string, 当时模板 commit>
         reason: <string, 可选，用户填>
+# 仅 length == 0（无 stack 项目）使用，与 stacks[0].skipped 互斥
+skipped:
+  - file: <string>
+    skipped_at_commit: <string>
+    reason: <string, 可选>
 ```
 
 ### `source`（必填）
@@ -42,7 +47,19 @@ stacks:
 
 ### `stacks`（必填，列表）
 
-项目使用的 stack 列表。**本轮（round 11）实现仅支持长度 = 1**；schema 已为多 stack monorepo 设计，但 `/sync-project-config` 启动时会断言长度 = 1 + `path == "."`，否则报错退出。多 stack 支持留至后续 round。
+项目使用的 stack 列表。**本轮支持长度 0 或 1**（round 18 起放宽，原 round 11 只支持 length=1）：
+
+- **length == 0**（无 stack 项目，只 `_common`）：本仓库 `claude-code-global` 自身，或所有现成 stack 都不合身、但仍想复用 `_common` stack-无关资源的项目
+- **length == 1**（单 stack 项目）：选定某个 stack（如 `python-uv`），`<stack>` + `_common` 两个模板源都参与
+
+`/sync-project-config` 启动时断言长度 ≤ 1 + length=1 时 `path == "."`，否则报错退出。多 stack monorepo schema 已设计好（见下方示例），实现留至后续 round。
+
+### `skipped`（可选，顶层，仅 length == 0 使用）
+
+无 stack 项目（`stacks: []`）的 skipped 条目放在 marker 顶层（不能塞进 `stacks[0]`，因为没有 `stacks[0]`）。schema 与 `stacks[].skipped` 完全一致。
+
+- length == 0 时：sync 读写顶层 `skipped`，`stacks[0].skipped` 不存在
+- length == 1 时：sync 读写 `stacks[0].skipped`，顶层 `skipped` 不应出现（若出现 → 忽略 + 警告）
 
 #### `stacks[].stack`（必填）
 
@@ -79,7 +96,7 @@ stack 应用到的项目子路径（相对项目根）。
 
 ## 完整示例
 
-### 单 stack 项目（本轮支持的形态）
+### 单 stack 项目（最常见形态）
 
 ```yaml
 # 由 claude-code-global 管理，非必要请勿手动编辑
@@ -94,6 +111,22 @@ stacks:
         skipped_at_commit: a1b2c3d4e5f6789012345678901234567890abcd
         reason: 项目用 Jenkins 不用 GitHub Actions
 ```
+
+### 无 stack 项目（只 `_common`，round 18 引入）
+
+```yaml
+# 由 claude-code-global 管理，非必要请勿手动编辑
+source: https://github.com/pkulijing/claude-code-global
+template_commit: ecbb9d4b4e03aa93bc716384cc3141464ee4af04
+bootstrap_time: 2026-04-27T16:12:55Z
+stacks: [] # 无 stack：仅 _common 自动应用
+skipped: [] # 顶层 skipped（与 stacks[0].skipped 互斥）
+```
+
+适用场景：
+
+- 模板源仓库本身（如 `claude-code-global`）—— stack 模板再设计也轮不到自己用
+- 所有现成 stack 都不合身的项目（如纯 bash + jq 工具仓库），仍想复用 `_common` 的 stack-无关资源（issue templates、`labels.yml`、`.prettierrc`）
 
 ### 多 stack monorepo（schema 已支持，本轮 sync 不实现）
 
@@ -124,10 +157,14 @@ stacks:
 `~/.claude/templates/_common/` 是承载完全 stack-无关的根级资源（如 issue templates、`.prettierrc`、`.github/labels.yml`）的"伪 stack"。
 
 - bootstrap / sync **自动应用** \_common，**不**在 marker 的 `stacks` 列表中显式记录
-- 用户在 bootstrap / sync 选 stack 时，下划线开头的目录被过滤，`_common` 不出现在选项里
+- 用户在 bootstrap / sync 选 stack 时，下划线开头的目录被过滤，`_common` 不出现在选项里（但 adopt 选 stack 时**额外**会出现一条「无 stack（只 \_common）」选项 —— 选中后 `stacks` 写空数组，仍只走 \_common 这一个隐式源）
 - \_common 与 stack 不应有同名冲突；万一有，stack 优先
+- \_common 只承载 `__root__/` 内容；不应放 `__subpath__/` 内容（无 stack 项目下没有有效 path 落点）
 
-由此 `stacks` 列表只反映"用户选定的应用 stack"，\_common 是约定的隐式行为。
+由此 `stacks` 列表只反映"用户选定的应用 stack"，\_common 始终是约定的隐式行为：
+
+- length == 1 项目：\_common 与 `<stack>` 一起参与
+- length == 0 项目（round 18 引入）：\_common 是**唯一**模板来源
 
 ## 关于平台双兼容（round 14 引入）
 

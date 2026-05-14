@@ -63,9 +63,11 @@ graph TD
     N14["✨ 14 · 模板支持 GitLab 双轨"]:::feature
     N15["✨ 15 · 三件套 skill 支持 GitLab 双轨"]:::feature
     N17["✨ 17 · python-uv 模板自动 bootstrap"]:::feature
+    N18["✨ 18 · sync 支持无 stack 路径"]:::feature
     N11 ~~~ N14
     N14 ~~~ N15
     N15 ~~~ N17
+    N17 ~~~ N18
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -109,7 +111,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-14 | 共 18 轮
+> 最后更新：2026-05-14 | 共 19 轮
 
 | #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                            |
 | --- | ----------------------------- | ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -131,6 +133,7 @@ graph TD
 | 15  | 三件套 skill 支持 GitLab 双轨 | ✨ 功能 | 项目模板机制  | 新增 scripts/platform_issue.py helper（封装 gh ↔ glab 双轨调用），让 /backlog /start /finish /bootstrap /sync-project-config 在 GitLab 项目上等价可用                 |
 | 16  | 自动同步全局配置              | 📦 工程 | CC 工具复用   | scripts/auto-update.sh + scheduler/(launchd/systemd) + SessionStart hook 三位一体，多设备自动 git pull + install 并在 Claude 启动时反馈版本/更新                      |
 | 17  | python-uv 模板自动 bootstrap  | ✨ 功能 | 项目模板机制  | bootstrap / sync adopt 在 python-uv stack 自动跑 uv init --bare + uv add --dev pytest pytest-cov ruff + pre-commit install，新项目即开即可 uv run pytest / git commit |
+| 18  | sync 支持无 stack 路径        | ✨ 功能 | 项目模板机制  | /sync-project-config 放宽 `len(stacks) ≤ 1` 断言，adopt 加「无 stack（只 \_common）」选项，length=0 项目把 skipped 写在 marker 顶层，闭环可跑                         |
 
 ---
 
@@ -153,7 +156,7 @@ graph TD
 #### 项目模板机制
 
 - 状态：进行中
-- 轮次：11, 14, 15, 17
+- 轮次：11, 14, 15, 17, 18
 
 ### 开发工具链
 

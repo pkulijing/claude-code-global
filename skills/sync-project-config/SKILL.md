@@ -7,7 +7,12 @@ disable-model-invocation: false
 用户调用此 skill 表示要把仓库的模板（`~/.claude/templates/<stack>/`）变化反映到当前项目。两种模式：
 
 - **Normal sync**：项目根已有 `.cc-template.yml` marker → 计算 diff → AI 智能 merge 提议 → 用户批量决策 → 执行
-- **Adopt**：无 marker → 让用户选 stack → 当作"全是新增"完整套用一次（含冲突询问）→ 写 marker
+- **Adopt**：无 marker → 让用户选 stack（或选"无 stack 只 \_common"） → 当作"全是新增"完整套用一次（含冲突询问）→ 写 marker
+
+**两种项目形态**（本轮均支持）：
+
+- **单 stack 项目（`len(stacks) == 1`）**：选定某个 stack（如 `python-uv`），`<stack>` + `_common` 两个模板源都参与
+- **无 stack 项目（`len(stacks) == 0`）**：仅 `_common` 一个源参与，适用于模板源仓库本身（`claude-code-global`）或所有现成 stack 都不合身、但仍想复用 `_common` stack-无关资源（issue templates、`labels.yml`、`.prettierrc` 等）的项目
 
 详细 schema：`~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`
 设计与决策：`~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/PROMPT.md` / `PLAN.md`
@@ -37,13 +42,17 @@ disable-model-invocation: false
 直接 Read 文件、按 YAML 语义读字段。需要：
 
 - `template_commit`（旧 commit hash）
-- `stacks[0].stack`、`stacks[0].path`、`stacks[0].skipped`（数组）
+- `stacks` 列表
+- length == 1 时再读 `stacks[0].stack`、`stacks[0].path`、`stacks[0].skipped`（数组）
+- length == 0 时改读 marker **顶层** `skipped`（数组，可缺省视作空数组）
 
-**断言**（本轮仅支持单 stack）：
+**断言**（本轮支持 length 0 或 1）：
 
-- `stacks` 列表 length 必须等于 1
-- `stacks[0].path` 必须等于 `.`
+- `stacks` 列表 length 必须 ≤ 1
+- length == 1 时 `stacks[0].path` 必须等于 `.`
 - 任一不满足 → 报错「检测到多 stack / 非根 path 配置，本轮不支持，留至后续 round」并退出
+
+后续 2.x / 6.x 中所有「`<stack>`」「`stacks[0].*`」描述都只在 length == 1 时适用；length == 0 时按"仅 `_common`"分支走，具体每节会显式说明。
 
 ### 2.2 拿当前模板 HEAD
 
@@ -61,11 +70,21 @@ git -C ~/.claude/global-repo status --porcelain templates/
 
 ### 2.3 计算模板变更
 
-**两个源都要扫**：用户选定的 `<stack>/` + 自动应用的 `_common/`（如果 `~/.claude/templates/_common/` 存在）：
+**扫的模板源由 `stacks` 长度决定**：
 
-```bash
-git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack>/ templates/_common/
-```
+- **length == 1**：用户选定的 `<stack>/` + 自动应用的 `_common/`
+
+  ```bash
+  git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack>/ templates/_common/
+  ```
+
+- **length == 0**：仅 `_common/`
+
+  ```bash
+  git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/_common/
+  ```
+
+  ⚠️ 不要省略 pathspec：`git diff` 不传路径会扫全 templates、误把其他 stack 的变更带进来。
 
 输出形如：
 
@@ -80,7 +99,8 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack
 对应到项目侧路径：
 
 - `__root__/<rel>` → 项目根的 `<rel>`
-- `__subpath__/<rel>` → `<path>/<rel>`（单 stack 项目 path = `.`）
+- `__subpath__/<rel>` → length == 1 时 `<stacks[0].path>/<rel>`（单 stack 项目 path 恒为 `.`，等同项目根）
+- length == 0 时**理论上 `_common` 不应该出 `__subpath__/` 内容**（设计约束：`_common` 只承载 stack-无关、根级资源）；若违反，按项目根 `<rel>` 兜底 + 输出警告
 
 来源（stack 或 \_common）只影响模板侧路径，**项目侧落点完全相同** —— 因此 stack 与 \_common **不应有同名冲突**（设计约束）；万一有，stack 优先。
 
@@ -112,7 +132,14 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack
 
 ### 2.5 处理 skipped 持久化语义
 
-对 marker 中 `stacks[0].skipped` 每条：
+**skipped 列表的读取位置随 `stacks` 长度切换**：
+
+- **length == 1**：读 `stacks[0].skipped`
+- **length == 0**：读 marker **顶层** `skipped`（与 `stacks[0].skipped` schema 完全一致，仅位置不同；该字段可缺省，视作空数组）
+
+  这样设计是为了避免在 length=0 时引入"虚拟 stack 条目"破坏既有「`_common` 不显式记录在 `stacks` 列表」约定。
+
+对选定列表的每条：
 
 - 取 `file`（含来源 source 段，如 `__root__/.github/labels.yml`） 与 `skipped_at_commit`
 - 该文件实际来源（stack 或 \_common）由 skill 在分析阶段记录到 file 字段或动态确定
@@ -155,14 +182,23 @@ TODO 同步清单（共 N 项）：
 
 ### 4.2 用户选 stack
 
-用 `AskUserQuestion`：列出可选 stack，让用户选一个。本轮单 stack only，path 固定 `.`，不询问 path。
+用 `AskUserQuestion`：列出可选 stack，让用户选一个。本轮 path 固定 `.`，不询问 path。
+
+**选项列表末尾追加一条「无 stack（只 \_common）」**：
+
+- label：`无 stack（只 _common）`
+- description：本项目所有现成 stack 都不合身，仅复用 `_common` 的 stack-无关资源（issue templates、`labels.yml`、`.prettierrc` 等）。适用于模板源仓库本身（`claude-code-global`）或确认所有 stack 都不合身的项目。
+
+用户选中此项时：跳过"选 stack"语义；4.3 仅扫 `_common/` 一个源；marker 中 `stacks` 字段最终写为 `[]`。
 
 ### 4.3 全套用模板（含冲突询问）
 
-把以下两个源的 `__root__/*` + `__subpath__/*` 全部当作"待新增"列入 TODO：
+**待新增的模板源由 4.2 选择决定**：
 
-- `~/.claude/templates/_common/`（如存在，**自动应用**）
-- `~/.claude/templates/<stack>/`（用户选定）
+- 选了具体 stack：以下两个源的 `__root__/*` + `__subpath__/*` 全部当作"待新增"列入 TODO
+  - `~/.claude/templates/_common/`（如存在，**自动应用**）
+  - `~/.claude/templates/<stack>/`（用户选定）
+- 选了「无 stack（只 \_common）」：仅 `~/.claude/templates/_common/` 一个源
 
 判断：
 
@@ -242,7 +278,9 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
   - helper exit 4（CLI 缺失）→ 降级为提示「先 `brew install gh` / `brew install glab`」
   - stdout 输出每条 label 的 TSV 同步结果与 summary，原样展示给用户
 
-- **skip**：在 marker 的 `stacks[0].skipped[]` 中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
+- **skip**：在 marker 的 skipped 列表中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
+  - length == 1 项目：写 `stacks[0].skipped[]`
+  - length == 0 项目：写 marker 顶层 `skipped[]`（与 2.5 读取位置对称）
 
 注意：skipped[] 的更新策略：
 
@@ -257,12 +295,17 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - `template_commit` 更新为 `NEW_COMMIT`
 - `bootstrap_time` 不动（这是首次 bootstrap 时间）
 - `source` 不动
-- `stacks[0].skipped` 按 6 节策略更新
+- skipped 按 6 节策略更新：
+  - length == 1：`stacks[0].skipped`
+  - length == 0：marker 顶层 `skipped`
 
 Adopt 模式额外：
 
 - `bootstrap_time` 设为当前 ISO 时间
 - `source` 取 `git -C ~/.claude/global-repo config --get remote.origin.url`，无则填占位
+- `stacks` 按 4.2 用户选择写：
+  - 选了具体 stack → `[{stack: <name>, path: ".", skipped: []}]`
+  - 选了「无 stack（只 \_common）」→ `[]`，同时顶层加 `skipped: []`
 
 ### 6.2 收尾反馈
 
