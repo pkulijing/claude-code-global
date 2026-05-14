@@ -2,7 +2,7 @@
 
 通过 GitHub 仓库管理 Claude Code 的全局配置（`CLAUDE.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json`）和「跨项目共享开发配置模板」（`templates/`），支持多设备同步与跨项目复用。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
 
-开发流程遵循 [`GLOBAL_CLAUDE.md`](GLOBAL_CLAUDE.md) 中定义的「需求 → 计划 → 执行 → 总结」四步模式，开发项以 issue 为真源（GitHub / GitLab 双轨自动判定，详见下文「Backlog 与开发项管理」）。
+开发流程遵循 [`GLOBAL_CLAUDE.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_CLAUDE.md) 中定义的「需求 → 计划 → 执行 → 总结」四步模式，开发项以 issue 为真源（GitHub / GitLab 双轨自动判定，详见下文「Backlog 与开发项管理」）。
 
 ## 工作原理
 
@@ -149,7 +149,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 ## Backlog 与开发项管理
 
-详细规范见 [`GLOBAL_CLAUDE.md`](GLOBAL_CLAUDE.md) 中「Backlog 与开发项管理」段。要点：
+详细规范见 [`GLOBAL_CLAUDE.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_CLAUDE.md) 中「Backlog 与开发项管理」段。要点：
 
 - 开发项以 **issue 为真源**（GitHub / GitLab 自动双轨判定）：详情、讨论、跨轮上下文都沉淀在 issue
 - `docs/BACKLOG.md` 是**未关闭 issue 的扁平索引**，按 priority 分组
