@@ -22,7 +22,7 @@
 
 ## P1 — 重大新功能
 
-- [#5 python-uv 模板首次接入时自动 bootstrap 项目](https://github.com/pkulijing/claude-code-global/issues/5) · `type:feat` `area:template` —— 模板核心可用性问题，sync 完还要手敲 4 步（uv init / dev deps / 装 pre-commit / pre-commit install）才能开发，体验断裂
+(暂无)
 
 ## P2 — 一般小功能小修复
 
@@ -37,3 +37,4 @@
 下面只列**刻意决定不做**的条目（避免未来翻老 SUMMARY 误以为是遗漏）：
 
 - **平台双兼容下的「对端死文件清理」opt-out**（`area:template`）—— round 14 决定项目根永久同时落 GitHub + GitLab 两套文件，不引入 `.cc-template.yml` 的 `platforms: [...]` 字段或类似 opt-out 机制。代价：GitHub 项目里有 4 个 `.gitlab/...` 死文件、反之亦然。理由：成本（marker schema 变更 + bootstrap/sync 多一层过滤逻辑）大于收益（仅减 4 个对端不读取的死文件）。详见 [docs/14-模板支持GitLab双轨/SUMMARY.md](14-模板支持GitLab双轨/SUMMARY.md) §5.3
+- **python-uv 模板内置 torch / aliyun pytorch wheels 索引**（`area:template`）—— round 17 决定 `pyproject.toml.uv-index.fragment` 仅落清华源默认 index，**不**默认追加 torch 的 aliyun `pytorch-wheels/cu121` 镜像段。理由：99% 项目不依赖 torch，硬塞会增加 pyproject noise 与维护负担（torch 版本随项目走，模板里 pin 反而成枷锁）。torch 项目自己在 pyproject 追加 `[[tool.uv.index]] name = "aliyun-torch"` 即可。详见 [docs/17-python-uv模板自动bootstrap/SUMMARY.md](17-python-uv模板自动bootstrap/SUMMARY.md) §「关键设计」#8

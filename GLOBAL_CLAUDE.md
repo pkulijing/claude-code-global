@@ -91,9 +91,10 @@
 
 **这些配置不再由各项目手动维护，而是通过 stack 模板统一管理：**
 
-- 新项目 → `/bootstrap` 选 stack（如 `python-uv`），自动写入 `.prettierrc` / `.vscode/` / `.pre-commit-config.yaml` / `.gitignore` / `.github/workflows/lint.yml` / `pyproject.toml [tool.ruff]` 段、并生成 `.cc-template.yml` marker
-- 已有老项目 → `/sync-project-config` 进入 adopt 模式补全
-- 模板更新后 → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策）
+- 新项目 → `/bootstrap` 选 stack（如 `python-uv`），自动写入 `.prettierrc` / `.vscode/` / `.pre-commit-config.yaml` / `.gitignore` / `.github/workflows/lint.yml` / `pyproject.toml [tool.ruff]` + `[[tool.uv.index]]` 段、并生成 `.cc-template.yml` marker
+- python-uv stack 还会自动 `uv init --bare` + `uv add --dev pytest pytest-cov ruff` + `pre-commit install`（含必要时 `uv tool install pre-commit`），跑完即可 `uv run pytest` / `git commit`，不再需要手敲 4 步
+- 已有老项目 → `/sync-project-config` 进入 adopt 模式补全（python-uv stack 同样自动跑上述 uv / pre-commit bootstrap；已有 `pyproject.toml` 时跳过 `uv init`）
+- 模板更新后 → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策；normal sync 不重跑 uv / pre-commit bootstrap）
 
 每个 stack 模板包含的具体内容见 `~/.claude/templates/<stack>/`，schema 与设计见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/`。
 

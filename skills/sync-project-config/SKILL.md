@@ -100,7 +100,15 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack
 | 新增   | 已存在（罕见）             | 询问 take / 保留 / 智能 merge                    |
 | 删除   | 仍存在                     | 询问删除 / 保留（用户可能仍需要）                |
 
-特殊：`pyproject.toml.ruff.fragment` 永远不直接写文件，做项目根 `pyproject.toml` 的 `[tool.ruff]` 段合并；项目无 pyproject.toml → 标记此文件「skipped: 项目无 pyproject.toml」。
+特殊：`pyproject.toml.*.fragment` 永远不直接写文件，做项目根 `pyproject.toml` 的对应段合并。
+
+- 命名约定：`pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（如 `ruff` → `[tool.ruff]`、`uv-index` → `[[tool.uv.index]]`）。
+- 合并语义：项目侧无此段 → 直接追加；已有此段 → AI 智能合并，保留用户自定义字段，模板新增字段追加；冲突字段询问用户。
+- 数组段（双方括号，如 `[[tool.uv.index]]`）：按 `name` 字段 union（项目侧已有同名条目则跳过，避免重复注册）。
+- 项目无 `pyproject.toml`：
+  - normal sync 路径 → 标记「skipped: 项目无 pyproject.toml」
+  - adopt 路径下选了 `python-uv` stack → 标记为「待 4.4 完成 `uv init` 后合并」
+  - 其他情况仍按 skipped 处理
 
 ### 2.5 处理 skipped 持久化语义
 
@@ -162,8 +170,46 @@ TODO 同步清单（共 N 项）：
 - 项目侧已存在 → AI 对比模板内容与项目内容：
   - 完全一致 → 默认建议「无需操作（已等价）」
   - 不一致 → 默认建议「智能 merge」或询问 take / 保留 / merge
-- `pyproject.toml.ruff.fragment` 同 2.4 特殊处理
+- `pyproject.toml.*.fragment` 同 2.4 特殊处理
 - 含 `.github/labels.yml` 时：**额外把"调 helper `label-sync-from-file` 同步 labels 到远端"作为单独一条 TODO**。helper 自动按 `git remote` 判定走 `gh` / `glab`（详见第 6 节执行步骤）。`.github/labels.yml` schema 跨平台一致，GitLab 项目下也读 `.github/` 路径同一份（不新建 `.gitlab/labels.yml` 副本）。
+
+跳到第 5 节。
+
+### 4.4 （仅 python-uv stack）项目实际可跑化
+
+stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先用 `AskUserQuestion` 让用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项），yes 则按以下子步骤逐条执行；no 则跳过整段并把决策记录到收尾反馈。
+
+逻辑等同 bootstrap 的 Step 3.5，区别在 adopt 模式下 `pyproject.toml` **更可能已存在**（老项目），4.4.1 跳过 `uv init` 是常态。
+
+#### 4.4.1 确保 pyproject.toml 存在
+
+```bash
+[ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --bare
+```
+
+跑完后回处理 2.4 标记「待 4.4 后合并」的所有 `pyproject.toml.*.fragment`（清华源段必须先合，否则 4.4.2 在国内会卡）。
+
+#### 4.4.2 装常用 dev 依赖
+
+```bash
+uv add --dev pytest pytest-cov ruff
+```
+
+uv 会跳过已装的，幂等。失败 → 报告 stdout/stderr，提示用户手动重试 + 暂停 skill，**不**自动回滚已写文件。
+
+#### 4.4.3 确保 pre-commit 全局可用
+
+```bash
+command -v pre-commit >/dev/null || uv tool install pre-commit
+```
+
+#### 4.4.4 注册 git hook
+
+```bash
+pre-commit install
+```
+
+成功后打印 `pre-commit installed at .git/hooks/pre-commit`。**不**强制跑 `pre-commit run --all-files`（首次接入易出大量 finding，让用户自决）。
 
 跳到第 5 节。
 
@@ -182,8 +228,9 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - **accept (新增)**：写文件
 - **accept (修改/智能 merge)**：用 Edit / Write 写回合并后内容
 - **accept (删除)**：删文件
-- **accept (pyproject 段合并)**：把 fragment 合并进 `pyproject.toml [tool.ruff]` 段
+- **accept (pyproject 段合并)**：把 `pyproject.toml.<section>.fragment` 合并进 `pyproject.toml` 的对应段（按 2.4 命名约定与合并语义）
 - **accept (label sync)**：调 helper 自动按平台 dispatch：
+
   ```bash
   python3 $HOME/.claude/scripts/platform_issue.py label-sync-from-file .github/labels.yml
   ```
@@ -194,6 +241,7 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
   - helper exit 3（auth 失败）→ 降级为提示「跑 `gh auth login` 或 `glab auth login` 后重试」，不阻塞其他 accept 项
   - helper exit 4（CLI 缺失）→ 降级为提示「先 `brew install gh` / `brew install glab`」
   - stdout 输出每条 label 的 TSV 同步结果与 summary，原样展示给用户
+
 - **skip**：在 marker 的 `stacks[0].skipped[]` 中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
 
 注意：skipped[] 的更新策略：
@@ -221,7 +269,7 @@ Adopt 模式额外：
 列出实际改动的项目侧文件清单（path-by-path），提示用户：
 
 1. `git diff` 自行 review
-2. 如需启用 pre-commit：`pre-commit install` 后 `pre-commit run --all-files` 验证
+2. 如新加入的 `.pre-commit-config.yaml` 还未生效，跑 `pre-commit install`（adopt 模式 4.4 已自动做过；normal sync 不做）；可选跑 `pre-commit run --all-files` 验证
 3. 满意后用 `/commit` 或自行 `git commit`
 
 **不自动 commit** —— 由用户决策（与 `/bootstrap`、`/backlog` 一致）。

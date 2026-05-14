@@ -98,9 +98,8 @@ disable-model-invocation: false
 
 特殊处理：
 
-- `pyproject.toml.ruff.fragment` 不能直接落地为同名文件 —— 它是片段，需合并进项目根的 `pyproject.toml` 的 `[tool.ruff]` 段
-  - 项目根**没有** `pyproject.toml` → 提示用户先 `uv init` 后再运行 `/sync-project-config` 单独合并 ruff 段
-  - 项目根**有** `pyproject.toml` → 用 AI 智能合并：保留用户已有的字段，追加片段缺的；冲突字段询问用户
+- `pyproject.toml.*.fragment` 不能直接落地为同名文件 —— 它们是片段，需合并进项目根的 `pyproject.toml` 对应段。命名约定 `pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（`ruff` → `[tool.ruff]`、`uv-index` → `[[tool.uv.index]]`）。
+- 实际合并动作在 Step 3.3.6 执行；本步只把这些片段从普通文件复制流程中**剔除**（不落地为同名 fragment 文件）。
 
 #### Step 3.3.5：同步 labels（helper 自动按平台 dispatch）
 
@@ -121,7 +120,50 @@ helper 内部行为：
 
 helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>]`），末行 `summary: N synced, M error`。一并展示给用户。
 
-#### Step 3.4：写 `.cc-template.yml` marker
+#### Step 3.3.6：合并 pyproject.toml fragments
+
+对 Step 3.3 剔除出来的每一份 `pyproject.toml.<section>.fragment`：
+
+- 项目根**有** `pyproject.toml` → AI 智能合并，保留用户已有字段，模板新增字段追加；冲突字段询问用户。数组段（`[[tool.X]]`，如 `[[tool.uv.index]]`）按 `name` 字段 union。
+- 项目根**无** `pyproject.toml` → **标记为 needs-step-3.5**（仅 python-uv stack 接得住；其他 stack 退化为提示「先 `uv init` / 等价命令再 `/sync-project-config`」并跳过）。
+
+#### Step 3.5：（仅 python-uv stack）项目实际可跑化
+
+stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先用 `AskUserQuestion` 让用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项）；选 no 则跳过整段并在收尾反馈中提示用户后续可手动跑。
+
+##### Step 3.5.1：确保 pyproject.toml 存在
+
+```bash
+[ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --bare
+```
+
+`--bare` 避免 `uv init` 生成 `src/<pkg>/__init__.py` + hello world，保留干净仓库。空目录 bootstrap 必然走 `uv init` 分支；老项目 adopt 走 `exists` 分支。
+
+跑完后**回到 Step 3.3.6**处理所有标记 needs-step-3.5 的片段（清华源 fragment 必须先合，否则 3.5.2 在国内会卡）。
+
+##### Step 3.5.2：装常用 dev 依赖
+
+```bash
+uv add --dev pytest pytest-cov ruff
+```
+
+uv 会跳过已装的，幂等。失败 → 报告 stdout/stderr，提示用户手动重试，暂停 skill 不继续。**不**自动回滚已写文件。
+
+##### Step 3.5.3：确保 pre-commit 全局可用
+
+```bash
+command -v pre-commit >/dev/null || uv tool install pre-commit
+```
+
+##### Step 3.5.4：注册 git hook
+
+```bash
+pre-commit install
+```
+
+成功后打印 `pre-commit installed at .git/hooks/pre-commit`。**不**强制跑 `pre-commit run --all-files`（首次接入易出大量 finding，让用户自决）。
+
+#### Step 3.6：写 `.cc-template.yml` marker
 
 在项目根创建 `.cc-template.yml`，内容如下（字段来源详见 SCHEMA.md）：
 
@@ -150,13 +192,14 @@ stacks:
 - 给出下一步建议清单：
   1. 检查并补完 `README.md` 与 `CLAUDE.md` 的「待补充」段
   2. 在 `DEVTREE.md` 的「Epic 结构」区块下添加首批叶 Epic
-  3. 若 Step 3 已套用 stack 模板：进项目跑 `pre-commit install` 启用 commit 闸门
-  4. 若 Step 3 跳过 / `pyproject.toml` 不存在：未来可运行 `/sync-project-config` 走 adopt 模式补全
-  5. 若 Step 3.3.5 跳过了 labels 同步：
+  3. 若 Step 3 选了 python-uv stack 且 Step 3.5 已执行：项目已可 `uv run pytest` / `git commit`；可选跑 `pre-commit run --all-files` 验证全量配置（首次接入易出 finding）
+  4. 若 Step 3.5 被用户跳过（「只要配置不要装依赖」）：未来可手动跑 `uv init --bare && uv add --dev pytest pytest-cov ruff && uv tool install pre-commit && pre-commit install`，或重跑 `/sync-project-config` adopt 走自动流程
+  5. 若 Step 3 整段跳过 / `pyproject.toml` 不存在 / 选了非 python-uv stack：未来可运行 `/sync-project-config` 走 adopt 模式补全
+  6. 若 Step 3.3.5 跳过了 labels 同步：
      - helper exit 3（auth 失败）：提示「跑 `gh auth login` 或 `glab auth login` 后再 `/sync-project-config`」
      - helper exit 2（无 origin / 自托管 URL 不含 `gitlab` 字样）：提示「先 `gh repo create` / `glab repo create` 关联 remote，再跑 `/sync-project-config`；或如已知是自托管 GitLab，跑 `python3 $HOME/.claude/scripts/platform_issue.py --platform gitlab label-sync-from-file .github/labels.yml`」
      - helper exit 4（CLI 缺失）：提示安装对应 CLI（macOS：`brew install gh` / `brew install glab`）
-  6. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后跑 `/sync-project-config` 重新同步 labels」
-  7. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
-  8. 准备好后运行 `/start` 开启 round 0
+  7. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后跑 `/sync-project-config` 重新同步 labels」
+  8. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
+  9. 准备好后运行 `/start` 开启 round 0
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）
