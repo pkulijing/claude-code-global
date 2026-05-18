@@ -32,6 +32,7 @@ graph TD
   base --> e_cc_reuse
   base --> e_cc_merge
   base --> e_template
+  base --> e_multi_agent
   toolchain --> e_bootstrap
   toolchain --> e_finish
   toolchain --> devmgmt["开发项管理"]:::epic
@@ -70,6 +71,11 @@ graph TD
     N14 ~~~ N15
     N15 ~~~ N17
     N17 ~~~ N18
+  end
+
+  subgraph e_multi_agent["🔄 多 Agent 兼容"]
+    direction TB
+    N20["🔬 20 · CC 与 Codex 双兼容调研"]:::research
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -113,7 +119,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-19 | 共 20 轮
+> 最后更新：2026-05-19 | 共 21 轮
 
 | #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                            |
 | --- | ----------------------------- | ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -136,7 +142,9 @@ graph TD
 | 16  | 自动同步全局配置              | 📦 工程 | CC 工具复用   | scripts/auto-update.sh + scheduler/(launchd/systemd) + SessionStart hook 三位一体，多设备自动 git pull + install 并在 Claude 启动时反馈版本/更新                      |
 | 17  | python-uv 模板自动 bootstrap  | ✨ 功能 | 项目模板机制  | bootstrap / sync adopt 在 python-uv stack 自动跑 uv init --bare + uv add --dev pytest pytest-cov ruff + pre-commit install，新项目即开即可 uv run pytest / git commit |
 | 18  | sync 支持无 stack 路径        | ✨ 功能 | 项目模板机制  | /sync-project-config 放宽 `len(stacks) ≤ 1` 断言，adopt 加「无 stack（只 \_common）」选项，length=0 项目把 skipped 写在 marker 顶层，闭环可跑                         |
-| 19  | 修复 Linux 自动同步缺陷       | 🐛 修复 | CC 工具复用   | 修开发项 16 Linux 侧两缺陷：systemd timer 改 `OnCalendar=hourly` 解决「燃尽」；auto-update.sh 加 untracked 撞名预检，归入「跳过」而非反复 git pull failed             |
+
+| 19 | 修复 Linux 自动同步缺陷 | 🐛 修复 | CC 工具复用 | 修开发项 16 Linux 侧两缺陷：systemd timer 改 `OnCalendar=hourly` 解决「燃尽」；auto-update.sh 加 untracked 撞名预检，归入「跳过」而非反复 git pull failed |
+| 20 | CC 与 Codex 双兼容调研 | 🔬 探索 | 多 Agent 兼容 | 调研 Codex 配置约定与本仓库耦合度，确认 ~85% 内容 Agent-neutral，提出"单一真源 + install.sh 双轨"方案 A 并落 issue #8 |
 
 ---
 
@@ -160,6 +168,11 @@ graph TD
 
 - 状态：进行中
 - 轮次：11, 14, 15, 17, 18
+
+#### 多 Agent 兼容
+
+- 状态：进行中
+- 轮次：20
 
 ### 开发工具链
 

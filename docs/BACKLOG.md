@@ -22,7 +22,7 @@
 
 ## P1 — 重大新功能
 
-(暂无)
+- [#8 支持 CC 与 Codex 双兼容（单一真源 + install.sh 双轨部署）](https://github.com/pkulijing/claude-code-global/issues/8) · `type:feat` `area:install` —— user 已在用 Codex 但本仓库无法服务它，相当于工作流能力的实质缺口；拖久会出现两端配置漂移
 
 ## P2 — 一般小功能小修复
 
