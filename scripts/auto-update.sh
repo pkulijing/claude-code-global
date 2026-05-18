@@ -166,6 +166,22 @@ if ! git merge-base --is-ancestor "$LOCAL" "$REMOTE"; then
     finish 0
 fi
 
+# untracked 撞名预检:fast-forward 会新建 REMOTE 相对 LOCAL 的新增文件,
+# 若这些路径本地已存在为 untracked 文件,git pull 会 abort。预检识别 → 跳过。
+COLLISIONS=""
+while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if [ -e "$REPO_DIR/$f" ]; then
+        COLLISIONS="${COLLISIONS:+$COLLISIONS, }$f"
+    fi
+done < <(git diff --name-only --diff-filter=A "$LOCAL" "$REMOTE")
+
+if [ -n "$COLLISIONS" ]; then
+    log "skip: untracked files would be overwritten: $COLLISIONS"
+    SKIP_REASON="untracked files would be overwritten: $COLLISIONS"
+    finish 0
+fi
+
 # pull + install
 log "pulling: ${LOCAL:0:7} → ${REMOTE:0:7}"
 if ! git pull --ff-only --quiet origin master >>"$LOG_FILE" 2>&1; then

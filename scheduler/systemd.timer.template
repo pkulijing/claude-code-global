@@ -2,8 +2,8 @@
 Description=Claude Code Global config auto-update timer
 
 [Timer]
-OnStartupSec=1min
-OnUnitActiveSec=1h
+OnBootSec=1min
+OnCalendar=hourly
 Persistent=true
 
 [Install]

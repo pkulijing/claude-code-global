@@ -46,8 +46,10 @@ graph TD
     N0["🌱 0 · 安装脚本"]:::genesis
     N2["🏗️ 2 · 重构项目 CLAUDE 文件结构"]:::refactor
     N16["📦 16 · 自动同步全局配置"]:::infra
+    N19["🐛 19 · 修复 Linux 自动同步缺陷"]:::bugfix
     N0 ~~~ N2
     N2 ~~~ N16
+    N16 ~~~ N19
   end
 
   subgraph e_cc_merge["✅ CC 配置合并"]
@@ -111,7 +113,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-14 | 共 19 轮
+> 最后更新：2026-05-19 | 共 20 轮
 
 | #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                            |
 | --- | ----------------------------- | ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -134,6 +136,7 @@ graph TD
 | 16  | 自动同步全局配置              | 📦 工程 | CC 工具复用   | scripts/auto-update.sh + scheduler/(launchd/systemd) + SessionStart hook 三位一体，多设备自动 git pull + install 并在 Claude 启动时反馈版本/更新                      |
 | 17  | python-uv 模板自动 bootstrap  | ✨ 功能 | 项目模板机制  | bootstrap / sync adopt 在 python-uv stack 自动跑 uv init --bare + uv add --dev pytest pytest-cov ruff + pre-commit install，新项目即开即可 uv run pytest / git commit |
 | 18  | sync 支持无 stack 路径        | ✨ 功能 | 项目模板机制  | /sync-project-config 放宽 `len(stacks) ≤ 1` 断言，adopt 加「无 stack（只 \_common）」选项，length=0 项目把 skipped 写在 marker 顶层，闭环可跑                         |
+| 19  | 修复 Linux 自动同步缺陷       | 🐛 修复 | CC 工具复用   | 修开发项 16 Linux 侧两缺陷：systemd timer 改 `OnCalendar=hourly` 解决「燃尽」；auto-update.sh 加 untracked 撞名预检，归入「跳过」而非反复 git pull failed             |
 
 ---
 
@@ -146,7 +149,7 @@ graph TD
 #### CC 工具复用
 
 - 状态：已完成
-- 轮次：0, 2, 16
+- 轮次：0, 2, 16, 19
 
 #### CC 配置合并
 

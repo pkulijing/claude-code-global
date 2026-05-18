@@ -59,7 +59,7 @@
 | 节流命中 + 后台模式                             | ✅ stdout silent                                            |
 | 干净 wt + LOCAL=REMOTE(完整 fetch 走通)         | ⏳ 待自然观测(dogfood 环境无法清干净)                       |
 | 干净 wt + 有 ff 更新(完整 pull + install)       | ⏳ 待自然观测(下次推 commit 后 launchd 跑到即知)            |
-| Linux systemd 分支                              | ⏳ 待 Linux 设备实测                                        |
+| Linux systemd 分支                              | ✅ 已在 Ubuntu 实测(见开发项 19,发现并修复两个缺陷)         |
 
 > 用户表示后续自行验证(本次 commit 推上去后多设备跑一跑即知),问题应不大 —— 三个待观测分支的代码路径都很短,主要是真实环境的 `git fetch` / `git pull` / `bash install.sh` 串联。
 
@@ -69,7 +69,7 @@
 2. **正在跑的旧 Claude session 不会自动应用新配置**:Claude hook 只在 session 启动时注册,这是 Claude 的限制 —— 我们的方案是 SessionStart 模式下用 ⚠️ 文案提醒用户 `/exit` 重开
 3. **dirty wt 时一直跳过 + 不更新时间戳**:意味着 launchd 每小时都会 dirty skip 写一行日志,长期 dirty 会让日志膨胀。可接受 —— 真实使用场景下 dirty 状态都是短暂的,而且日志旋转不在本轮范围
 4. **macOS PATH 假设 Homebrew**:plist 里硬编码了 `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`,intel mac 用户在 `/usr/local/bin` 也有 brew,够用;非 brew 安装的 git 在异常路径会找不到。可接受
-5. **Linux 分支未实测**:模板和 install 脚本都按 systemd user timer 标准写,逻辑对应 macOS 分支,但本机无 Linux 环境验证
+5. ~~**Linux 分支未实测**~~:已在 Ubuntu 实测,发现两个缺陷并在开发项 19 修复 —— (1) timer 模板用 `OnStartupSec` + `OnUnitActiveSec` 会「燃尽」,改 `OnCalendar=hourly`;(2) untracked 文件撞名时 `git pull` abort,脚本加预检归入「跳过」
 
 ## 后续 TODO
 
