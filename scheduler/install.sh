@@ -9,6 +9,18 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEDULER_DIR="$REPO_DIR/scheduler"
 
+# 选定调度器要服务的 agent home。auto-update.sh 单跑一次即由 install.sh 双轨部署
+# CC 与 Codex 两端，所以只需注册一个调度器；AGENT_HOME 只决定日志 / 节流戳的落点。
+# 优先 ~/.claude；仅装了 Codex 时取 ~/.codex。
+if [ -d "$HOME/.claude" ]; then
+    AGENT_HOME="$HOME/.claude"
+elif [ -d "$HOME/.codex" ]; then
+    AGENT_HOME="$HOME/.codex"
+else
+    AGENT_HOME="$HOME/.claude"
+fi
+mkdir -p "$AGENT_HOME/logs"
+
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
@@ -21,7 +33,10 @@ OS="$(uname -s)"
 
 render_template() {
     # render_template <src> <dst>
-    sed -e "s|{{REPO_DIR}}|$REPO_DIR|g" -e "s|{{HOME}}|$HOME|g" "$1" > "$2"
+    sed -e "s|{{REPO_DIR}}|$REPO_DIR|g" \
+        -e "s|{{HOME}}|$HOME|g" \
+        -e "s|{{AGENT_HOME}}|$AGENT_HOME|g" \
+        "$1" > "$2"
 }
 
 install_macos() {
@@ -36,7 +51,7 @@ install_macos() {
     if launchctl load -w "$plist_dst" 2>/dev/null; then
         success "已注册 launchd 调度器(登录跑 + 每小时跑)"
         info "  plist:  $plist_dst"
-        info "  日志:    $HOME/.claude/logs/auto-update.log"
+        info "  日志:    $AGENT_HOME/logs/auto-update.log"
     else
         warn "launchctl load 失败,可手动: launchctl load -w $plist_dst"
         return 1
@@ -65,7 +80,7 @@ install_linux() {
         success "已注册 systemd user timer(开机后 1min + 每小时跑)"
         info "  unit:   $svc"
         info "  timer:  $tmr"
-        info "  日志:   $HOME/.claude/logs/auto-update.log"
+        info "  日志:   $AGENT_HOME/logs/auto-update.log"
         info "  状态:   systemctl --user status claude-code-global-auto-update.timer"
     else
         warn "systemctl enable 失败"

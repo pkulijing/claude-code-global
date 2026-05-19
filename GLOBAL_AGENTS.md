@@ -4,7 +4,7 @@
 
 ## 称呼
 
-对话中的 CC 代表 Claude Code
+对话中 **CC** 代表 Claude Code，**Codex** 代表 OpenAI Codex；二者统称 **Coding Agent**。本文档面向所有 Coding Agent，规则对 CC 与 Codex 同等适用。
 
 ## 核心开发模式
 
@@ -15,7 +15,7 @@
 ### 开发模式详解
 
 - 需求：结合当前现状，针对一个待解决的问题，给出明确详细的开发需求。人类主导，提供需求内容
-- 计划：结合项目现状，分析需求，给出可行的详细计划。Agent 主导，人类 Review，**在 Plan 模式下输出**。
+- 计划：结合项目现状，分析需求，给出可行的详细计划。Agent 主导，人类 Review。**先撰写 `PLAN.md`、待人类确认后再写代码**（CC 用 Plan 模式；Codex 用户可配 `--sandbox read-only --ask-for-approval on-request` 增加 harness 保障，但本规则本身已足够约束两端）。
 - 执行：按照计划，完成开发。Agent 主导，人类适当干预辅助。**执行前必须先完成 PROMPT.md 和 PLAN.md 的撰写并确认，再开始写代码。**
 - 总结：开发完成后，总结开发项，输出总结文档，Agent 主导。包含以下内容：
   - 开发项背景
@@ -56,13 +56,13 @@
   - 其他补充文档：如数据库设计、API 设计等后续需要参考的重要信息
   - 如果需要图片等资源辅助，把图片放到 `assets` 文件夹下
 
-### 会话标题约定（CC 自身行为约束）
+### 会话标题约定（Coding Agent 自身行为约束）
 
-为方便 `/resume` 时通过会话标题历史快速定位特定开发轮次，CC 在开发轮次相关的对话中，**必须**在自己**第一条回复**的开头以 `Round N:` 前缀（N 为 `docs/N-*` 目录的数字编号）明确标注当前轮次，让 Claude Code 自动生成的会话标题以此为锚点。
+为方便通过会话标题历史快速定位特定开发轮次，Coding Agent 在开发轮次相关的对话中，**必须**在自己**第一条回复**的开头以 `Round N:` 前缀（N 为 `docs/N-*` 目录的数字编号）明确标注当前轮次，让自动生成的会话标题以此为锚点。
 
 - 示例：`Round 16: 多设备自动同步全局配置`
 - 触发条件：通过 `/start <issue#>` 开新轮、或在已有 `docs/N-*` 目录下接续既有轮次（含读取/修改该目录下任何文档、或人类明确说要继续第 N 轮）
-- 这是对 CC 自身行为的约束，无需人类提醒；CC 自己识别当前所处轮次并主动加前缀
+- 这是对 Coding Agent 自身行为的约束，无需人类提醒；Agent 自己识别当前所处轮次并主动加前缀
 
 ## git 规则
 
@@ -89,11 +89,11 @@
 
 ## 项目本地推荐配置（由 stack 模板统一管理）
 
-每个项目应配置一份与 `~/.claude/hooks/fix-after-edit.sh`（PostToolUse 自动 fix hook）输出对齐的本地工具链，避免「CC 编辑 → VS Code 保存触发 formatOnSave → 大 diff」的反复重排，并在 commit 前增加 lint 闸门。
+每个项目应配置一份与 `fix-after-edit.sh`（PostToolUse 自动 fix hook）输出对齐的本地工具链，避免「Coding Agent 编辑 → VS Code 保存触发 formatOnSave → 大 diff」的反复重排，并在 commit 前增加 lint 闸门。
 
 **这些配置不再由各项目手动维护，而是通过 stack 模板统一管理：**
 
-- 新项目 → `/bootstrap` 选 stack（如 `python-uv`），自动写入 `.prettierrc` / `.vscode/` / `.pre-commit-config.yaml` / `.gitignore` / `.github/workflows/lint.yml` / `pyproject.toml [tool.ruff]` + `[[tool.uv.index]]` 段、并生成 `.cc-template.yml` marker
+- 新项目 → `/bootstrap` 选 stack（如 `python-uv`），自动写入 `.prettierrc` / `.vscode/` / `.pre-commit-config.yaml` / `.gitignore` / `.github/workflows/lint.yml` / `pyproject.toml [tool.ruff]` + `[[tool.uv.index]]` 段、并生成 `.agent-template.yml` marker
 - python-uv stack 还会自动 `uv init --bare` + `uv add --dev pytest pytest-cov ruff` + `pre-commit install`（含必要时 `uv tool install pre-commit`），跑完即可 `uv run pytest` / `git commit`，不再需要手敲 4 步
 - 已有老项目 → `/sync-project-config` 进入 adopt 模式补全（python-uv stack 同样自动跑上述 uv / pre-commit bootstrap；已有 `pyproject.toml` 时跳过 `uv init`）
 - 模板更新后 → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策；normal sync 不重跑 uv / pre-commit bootstrap）

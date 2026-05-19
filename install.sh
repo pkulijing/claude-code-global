@@ -3,7 +3,6 @@ set -euo pipefail
 
 # 自动检测仓库根目录
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
-TARGET_DIR="$HOME/.claude"
 
 # 颜色输出
 GREEN='\033[0;32m'
@@ -27,6 +26,10 @@ warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 # 实现上等价于：剔除所有 managed 条目 → 合并基线 → 集合天然就等于基线 managed 集合。
 # 用户手动添加的 hook（不带此标记）始终保留。
 MANAGED_MARKER_REGEX="# *@claude-code-global:[A-Za-z0-9_-]+"
+
+# Codex config.toml 的托管块由一对 marker 注释包裹，整块由 install.sh 重写。
+TOML_MARKER_BEGIN="# >>> claude-code-global managed >>>"
+TOML_MARKER_END="# <<< claude-code-global managed <<<"
 
 # 从 settings JSON 提取所有 managed hook 的 name 列表（去重排序），输出空格分隔字符串
 # 用法: list_managed_names <json-file>
@@ -137,6 +140,85 @@ merge_settings() {
     success "已合并 ${name}（备份：${name}.bak.${ts}）"
 }
 
+# 从一个文件中提取 marker 块（含首尾 marker 行本身），输出到 stdout
+# 用法: extract_toml_block <file>
+extract_toml_block() {
+    awk -v b="$TOML_MARKER_BEGIN" -v e="$TOML_MARKER_END" '
+        $0 == b { inblk = 1 }
+        inblk   { print }
+        $0 == e { inblk = 0 }
+    ' "$1"
+}
+
+# 合并基线 TOML 配置进本地 config.toml（非破坏性）
+# 策略（与 merge_settings 等价，但 TOML 无 jq，改用 marker 块整体重写）：
+#   - dst 不存在 → 整份复制基线（含 marker 块外的推荐策略）
+#   - dst 存在且无 marker 块 → 末尾追加基线的 marker 块
+#   - dst 存在且有旧 marker 块 → 用基线的块整体替换旧块
+#   - 块内容与现有一致 → 跳过（不产生空备份）
+# marker 块只含 [[hooks.*]] 数组表，可安全追加到任意 TOML 文件末尾；
+# 用户在 marker 块外手写的内容（含 approval_policy / [projects] 等）一律保留。
+# 用法: merge_toml <基线TOML> <目标TOML>
+merge_toml() {
+    local src="$1"
+    local dst="$2"
+    local name
+    name="$(basename "$dst")"
+
+    # 本地没有：整份复制
+    if [ ! -f "$dst" ]; then
+        cp "$src" "$dst"
+        success "已创建 ${name}（从 $(basename "$src") 初始化）"
+        return
+    fi
+
+    # 提取基线的 marker 块
+    local block
+    block="$(extract_toml_block "$src")"
+    if [ -z "$block" ]; then
+        warn "基线 $(basename "$src") 无 marker 块，跳过合并 ${name}"
+        return
+    fi
+
+    local ts
+    if grep -qF "$TOML_MARKER_BEGIN" "$dst"; then
+        # 已有 marker 块：比较是否需要更新
+        local current_block
+        current_block="$(extract_toml_block "$dst")"
+        if [ "$current_block" = "$block" ]; then
+            info "已跳过 ${name}（marker 块已是最新）"
+            return
+        fi
+        # 整体替换旧块：备份后用 awk 删旧块插新块
+        ts="$(date +%Y%m%d-%H%M%S)"
+        cp "$dst" "${dst}.bak.${ts}"
+        local block_file merged_file
+        block_file="$(mktemp)"
+        merged_file="$(mktemp)"
+        printf '%s\n' "$block" > "$block_file"
+        awk -v b="$TOML_MARKER_BEGIN" -v e="$TOML_MARKER_END" -v nf="$block_file" '
+            $0 == b {
+                inblk = 1
+                while ((getline line < nf) > 0) print line
+                close(nf)
+                next
+            }
+            inblk && $0 == e { inblk = 0; next }
+            inblk { next }
+            { print }
+        ' "$dst" > "$merged_file"
+        mv "$merged_file" "$dst"
+        rm -f "$block_file"
+        success "已更新 ${name} 的 marker 块（备份：${name}.bak.${ts}）"
+    else
+        # 无 marker 块：末尾追加
+        ts="$(date +%Y%m%d-%H%M%S)"
+        cp "$dst" "${dst}.bak.${ts}"
+        printf '\n%s\n' "$block" >> "$dst"
+        success "已向 ${name} 追加 marker 块（备份：${name}.bak.${ts}）"
+    fi
+}
+
 # 创建一个符号链接，处理已存在的情况
 # 用法: link_item <源路径> <目标路径>
 link_item() {
@@ -166,82 +248,122 @@ link_item() {
     fi
 }
 
-# 确保目标目录存在
-mkdir -p "$TARGET_DIR"
-mkdir -p "$TARGET_DIR/skills"
-mkdir -p "$TARGET_DIR/hooks"
-mkdir -p "$TARGET_DIR/scripts"
+# 部署一个 agent 端：软链 skills/hooks/scripts/templates/global-repo + 主指令文档，
+# 并合并各端的 settings/config 基线。
+# 用法: deploy_agent <agent_home> <主指令文档名> <agent 标签> <config 类型: json|toml>
+deploy_agent() {
+    local agent_home="$1"
+    local main_doc="$2"
+    local label="$3"
+    local config_kind="$4"
+
+    echo ""
+    echo "------------------------------"
+    info "部署 ${label}：${agent_home}"
+    echo "------------------------------"
+
+    mkdir -p "$agent_home/skills" "$agent_home/hooks" "$agent_home/scripts"
+
+    # 主指令文档（GLOBAL_AGENTS.md → ~/.claude/CLAUDE.md 或 ~/.codex/AGENTS.md）
+    if [ -f "$REPO_DIR/GLOBAL_AGENTS.md" ]; then
+        link_item "$REPO_DIR/GLOBAL_AGENTS.md" "$agent_home/$main_doc"
+    else
+        warn "仓库中未找到 GLOBAL_AGENTS.md，跳过"
+    fi
+
+    # skills（逐个子目录）
+    if [ -d "$REPO_DIR/skills" ]; then
+        for skill_dir in "$REPO_DIR/skills"/*/; do
+            [ -d "$skill_dir" ] || continue
+            local skill_name
+            skill_name="$(basename "$skill_dir")"
+            link_item "$REPO_DIR/skills/$skill_name" "$agent_home/skills/$skill_name"
+        done
+    else
+        warn "仓库中未找到 skills/ 目录，跳过"
+    fi
+
+    # hooks（逐个文件）
+    if [ -d "$REPO_DIR/hooks" ]; then
+        for hook_path in "$REPO_DIR/hooks"/*; do
+            [ -e "$hook_path" ] || continue
+            local hook_name
+            hook_name="$(basename "$hook_path")"
+            link_item "$REPO_DIR/hooks/$hook_name" "$agent_home/hooks/$hook_name"
+        done
+    else
+        warn "仓库中未找到 hooks/ 目录，跳过"
+    fi
+
+    # scripts（逐个文件）
+    if [ -d "$REPO_DIR/scripts" ]; then
+        for script_path in "$REPO_DIR/scripts"/*; do
+            [ -e "$script_path" ] || continue
+            local script_name
+            script_name="$(basename "$script_path")"
+            link_item "$REPO_DIR/scripts/$script_name" "$agent_home/scripts/$script_name"
+        done
+    else
+        warn "仓库中未找到 scripts/ 目录，跳过"
+    fi
+
+    # templates 目录
+    if [ -d "$REPO_DIR/templates" ]; then
+        link_item "$REPO_DIR/templates" "$agent_home/templates"
+    else
+        warn "仓库中未找到 templates/ 目录，跳过"
+    fi
+
+    # 仓库根 → global-repo（供 /sync-project-config 访问模板 git 历史）
+    link_item "$REPO_DIR" "$agent_home/global-repo"
+
+    # settings / config 合并（CC 用 JSON，Codex 用 TOML）
+    if [ "$config_kind" = "json" ]; then
+        if [ -f "$REPO_DIR/settings.base.json" ]; then
+            merge_settings "$REPO_DIR/settings.base.json" "$agent_home/settings.json"
+        else
+            warn "仓库中未找到 settings.base.json，跳过"
+        fi
+    else
+        if [ -f "$REPO_DIR/codex.config.base.toml" ]; then
+            merge_toml "$REPO_DIR/codex.config.base.toml" "$agent_home/config.toml"
+        else
+            warn "仓库中未找到 codex.config.base.toml，跳过"
+        fi
+    fi
+}
 
 echo "=============================="
-echo " Claude Code 全局配置安装"
+echo " Coding Agent 全局配置安装"
 echo "=============================="
 echo ""
 info "仓库目录: $REPO_DIR"
-info "目标目录: $TARGET_DIR"
-echo ""
 
-# 链接 GLOBAL_CLAUDE.md → ~/.claude/CLAUDE.md
-if [ -f "$REPO_DIR/GLOBAL_CLAUDE.md" ]; then
-    link_item "$REPO_DIR/GLOBAL_CLAUDE.md" "$TARGET_DIR/CLAUDE.md"
+# 双轨部署：检测 ~/.claude（Claude Code）与 ~/.codex（Codex）各自是否存在，
+# 对存在的一侧部署，缺哪侧跳过哪侧。agent 自身安装时会创建其 home 目录。
+DEPLOYED_ANY=0
+DEPLOYED_CODEX=0
+
+if [ -d "$HOME/.claude" ]; then
+    deploy_agent "$HOME/.claude" "CLAUDE.md" "Claude Code" "json"
+    DEPLOYED_ANY=1
 else
-    warn "仓库中未找到 GLOBAL_CLAUDE.md，跳过"
+    info "未检测到 ~/.claude，跳过 Claude Code 端"
 fi
 
-# 链接 skills（逐个子目录）
-if [ -d "$REPO_DIR/skills" ]; then
-    for skill_dir in "$REPO_DIR/skills"/*/; do
-        # 检查是否真的有子目录（glob 无匹配时会保留原样）
-        [ -d "$skill_dir" ] || continue
-        skill_name="$(basename "$skill_dir")"
-        link_item "$REPO_DIR/skills/$skill_name" "$TARGET_DIR/skills/$skill_name"
-    done
+if [ -d "$HOME/.codex" ]; then
+    deploy_agent "$HOME/.codex" "AGENTS.md" "Codex" "toml"
+    DEPLOYED_ANY=1
+    DEPLOYED_CODEX=1
 else
-    warn "仓库中未找到 skills/ 目录，跳过"
+    info "未检测到 ~/.codex，跳过 Codex 端"
 fi
 
-# 链接 hooks（逐个文件）
-if [ -d "$REPO_DIR/hooks" ]; then
-    for hook_path in "$REPO_DIR/hooks"/*; do
-        # 检查是否真的有文件（glob 无匹配时会保留原样）
-        [ -e "$hook_path" ] || continue
-        hook_name="$(basename "$hook_path")"
-        link_item "$REPO_DIR/hooks/$hook_name" "$TARGET_DIR/hooks/$hook_name"
-    done
-else
-    warn "仓库中未找到 hooks/ 目录，跳过"
-fi
-
-# 链接 scripts（逐个文件）
-# 这些是被 SKILL.md 显式调用的稳定脚本（如 platform_issue.py），
-# 由 SKILL.md 通过 $HOME/.claude/scripts/<name> 引用
-if [ -d "$REPO_DIR/scripts" ]; then
-    for script_path in "$REPO_DIR/scripts"/*; do
-        [ -e "$script_path" ] || continue
-        script_name="$(basename "$script_path")"
-        link_item "$REPO_DIR/scripts/$script_name" "$TARGET_DIR/scripts/$script_name"
-    done
-else
-    warn "仓库中未找到 scripts/ 目录，跳过"
-fi
-
-# 链接 templates 目录到 ~/.claude/templates/
-# 让 /bootstrap 与 /sync-project-config 通过 stable 路径读取共享模板
-if [ -d "$REPO_DIR/templates" ]; then
-    link_item "$REPO_DIR/templates" "$TARGET_DIR/templates"
-else
-    warn "仓库中未找到 templates/ 目录，跳过"
-fi
-
-# 链接仓库根到 ~/.claude/global-repo/
-# 让 /sync-project-config 通过此 stable 路径访问 templates 的 git 历史，
-# 用于 git diff <old>..HEAD -- templates/<stack>/ 计算模板版本变化
-link_item "$REPO_DIR" "$TARGET_DIR/global-repo"
-
-# 合并 settings.base.json → ~/.claude/settings.json（不软链接，需合并本机特有设置）
-if [ -f "$REPO_DIR/settings.base.json" ]; then
-    merge_settings "$REPO_DIR/settings.base.json" "$TARGET_DIR/settings.json"
-else
-    warn "仓库中未找到 settings.base.json，跳过"
+if [ "$DEPLOYED_ANY" = "0" ]; then
+    echo ""
+    warn "未检测到 ~/.claude 或 ~/.codex，未部署任何 agent。"
+    warn "请先安装 Claude Code 或 Codex CLI（它们会创建各自的 home 目录），再重跑本脚本。"
+    exit 0
 fi
 
 # 注册 OS 自动同步调度器（launchd / systemd user timer）
@@ -256,3 +378,8 @@ echo ""
 echo "=============================="
 echo " 安装完成"
 echo "=============================="
+
+if [ "$DEPLOYED_CODEX" = "1" ]; then
+    echo ""
+    warn "Codex hooks 首次需进入 Codex 跑一次 /hooks 命令 review 后才会生效。"
+fi

@@ -3,6 +3,7 @@ Description=Claude Code Global config auto-update
 
 [Service]
 Type=oneshot
+Environment=AGENT_HOME={{AGENT_HOME}}
 ExecStart=/bin/bash {{REPO_DIR}}/scripts/auto-update.sh
-StandardOutput=append:{{HOME}}/.claude/logs/auto-update.log
-StandardError=append:{{HOME}}/.claude/logs/auto-update.log
+StandardOutput=append:{{AGENT_HOME}}/logs/auto-update.log
+StandardError=append:{{AGENT_HOME}}/logs/auto-update.log

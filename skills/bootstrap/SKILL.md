@@ -41,7 +41,7 @@ disable-model-invocation: false
 
 ## 开发流程
 
-本项目遵循 [全局 Constitution](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_CLAUDE.md) 中定义的「需求 - 计划 - 执行 - 总结」四步开发模式，文档记录见 `docs/`。
+本项目遵循 [全局 Constitution](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_AGENTS.md) 中定义的「需求 - 计划 - 执行 - 总结」四步开发模式，文档记录见 `docs/`。
 ```
 
 ### Step 2：写 CLAUDE.md
@@ -79,7 +79,7 @@ disable-model-invocation: false
 
 #### Step 3.2：用户选 stack
 
-用 `AskUserQuestion` 让用户在以下选项中选一个：
+询问用户，让其在以下选项中选一个：
 
 - 各 stack 名（每个 stack 一个选项）
 - 「跳过模板初始化（不推荐，但允许）」
@@ -129,7 +129,7 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
 
 #### Step 3.5：（仅 python-uv stack）项目实际可跑化
 
-stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先用 `AskUserQuestion` 让用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项）；选 no 则跳过整段并在收尾反馈中提示用户后续可手动跑。
+stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项）；选 no 则跳过整段并在收尾反馈中提示用户后续可手动跑。
 
 ##### Step 3.5.1：确保 pyproject.toml 存在
 
@@ -163,9 +163,9 @@ pre-commit install
 
 成功后打印 `pre-commit installed at .git/hooks/pre-commit`。**不**强制跑 `pre-commit run --all-files`（首次接入易出大量 finding，让用户自决）。
 
-#### Step 3.6：写 `.cc-template.yml` marker
+#### Step 3.6：写 `.agent-template.yml` marker
 
-在项目根创建 `.cc-template.yml`，内容如下（字段来源详见 SCHEMA.md）：
+在项目根创建 `.agent-template.yml`，内容如下（字段来源详见 SCHEMA.md）：
 
 ```yaml
 # 由 claude-code-global 管理，非必要请勿手动编辑
@@ -188,7 +188,7 @@ stacks:
 
 ### Step 5：收尾反馈
 
-- echo-back 新建文件的路径：`README.md`、`CLAUDE.md`、`docs/DEVTREE.md`，以及（若 Step 3 未跳过）模板复制的文件清单 + `.cc-template.yml`（跳过的项注明「已存在，未覆盖」或「用户在冲突清单中选择保留」）
+- echo-back 新建文件的路径：`README.md`、`CLAUDE.md`、`docs/DEVTREE.md`，以及（若 Step 3 未跳过）模板复制的文件清单 + `.agent-template.yml`（跳过的项注明「已存在，未覆盖」或「用户在冲突清单中选择保留」）
 - 给出下一步建议清单：
   1. 检查并补完 `README.md` 与 `CLAUDE.md` 的「待补充」段
   2. 在 `DEVTREE.md` 的「Epic 结构」区块下添加首批叶 Epic

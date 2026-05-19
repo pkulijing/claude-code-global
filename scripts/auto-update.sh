@@ -5,13 +5,13 @@
 #   1. OS 调度器 (macOS launchd / Linux systemd timer):无 flag,日志为主
 #   2. Claude SessionStart hook:--session,stdout 出版本摘要 + 更新提醒
 #
-# 30min 节流共享(~/.claude/.auto-update-last-run),两边互不重复。
+# 30min 节流共享($AGENT_HOME/.auto-update-last-run),两边互不重复。
 # 详细设计见仓库 docs/16-自动同步全局配置/PLAN.md。
 
 set -uo pipefail
 
 # ---------- 自定位仓库根 ----------
-# 脚本本体在 <repo>/scripts/auto-update.sh,被软链到 ~/.claude/scripts/。
+# 脚本本体在 <repo>/scripts/auto-update.sh,被软链到 ~/.claude/scripts/ 与 ~/.codex/scripts/。
 # 解析自身真实路径(macOS 的 readlink 不支持 -f,手动循环解软链)。
 SELF="${BASH_SOURCE[0]}"
 while [ -L "$SELF" ]; do
@@ -24,10 +24,14 @@ done
 REPO_DIR="$(cd "$(dirname "$SELF")/.." && pwd)"
 
 # ---------- 常量 ----------
+# AGENT_HOME 指向某个 agent 的配置目录(CC 是 ~/.claude,Codex 是 ~/.codex)。
+# 默认 ~/.claude;由 OS 调度器 / SessionStart hook 通过环境变量覆盖。
+# 日志与节流戳落在该目录下,使 Codex-only 机器也能正常工作。
+AGENT_HOME="${AGENT_HOME:-$HOME/.claude}"
 THROTTLE_SEC=1800   # 30 分钟
-LOG_DIR="$HOME/.claude/logs"
+LOG_DIR="$AGENT_HOME/logs"
 LOG_FILE="$LOG_DIR/auto-update.log"
-STAMP_FILE="$HOME/.claude/.auto-update-last-run"
+STAMP_FILE="$AGENT_HOME/.auto-update-last-run"
 mkdir -p "$LOG_DIR"
 
 # ---------- 参数解析 ----------

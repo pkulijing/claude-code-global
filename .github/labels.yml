@@ -49,4 +49,4 @@
   description: "templates/ 跨项目共享配置模板（_common / python-uv / ...）"
 - name: "area:doc"
   color: "C5DEF5"
-  description: "GLOBAL_CLAUDE.md / docs/ 文档体系"
+  description: "GLOBAL_AGENTS.md / docs/ 文档体系"

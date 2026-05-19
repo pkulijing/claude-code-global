@@ -6,7 +6,7 @@ disable-model-invocation: false
 
 用户调用此 skill 表示要把仓库的模板（`~/.claude/templates/<stack>/`）变化反映到当前项目。两种模式：
 
-- **Normal sync**：项目根已有 `.cc-template.yml` marker → 计算 diff → AI 智能 merge 提议 → 用户批量决策 → 执行
+- **Normal sync**：项目根已有 `.agent-template.yml` marker → 计算 diff → AI 智能 merge 提议 → 用户批量决策 → 执行
 - **Adopt**：无 marker → 让用户选 stack（或选"无 stack 只 \_common"） → 当作"全是新增"完整套用一次（含冲突询问）→ 写 marker
 
 **两种项目形态**（本轮均支持）：
@@ -30,7 +30,17 @@ disable-model-invocation: false
 
 ## 模式判断
 
-读项目根 `.cc-template.yml`：
+### 旧名 marker 自动迁移
+
+marker 文件名在 round 22 由 `.cc-template.yml` 改为 `.agent-template.yml`。读 marker 前先做一次迁移检查：
+
+- 项目根存在旧名 `.cc-template.yml` 且**不存在**新名 `.agent-template.yml` → 用 `git mv .cc-template.yml .agent-template.yml` 重命名（前置检查已确保是 git 仓库），并明确告知用户「检测到旧版 marker 文件名，已自动迁移为 `.agent-template.yml`」。
+- 两者**同时存在** → 报冲突并停止，请用户手动处理（不猜测哪个为准）。
+- 其余情况不动。
+
+### 判断模式
+
+读项目根 `.agent-template.yml`：
 
 - **不存在** → 进入第 4 节「Adopt 模式」
 - **存在** → 进入第 2 节「Normal sync」
@@ -182,7 +192,7 @@ TODO 同步清单（共 N 项）：
 
 ### 4.2 用户选 stack
 
-用 `AskUserQuestion`：列出可选 stack，让用户选一个。本轮 path 固定 `.`，不询问 path。
+询问用户：列出可选 stack，让其选一个。本轮 path 固定 `.`，不询问 path。
 
 **选项列表末尾追加一条「无 stack（只 \_common）」**：
 
@@ -213,7 +223,7 @@ TODO 同步清单（共 N 项）：
 
 ### 4.4 （仅 python-uv stack）项目实际可跑化
 
-stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先用 `AskUserQuestion` 让用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项），yes 则按以下子步骤逐条执行；no 则跳过整段并把决策记录到收尾反馈。
+stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项），yes 则按以下子步骤逐条执行；no 则跳过整段并把决策记录到收尾反馈。
 
 逻辑等同 bootstrap 的 Step 3.5，区别在 adopt 模式下 `pyproject.toml` **更可能已存在**（老项目），4.4.1 跳过 `uv init` 是常态。
 
@@ -290,7 +300,7 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 
 ### 6.1 更新 marker
 
-回写 `.cc-template.yml`：
+回写 `.agent-template.yml`：
 
 - `template_commit` 更新为 `NEW_COMMIT`
 - `bootstrap_time` 不动（这是首次 bootstrap 时间）

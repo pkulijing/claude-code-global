@@ -1,23 +1,23 @@
-# Claude Code 全局配置
+# Coding Agent 全局配置（Claude Code + Codex）
 
-通过 GitHub 仓库管理 Claude Code 的全局配置（`CLAUDE.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json`）和「跨项目共享开发配置模板」（`templates/`），支持多设备同步与跨项目复用。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
+通过 GitHub 仓库**单一真源**地管理 Claude Code 与 OpenAI Codex 两个 coding agent 的全局配置（`GLOBAL_AGENTS.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json` / `codex.config.base.toml`）和「跨项目共享开发配置模板」（`templates/`），支持多设备同步与跨项目复用。`install.sh` 双轨部署到 `~/.claude/` 与 `~/.codex/`，缺哪端就只装哪端，详见下文「同时支持 Claude Code 与 Codex」。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
 
-开发流程遵循 [`GLOBAL_CLAUDE.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_CLAUDE.md) 中定义的「需求 → 计划 → 执行 → 总结」四步模式，开发项以 issue 为真源（GitHub / GitLab 双轨自动判定，详见下文「Backlog 与开发项管理」）。
+开发流程遵循 [`GLOBAL_AGENTS.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_AGENTS.md) 中定义的「需求 → 计划 → 执行 → 总结」四步模式，开发项以 issue 为真源（GitHub / GitLab 双轨自动判定，详见下文「Backlog 与开发项管理」）。
 
 ## 工作原理
 
-Claude Code 会读取 `~/.claude/` 下的全局配置。本仓库通过 `install.sh` 按两种方式部署（软链接 / 合并）：
+Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。本仓库通过 `install.sh` 双轨部署到两端（软链接 / 合并）。下表以 Claude Code 端为例，Codex 端结构对称（见「同时支持 Claude Code 与 Codex」）：
 
-| 仓库文件             | 部署到                    | 方式                     | 说明                                                                                                       |
-| -------------------- | ------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `GLOBAL_CLAUDE.md`   | `~/.claude/CLAUDE.md`     | 软链接                   | 修改仓库即修改实际配置，`git pull` 即完成同步                                                              |
-| `skills/*/`          | `~/.claude/skills/*/`     | 软链接（逐个子目录）     | 不影响 `~/.claude/skills/` 下不属于本仓库的 skill                                                          |
-| `hooks/*`            | `~/.claude/hooks/*`       | 软链接（逐个文件）       | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用        |
-| `scripts/*`          | `~/.claude/scripts/*`     | 软链接（逐个文件）       | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用   |
-| `templates/`         | `~/.claude/templates/`    | 软链接（整目录）         | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                      |
-| 仓库根目录           | `~/.claude/global-repo/`  | 软链接                   | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                            |
-| `settings.base.json` | `~/.claude/settings.json` | **合并**（非破坏性）     | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                |
-| `scheduler/`         | （不部署）                | 由 `install.sh` 末尾消费 | 渲染模板后写到 `~/Library/LaunchAgents/`（macOS）或 `~/.config/systemd/user/`（Linux），注册自动同步调度器 |
+| 仓库文件             | 部署到                                                 | 方式                     | 说明                                                                                                       |
+| -------------------- | ------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `GLOBAL_AGENTS.md`   | `~/.claude/CLAUDE.md`（Codex 为 `~/.codex/AGENTS.md`） | 软链接                   | 修改仓库即修改实际配置，`git pull` 即完成同步                                                              |
+| `skills/*/`          | `~/.claude/skills/*/`                                  | 软链接（逐个子目录）     | 不影响 `~/.claude/skills/` 下不属于本仓库的 skill                                                          |
+| `hooks/*`            | `~/.claude/hooks/*`                                    | 软链接（逐个文件）       | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用        |
+| `scripts/*`          | `~/.claude/scripts/*`                                  | 软链接（逐个文件）       | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用   |
+| `templates/`         | `~/.claude/templates/`                                 | 软链接（整目录）         | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                      |
+| 仓库根目录           | `~/.claude/global-repo/`                               | 软链接                   | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                            |
+| `settings.base.json` | `~/.claude/settings.json`                              | **合并**（非破坏性）     | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                |
+| `scheduler/`         | （不部署）                                             | 由 `install.sh` 末尾消费 | 渲染模板后写到 `~/Library/LaunchAgents/`（macOS）或 `~/.config/systemd/user/`（Linux），注册自动同步调度器 |
 
 `settings.json` 之所以不软链接，是因为它通常既含跨机共享设置（如 `permissions.allow`），又含本机特有偏好（如 `effortLevel`）。合并规则：
 
@@ -28,6 +28,28 @@ Claude Code 会读取 `~/.claude/` 下的全局配置。本仓库通过 `install
 
 合并依赖 `jq`（macOS 自带 `/usr/bin/jq`；Linux 各发行版用包管理器安装）。
 
+## 同时支持 Claude Code 与 Codex
+
+本仓库**单一真源**地服务 Claude Code (CC) 与 OpenAI Codex 两个 coding agent：skills / hooks / 主指令文档单份维护，`install.sh` 双轨软链到两端，新增 skill / 改 hook 不用写两遍。
+
+设计依据：`AGENTS.md` 已是多家 agent 共同采纳的跨工具事实标准（Codex / Cursor / Aider / Windsurf 等），仓库内容约 85% 本就 agent-neutral，CC 耦合主要在包装层（安装路径 / settings schema）而非内容层。因此把全局规范文档命名为 `GLOBAL_AGENTS.md`，软链为 CC 的 `CLAUDE.md` 与 Codex 的 `AGENTS.md`。
+
+`install.sh` 自动检测 `~/.claude/` 与 `~/.codex/` 各自是否存在（agent 自身安装时会创建其 home 目录），对存在的一侧部署，缺哪端就跳过哪端：
+
+| 仓库产物                                                 | Claude Code（`~/.claude/`）                         | Codex（`~/.codex/`）                                            |
+| -------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------- |
+| 主指令文档                                               | `CLAUDE.md` ← `GLOBAL_AGENTS.md`                    | `AGENTS.md` ← `GLOBAL_AGENTS.md`                                |
+| `skills/` `hooks/` `scripts/` `templates/` `global-repo` | 软链                                                | 软链                                                            |
+| 配置基线                                                 | `settings.json` ← 合并 `settings.base.json`（JSON） | `config.toml` ← 合并 `codex.config.base.toml`（TOML marker 块） |
+
+Codex 端配置基线 `codex.config.base.toml` 镜像 `settings.base.json` 的 hook 注册（`SessionStart` 自动同步 + `PostToolUse` 自动 fix）。合并策略：`config.toml` 不存在则整份复制；已存在则只注入 / 整体替换 `# >>> claude-code-global managed >>>` … `# <<< … <<<` 之间的 marker 块，块外用户内容（`approval_policy` / `[projects]` 等）一律保留。
+
+**已知限制**：
+
+- Codex hooks 首次需进入 Codex 跑一次 `/hooks` 命令 review 后才生效（`install.sh` 跑完会打印提示）。
+- skill body 中 `$HOME/.claude/scripts/...` 等路径仍硬编码；双装机器上 `~/.claude/` 始终存在故无碍，纯 Codex 机器尚未适配。
+- skill frontmatter 的 `disable-model-invocation` 字段、`fix-after-edit.sh` 读取的 hook stdin JSON 字段名在 Codex 端的容忍度 / 一致性待端到端实测（见 issue #8）。
+
 ## 安装
 
 ```bash
@@ -37,9 +59,9 @@ bash ~/Developer/claude-code-global/install.sh
 
 重复执行 `install.sh` 是安全的（幂等），不会影响 `~/.claude/skills/` 下不属于本仓库的 skill。
 
-## GLOBAL_CLAUDE.md 内容概览
+## GLOBAL_AGENTS.md 内容概览
 
-`GLOBAL_CLAUDE.md` 定义了所有项目通用的开发规范：
+`GLOBAL_AGENTS.md` 定义了所有项目通用的开发规范：
 
 | 模块                     | 内容                                                                                                                                                                                   |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -123,7 +145,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 工作流：
 
-- **新项目** → `/bootstrap` 选 stack（如 `python-uv`），自动写入相关配置 + 生成 `.cc-template.yml` marker
+- **新项目** → `/bootstrap` 选 stack（如 `python-uv`），自动写入相关配置 + 生成 `.agent-template.yml` marker
 - **已有老项目** → `/sync-project-config` 进入 adopt 模式补全 marker 并铺模板
 - **模板更新后** → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策；normal sync 不重跑 stack bootstrap）
 
@@ -135,7 +157,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 | 触发方                                                    | 时机              | 模式        | 输出                                                                                |
 | --------------------------------------------------------- | ----------------- | ----------- | ----------------------------------------------------------------------------------- |
-| **OS 调度器**（macOS launchd / Linux systemd user timer） | 登录跑 + 每小时跑 | 后台        | 完整日志 → `~/.claude/logs/auto-update.log`，stdout 静默                            |
+| **OS 调度器**（macOS launchd / Linux systemd user timer） | 登录跑 + 每小时跑 | 后台        | 完整日志 → `$AGENT_HOME/logs/auto-update.log`（默认 `~/.claude/`），stdout 静默     |
 | **Claude SessionStart hook**                              | 新 session 启动   | `--session` | install 详情入日志；stdout 输出当前版本 + GitHub commit URL，更新后追加 ⚠️ 重启提醒 |
 
 **`bash install.sh` 末尾自动调 [scheduler/install.sh](scheduler/install.sh)** 注册 OS 调度器（macOS 写 `~/Library/LaunchAgents/com.claude-code-global.auto-update.plist` + `launchctl load -w`；Linux 写 `~/.config/systemd/user/` + `systemctl --user enable --now`）。失败 warn 不阻塞主 install。
@@ -151,7 +173,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 ## Backlog 与开发项管理
 
-详细规范见 [`GLOBAL_CLAUDE.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_CLAUDE.md) 中「Backlog 与开发项管理」段。要点：
+详细规范见 [`GLOBAL_AGENTS.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_AGENTS.md) 中「Backlog 与开发项管理」段。要点：
 
 - 开发项以 **issue 为真源**（GitHub / GitLab 自动双轨判定）：详情、讨论、跨轮上下文都沉淀在 issue
 - `docs/BACKLOG.md` 是**未关闭 issue 的扁平索引**，按 priority 分组

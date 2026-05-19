@@ -76,6 +76,8 @@ graph TD
   subgraph e_multi_agent["🔄 多 Agent 兼容"]
     direction TB
     N20["🔬 20 · CC 与 Codex 双兼容调研"]:::research
+    N22["✨ 22 · CC 与 Codex 双兼容主链"]:::feature
+    N20 ~~~ N22
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -121,7 +123,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-19 | 共 22 轮
+> 最后更新：2026-05-19 | 共 23 轮
 
 | #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                            |
 | --- | ----------------------------- | ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -147,6 +149,7 @@ graph TD
 | 19  | 修复 Linux 自动同步缺陷       | 🐛 修复 | CC 工具复用   | 修开发项 16 Linux 侧两缺陷：systemd timer 改 `OnCalendar=hourly` 解「燃尽」；auto-update.sh 加 untracked 撞名预检，归入「跳过」而非反复 git pull failed               |
 | 20  | CC 与 Codex 双兼容调研        | 🔬 探索 | 多 Agent 兼容 | 调研 Codex 配置约定与本仓库耦合度，确认 ~85% 内容 Agent-neutral，提出「单一真源 + install.sh 双轨」方案 A 并落 issue #8                                               |
 | 21  | finish 自动收尾 worktree      | ✨ 功能 | 开发项收尾    | /start 默认建独立 worktree、/finish 新增 Step 5 自动 rebase+FF merge+清理，工作流并行化；附 GLOBAL_CLAUDE.md 简述与 .claude/.gitignore                                |
+| 22  | CC 与 Codex 双兼容主链        | ✨ 功能 | 多 Agent 兼容 | GLOBAL_AGENTS.md 改名 + skills 中性化 + 新增 codex.config.base.toml + install.sh 双轨重构（deploy_agent / merge_toml），单一真源部署到 ~/.claude 与 ~/.codex          |
 
 ---
 
@@ -174,7 +177,7 @@ graph TD
 #### 多 Agent 兼容
 
 - 状态：进行中
-- 轮次：20
+- 轮次：20, 22
 
 ### 开发工具链
 

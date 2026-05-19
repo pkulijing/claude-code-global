@@ -1,0 +1,33 @@
+# Codex 端配置基线，由 claude-code-global 的 install.sh 部署进 ~/.codex/config.toml。
+#
+# 合并规则（见 install.sh 的 merge_toml）：
+#   - ~/.codex/config.toml 不存在 → 整份复制本文件（含下方推荐策略 + marker 块）
+#   - ~/.codex/config.toml 已存在 → 只把下方 marker 块注入 / 整体替换，块外内容（含
+#     用户自己的 approval_policy / sandbox_mode / [projects] 等）一律保留不动
+#
+# 对应 CC 端的 settings.base.json —— 单一真源，两端等价。
+
+# --- 推荐的审批 / 沙箱策略（仅在 ~/.codex/config.toml 首次创建时写入）---
+# 与 CC 端「日常可写、敏感操作再确认」的默认权限取向对齐。
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# >>> claude-code-global managed >>>
+# 本块由 install.sh 每次运行时整体重写，请勿手动编辑。
+# 增删 hook 请改仓库根的 codex.config.base.toml 后重跑 bash install.sh。
+# 注意：Codex hooks 首次需进入 Codex 跑一次 /hooks 命令 review 后才会生效。
+
+# SessionStart：新会话启动时静默同步 claude-code-global 仓库。
+# AGENT_HOME 指到 ~/.codex，使同步日志 / 节流戳落到 Codex 侧。
+[[hooks.SessionStart]]
+command = "AGENT_HOME=$HOME/.codex bash $HOME/.codex/scripts/auto-update.sh --session"
+timeout = 60
+
+# PostToolUse：编辑文件后自动跑项目本地工具链（ruff / prettier 等）。
+# matcher 沿用 CC 端 settings.base.json 的写法；Codex 端精确工具名待 issue #8 实测校正。
+[[hooks.PostToolUse]]
+matcher = "Edit|MultiEdit|Write"
+command = "bash $HOME/.codex/hooks/fix-after-edit.sh"
+timeout = 30
+
+# <<< claude-code-global managed <<<

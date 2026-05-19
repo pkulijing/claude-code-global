@@ -31,7 +31,7 @@ disable-model-invocation: false
 
 ### Step 1：选 issue 类型
 
-`AskUserQuestion`：让用户选 `feat` / `bug` / `spike` 之一。决定走哪份模板。
+询问用户，让其在 `feat` / `bug` / `spike` 中选一个。决定走哪份模板。
 
 ### Step 2：协作填 body
 
@@ -47,11 +47,11 @@ disable-model-invocation: false
 
 读 `.github/labels.yml`（或缺失时 `python3 $HOME/.claude/scripts/platform_issue.py label-list` 取 fallback）拿 `area:*` 列表。labels.yml 在 GitLab 项目下也读 `.github/` 路径 —— round 15 后该文件 schema 跨平台共用，是 helper 私有输入而非平台读的死文件。
 
-`AskUserQuestion`：让用户从 area 列表中选一条。如列表为空（仅 placeholder），允许用户输入新 area 名（warn 一句「这个 area 不在 labels.yml 中，建议本轮结束后补到 labels.yml + 跑 `/sync-project-config` 同步到远端 labels」）。
+询问用户，让其从 area 列表中选一条。如列表为空（仅 placeholder），允许用户输入新 area 名（warn 一句「这个 area 不在 labels.yml 中，建议本轮结束后补到 labels.yml + 跑 `/sync-project-config` 同步到远端 labels」）。
 
 ### Step 4：选 priority
 
-`AskUserQuestion`：选 `P0` / `P1` / `P2`，并要求**一句话说明优先级判断理由**（写到 issue body 顶部 blockquote 中）。
+询问用户，让其在 `P0` / `P1` / `P2` 中选一个，并要求**一句话说明优先级判断理由**（写到 issue body 顶部 blockquote 中）。
 
 ### Step 5：回显草稿 + 三轴 label
 
