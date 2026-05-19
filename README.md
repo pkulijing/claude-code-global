@@ -43,7 +43,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 | 模块                     | 内容                                                                                                                                                                                   |
 | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **核心开发模式**         | 需求 → 计划 → 执行 → 总结的四步协作流程，每个开发项在 `docs/` 下留档（PROMPT.md / PLAN.md / SUMMARY.md）                                                                               |
+| **核心开发模式**         | 需求 → 计划 → 执行 → 总结的四步协作流程，每个开发项在 `docs/` 下留档（PROMPT.md / PLAN.md / SUMMARY.md）；每轮默认在独立 git worktree 内进行，支持多轮并行                             |
 | **git 规则**             | 中文 semantic commit message，AI 提交须带 Co-authored-by，`.gitignore` 按目录拆分                                                                                                      |
 | **环境变量管理**         | `.env.local`（真实值，gitignore）+ `.env.example`（占位符，提交），禁止泄露密钥                                                                                                        |
 | **Python 开发规则**      | 使用 uv 管理依赖（禁止 pip install），ruff 格式化，清华 + sjtu 镜像源                                                                                                                  |
@@ -56,18 +56,18 @@ bash ~/Developer/claude-code-global/install.sh
 
 本仓库提供以下 skill。`/backlog` `/start` `/finish` 三件套配合 `/commit` 形成完整的「issue 驱动」开发闭环；其余按需调用。
 
-| Skill                  | 用途                                                                                                                                                                             |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/backlog`             | 把一条想法走 issue templates 创建成 issue（GitHub / GitLab 自动判定，含三轴 label），并在 `docs/BACKLOG.md` 索引中加一行                                                         |
-| `/start`               | 开新一轮开发：创建 `docs/<编号>-<描述>/`，撰写 PROMPT.md，进入计划模式撰写 PLAN.md 等用户确认后再写代码。支持 `#<issue 号>` / GitHub or GitLab issue URL（推荐），也支持自由描述 |
-| `/finish`              | 收尾本轮：撰写 SUMMARY.md → 关联并关闭 issue（如有 `Closes #N`，GitHub / GitLab 均原生支持） → 更新 BACKLOG.md → `/devtree` → 必要时同步 README → `/commit`                      |
-| `/commit`              | 分析当前变更，自动生成中文 semantic commit message 并提交，末尾自动附加 Co-authored-by                                                                                           |
-| `/bootstrap`           | 为空项目搭建文档骨架（README / CLAUDE / DEVTREE）+ 选 stack 铺设跨项目模板，仅在项目首次开发前调用一次                                                                           |
-| `/sync-project-config` | 把本仓库管理的「跨项目共享开发配置模板」最新变化同步进当前项目；含 adopt 模式（无 marker 老项目首次接入）                                                                        |
-| `/devtree`             | 依据 `docs/DEVTREE.md` 中作者维护的 Epic 结构，重新生成可视化图表和节点索引                                                                                                      |
-| `/rebase`              | 诊断本地分支分叉并按清单引导完成 rebase，历史保持 FF 直线                                                                                                                        |
-| `/pybump`              | 升级 Python 项目版本号（`pyproject.toml`），提交并打 tag                                                                                                                         |
-| `/clean-local-setting` | 清理项目 `.claude/settings.local.json` 中的 permissions 列表（分类、交互确认、保留备份）                                                                                         |
+| Skill                  | 用途                                                                                                                                                                                                                                                                                                  |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/backlog`             | 把一条想法走 issue templates 创建成 issue（GitHub / GitLab 自动判定，含三轴 label），并在 `docs/BACKLOG.md` 索引中加一行                                                                                                                                                                              |
+| `/start`               | 开新一轮开发：默认建独立 git worktree（`.claude/worktrees/round<N>-*`）+ 同名分支，再建 `docs/<编号>-<描述>/`、撰写 PROMPT.md，进入计划模式撰写 PLAN.md 等用户确认后再写代码。支持 `#<issue 号>` / GitHub or GitLab issue URL（推荐），也支持自由描述；`--no-worktree` 跳过 worktree 在当前分支直接干 |
+| `/finish`              | 收尾本轮：撰写 SUMMARY.md → 关联并关闭 issue（如有 `Closes #N`，GitHub / GitLab 均原生支持） → 更新 BACKLOG.md → `/devtree` → 必要时同步 README → `/commit` → worktree 轮自动收尾（rebase → FF 合并主分支 → 二次确认后清理 worktree/分支/tag，不自动 push）                                           |
+| `/commit`              | 分析当前变更，自动生成中文 semantic commit message 并提交，末尾自动附加 Co-authored-by                                                                                                                                                                                                                |
+| `/bootstrap`           | 为空项目搭建文档骨架（README / CLAUDE / DEVTREE）+ 选 stack 铺设跨项目模板，仅在项目首次开发前调用一次                                                                                                                                                                                                |
+| `/sync-project-config` | 把本仓库管理的「跨项目共享开发配置模板」最新变化同步进当前项目；含 adopt 模式（无 marker 老项目首次接入）                                                                                                                                                                                             |
+| `/devtree`             | 依据 `docs/DEVTREE.md` 中作者维护的 Epic 结构，重新生成可视化图表和节点索引                                                                                                                                                                                                                           |
+| `/rebase`              | 诊断本地分支分叉并按清单引导完成 rebase，历史保持 FF 直线                                                                                                                                                                                                                                             |
+| `/pybump`              | 升级 Python 项目版本号（`pyproject.toml`），提交并打 tag                                                                                                                                                                                                                                              |
+| `/clean-local-setting` | 清理项目 `.claude/settings.local.json` 中的 permissions 列表（分类、交互确认、保留备份）                                                                                                                                                                                                              |
 
 ## Hooks
 

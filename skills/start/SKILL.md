@@ -19,14 +19,37 @@ disable-model-invocation: false
 
 无参数 → 追问用户本次开发项的需求是什么或对应的 issue 号，拿到后再继续。
 
+**`--no-worktree` 开关**：args 中可附带 `--no-worktree`（与 issue# ／自由描述正交，可与二者同时出现）。默认每轮在独立 git worktree 内开发；带此开关则跳过 worktree 创建、在当前分支直接干。解析需求内容前先把 `--no-worktree` 从 args 中剔除。适用场景：轻量改动 / 探索性 round / 不值得单开 worktree 的小修复。
+
 按照全局 CLAUDE.md 中的开发模式，严格遵循「执行前必须先完成 PROMPT.md 和 PLAN.md 的撰写并确认，再开始写代码」：
 
 ### 通用流程
 
-1. 在 `docs/` 下创建新的开发项文件夹（数字递增 + 中文描述；issue 驱动时从 issue 标题提炼简短中文描述）
-2. 基于参数撰写 `PROMPT.md`（两个分支具体行为见下）
-3. 进入计划模式，撰写 `PLAN.md` 并请用户确认
-4. 用户确认后再开始写代码
+1. **确定轮次编号 N**：扫 `docs/` 下现有 `N-*` 目录取最大值 +1。
+2. **确定本轮中文描述**：issue 驱动 → 先按「issue 驱动分支」第 1 步调 helper 拉 issue 详情，从 issue 标题提炼简短中文描述；自由描述 → 从描述文字提炼。
+3. **创建 worktree**（默认；带 `--no-worktree` 时跳过本步）—— 见下方「worktree 创建」小节。
+4. 在 `docs/` 下创建开发项文件夹 `docs/<N>-<中文描述>/`（worktree 模式下落在新 worktree 内）。
+5. 基于参数撰写 `PROMPT.md`（两个分支具体行为见下）。
+6. 进入计划模式，撰写 `PLAN.md` 并请用户确认。
+7. 用户确认后再开始写代码。
+
+#### worktree 创建（通用流程第 3 步展开）
+
+默认每轮开发在独立 git worktree 内进行，让多轮可并行、互不污染主工作树。除非 args 含 `--no-worktree`，执行：
+
+- **探测主分支**：`git symbolic-ref --short refs/remotes/origin/HEAD`（得 `origin/master` → 取末段 `master`）；失败则本地探测 `main` / `master`。
+- **防嵌套**：若当前已在某个 linked worktree 内（`git rev-parse --git-dir` ≠ `git rev-parse --git-common-dir`）→ 停下提示用户「已在 worktree 内」，问是接续当前轮还是退出，**不嵌套创建 worktree**。
+- **补 gitignore**：确保 `.claude/.gitignore` 忽略 `worktrees/`（文件不存在则创建、已存在但未含则追加；幂等），避免主工作树把嵌套 worktree 当 untracked。
+- **创建**：worktree 目录名与分支名统一为 `round<N>-<中文描述>`（`<中文描述>` 同第 4 步 docs 目录的描述）：
+
+  ```bash
+  git worktree add .claude/worktrees/round<N>-<中文描述> -b round<N>-<中文描述> <主分支>
+  ```
+
+- **进入**：`cd` 进新 worktree 目录，其后所有文件操作、git 操作都在该 worktree 内进行。
+- **告知**：打印一行 worktree 路径与分支名，提示用户可在 IDE 中打开该目录并行开发。
+
+带 `--no-worktree` → 跳过本小节，在当前分支直接开发，docs 目录落在当前工作树。`/finish` 收尾时检测到非 worktree 会跳过 worktree 收尾，对称无悬空分支。
 
 ### issue 驱动分支
 

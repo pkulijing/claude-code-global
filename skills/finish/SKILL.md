@@ -77,7 +77,69 @@ disable-model-invocation: false
 
 **关键**：如果 Step 2 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N` 这一行（不要嵌入 title）。GitHub / GitLab 均原生识别此关键字，无需平台分支。
 
-## Step 5：轻量提示
+## Step 5：worktree 收尾
+
+`/start` 默认在独立 worktree 内开一轮（见 `/start` skill）。本步在 `/commit` 之后自动判断是否在 worktree 内，是则一站式完成「rebase → FF merge → 清理」，免去手工三步走。
+
+**先检测是否在 linked worktree 内**：
+
+```bash
+[ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]
+```
+
+- **不在 worktree**（两者相等，含 `--no-worktree` round）→ 打印一行「non-worktree round，跳过 worktree 收尾」，直接进 Step 6。
+- **在 worktree** → 进入下面的收尾流程。
+
+收尾流程遵循 `/rebase` skill 的核心原则（FF-only、备份 tag、冲突逐文件解、abort 兜底、分段确认），但**不调用 `/rebase` skill** —— 因 `/rebase` 阶段 3 的 `git checkout <主分支>` 在 worktree 下必失败（主分支已被主工作树占用），FF merge 须改用 `git -C <主工作树> merge`。
+
+### 5.1 诊断
+
+展示 `git worktree list`、`git branch --show-current`、`git status`（应干净，`/commit` 刚跑完）、`git log --graph --oneline -15`。
+
+**探测主分支**：`git symbolic-ref --short refs/remotes/origin/HEAD`（得 `origin/master` → 取末段）；失败则本地探测 `main` / `master`。
+
+**算主工作树路径**：`dirname "$(git rev-parse --path-format=absolute --git-common-dir)"`。
+
+前置检查：当前分支不能就是主分支；工作区必须干净。任一不满足 → 停下问用户。
+
+### 5.2 备份 + rebase
+
+1. **备份 tag**：`git tag backup/<分支名>-$(date +%Y%m%d-%H%M)`，告诉用户「搞砸了用 `git reset --hard <该 tag>` 回退」。
+2. **rebase**：`git rebase <主分支>`。
+   - **无冲突** → 展示 `git log --graph --oneline -10`，停下等用户确认后进 5.3。
+   - **有冲突**（finish 跑过 `/devtree`，`DEVTREE.md` 几乎必与主分支并行进度撞车）→ `git status` 列冲突文件，**逐个解、逐个 `git add`**，再 `git rebase --continue`；后续 commit 续冲突则重复。**冲突时暂停让用户解，不自动跳过**；随时可 `git rebase --abort` + 备份 tag 兜底。解完展示 graph，停下等用户确认。
+
+### 5.3 FF merge 到主分支
+
+主分支 checkout 在主工作树，当前 worktree 不能 `git checkout` 它，故用 `-C` 在主工作树内合并：
+
+```bash
+git -C <主工作树> merge --ff-only <当前分支>
+```
+
+若 `--ff-only` 失败（主分支在本轮期间又前进）→ 回到 5.2 把当前分支继续 rebase 到最新主分支，再重试。**禁止 fallback 普通 merge。**
+
+### 5.4 二次确认 + 清理
+
+向用户**明确列出**将删除的三项：worktree 目录、`round<N>-*` 分支、`backup/*` tag。等用户确认（销毁性动作）：
+
+- **用户确认** → 先 `cd <主工作树>`（当前 cwd 即将随 worktree 一起消失），再依次执行：
+
+  ```bash
+  git worktree remove <当前 worktree 路径>
+  git branch -d <当前分支>
+  git tag -d backup/<分支名>-<时间戳>
+  ```
+
+  若 `git worktree remove` 失败（IDE / 编辑器占用 worktree 内文件）→ 给清晰提示「请关闭打开该目录的编辑器后重试」，**不加 `--force` 硬删**，保留全部状态。
+
+- **用户拒绝** → 保留 worktree / 分支 / backup tag 全部状态，打印当前状态，结束。
+
+### 5.5 不自动 push
+
+打印一行提示：主分支已 FF 前进，是否 `git push` 由用户决定（与 finish 不自动 push 的约定一致）。
+
+## Step 6：轻量提示
 
 收尾打印一行：
 
