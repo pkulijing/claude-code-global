@@ -23,6 +23,7 @@
 ## P1 — 重大新功能
 
 - [#8 支持 CC 与 Codex 双兼容（单一真源 + install.sh 双轨部署）](https://github.com/pkulijing/claude-code-global/issues/8) · `type:feat` `area:install` —— user 已在用 Codex 但本仓库无法服务它，相当于工作流能力的实质缺口；拖久会出现两端配置漂移
+- [#10 [Spike] 为仓库引入用户可配置项机制（首例：git init 默认分支）](https://github.com/pkulijing/claude-code-global/issues/10) · `type:refactor` `area:install` —— 会影响整套全局配置体系的基础能力（重大新功能），当前仓库对所有偏好均硬编码，缺一层用户可配置机制
 
 ## P2 — 一般小功能小修复
 
