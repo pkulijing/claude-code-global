@@ -27,7 +27,6 @@
 
 ## P2 — 一般小功能小修复
 
-- [#6 /finish 收尾时主动识别「可沉淀项」并提醒用户](https://github.com/pkulijing/claude-code-global/issues/6) · `type:feat` `area:skill` —— 让单轮经验（模板字段 / 新工作流 / 项目级 skill）能被稳定捡起，不再散落在 SUMMARY 后续 TODO 里靠人主动捞
 - [#7 将 skills/hooks 转型为 Claude Code 原生 plugin，install.sh 退化为环境初始化](https://github.com/pkulijing/claude-code-global/issues/7) · `type:refactor` `area:install` —— plugin 化让日常迭代自动分发到所有设备，install.sh 瘦身到 permissions / GLOBAL_CLAUDE / scheduler 这三件 plugin 装不了的事；实测确认 plugin skill description 进 context，关键词触发不受损
 
 ## 已完成 / 不再追踪

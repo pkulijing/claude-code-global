@@ -211,6 +211,25 @@ def cmd_repo_slug(args):
     return EXIT_OK
 
 
+def build_issue_create_cmd(platform, title, body_file, body, labels, repo):
+    """Build the gh/glab issue-create argv (pure, no execution).
+
+    `repo` (owner/name slug) targets a cross-repo issue — e.g. filing a
+    distillation issue to claude-code-global from inside another project.
+    GitHub reads the body from --body-file; GitLab takes it inline via
+    --description (so callers pass both body_file path and body text).
+    """
+    if platform == PLATFORM_GITHUB:
+        cmd = ["gh", "issue", "create", "--title", title, "--body-file", str(body_file)]
+    else:
+        cmd = ["glab", "issue", "create", "--title", title, "--description", body, "--yes"]
+    if repo:
+        cmd += ["--repo", repo]
+    for lbl in labels or []:
+        cmd += ["--label", lbl]
+    return cmd
+
+
 def cmd_issue_create(args):
     plat = resolve_platform(args.platform)
     if plat == PLATFORM_UNKNOWN:
@@ -221,34 +240,11 @@ def cmd_issue_create(args):
         sys.stderr.write(f"error: body file not found: {body_path}\n")
         return EXIT_ERROR
 
-    if plat == PLATFORM_GITHUB:
-        cmd = [
-            "gh",
-            "issue",
-            "create",
-            "--title",
-            args.title,
-            "--body-file",
-            str(body_path),
-        ]
-        for lbl in args.label or []:
-            cmd += ["--label", lbl]
-        result = _run(cmd)
-    else:
-        body = body_path.read_text()
-        cmd = [
-            "glab",
-            "issue",
-            "create",
-            "--title",
-            args.title,
-            "--description",
-            body,
-            "--yes",
-        ]
-        for lbl in args.label or []:
-            cmd += ["--label", lbl]
-        result = _run(cmd)
+    body = body_path.read_text() if plat == PLATFORM_GITLAB else ""
+    cmd = build_issue_create_cmd(
+        plat, args.title, str(body_path), body, args.label, args.repo
+    )
+    result = _run(cmd)
 
     if result.returncode != 0:
         sys.stderr.write(result.stderr or result.stdout)
@@ -497,6 +493,40 @@ def cmd_self_test():
                 f"normalize_color({raw!r}, {plat}) = {got!r}, want {expected_c!r}"
             )
 
+    create_cmd_cases = [
+        (
+            (PLATFORM_GITHUB, "T", "/tmp/b.md", "BODY", [], None),
+            ["gh", "issue", "create", "--title", "T", "--body-file", "/tmp/b.md"],
+        ),
+        (
+            (PLATFORM_GITHUB, "T", "/tmp/b.md", "BODY", ["type:feat", "area:skill"], "o/x"),
+            [
+                "gh", "issue", "create", "--title", "T", "--body-file", "/tmp/b.md",
+                "--repo", "o/x",
+                "--label", "type:feat", "--label", "area:skill",
+            ],
+        ),
+        (
+            (PLATFORM_GITLAB, "T", "/tmp/b.md", "BODY", ["type:feat"], "o/x"),
+            [
+                "glab", "issue", "create", "--title", "T",
+                "--description", "BODY", "--yes",
+                "--repo", "o/x",
+                "--label", "type:feat",
+            ],
+        ),
+        (
+            (PLATFORM_GITLAB, "T", "/tmp/b.md", "BODY", [], None),
+            ["glab", "issue", "create", "--title", "T", "--description", "BODY", "--yes"],
+        ),
+    ]
+    for (plat, title, bf, body, labels, repo), expected_cmd in create_cmd_cases:
+        got_cmd = build_issue_create_cmd(plat, title, bf, body, labels, repo)
+        if got_cmd != expected_cmd:
+            failures.append(
+                f"build_issue_create_cmd({plat}, repo={repo!r}): {got_cmd!r} != {expected_cmd!r}"
+            )
+
     if failures:
         for f in failures:
             print(f"FAIL: {f}", file=sys.stderr)
@@ -531,6 +561,12 @@ def build_parser():
     p_create.add_argument("--title", required=True)
     p_create.add_argument("--body-file", required=True)
     p_create.add_argument("--label", action="append", default=[])
+    p_create.add_argument(
+        "--repo",
+        default=None,
+        help="Target repo slug (owner/name) for cross-repo issue creation; "
+        "combine with --platform to file into a repo other than cwd's origin",
+    )
 
     p_view = sub.add_parser("issue-view")
     p_view.add_argument("number", type=int)
