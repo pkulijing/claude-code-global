@@ -173,7 +173,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 ## Backlog 与开发项管理
 
-详细规范见 [`GLOBAL_AGENTS.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_AGENTS.md) 中「Backlog 与开发项管理」段。要点：
+详细规范见 [`GLOBAL_AGENTS.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_AGENTS.md) 中「核心开发模式 → 需求管理」段。要点：
 
 - 开发项以 **issue 为真源**（GitHub / GitLab 自动双轨判定）：详情、讨论、跨轮上下文都沉淀在 issue
 - `docs/BACKLOG.md` 是**未关闭 issue 的扁平索引**，按 priority 分组

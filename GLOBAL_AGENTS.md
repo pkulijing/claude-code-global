@@ -12,7 +12,17 @@
 
 每轮开发默认在一个独立的 git worktree 内进行（`/start` 开轮时自动创建，`/finish` 收尾时自动 rebase、FF 合并并清理），使多轮开发可并行、互不污染主工作树；轻量改动可用 `/start --no-worktree` 在当前分支直接干。
 
-### 开发模式详解
+### 需求管理
+
+- 需求以 **issue 为真源**：详情、讨论等都沉淀在 issue 里
+- `docs/BACKLOG.md` 是**未关闭 issue 的扁平索引**
+- **三轴 label**：每条 issue 必打 `type:*`（全局统一）/ `area:*`（项目特异）/ `priority:*`（P0/P1/P2），type 和 priority 的选项由 `_common` 模板的 `.github/labels.yml` 维护。
+- **三件套 skill**：`/backlog` 建 issue + 写 BACKLOG 索引、`/start <issue#>` 拉详情开轮、`/finish` 收尾并在 commit 写 `Closes #N`。
+- **Closes #N**：commit/PR 描述写 `Closes #N`，合并到 default branch 自动关 issue（GitHub / GitLab 原生支持），issue 永久保留、与 commit/MR 双向可查 —— 这是跨轮上下文可追溯的关键保证。
+- **已完成项**不在 BACKLOG.md 追踪（看平台 closed issues）；BACKLOG.md 末尾「## 已完成 / 不再追踪」段只记**刻意决定不做**的项 + 原因。
+- issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。
+
+### 需求生命周期
 
 - 需求：结合当前现状，针对一个待解决的问题，给出明确详细的开发需求。人类主导，提供需求内容
 - 计划：结合项目现状，分析需求，给出可行的详细计划。Agent 主导，人类 Review。**先撰写 `PLAN.md`、待人类确认后再写代码**（CC 用 Plan 模式；Codex 用户可配 `--sandbox read-only --ask-for-approval on-request` 增加 harness 保障，但本规则本身已足够约束两端）。
@@ -56,14 +66,6 @@
   - 其他补充文档：如数据库设计、API 设计等后续需要参考的重要信息
   - 如果需要图片等资源辅助，把图片放到 `assets` 文件夹下
 
-### 会话标题约定（Coding Agent 自身行为约束）
-
-为方便通过会话标题历史快速定位特定开发轮次，Coding Agent 在开发轮次相关的对话中，**必须**在自己**第一条回复**的开头以 `Round N:` 前缀（N 为 `docs/N-*` 目录的数字编号）明确标注当前轮次，让自动生成的会话标题以此为锚点。
-
-- 示例：`Round 16: 多设备自动同步全局配置`
-- 触发条件：通过 `/start <issue#>` 开新轮、或在已有 `docs/N-*` 目录下接续既有轮次（含读取/修改该目录下任何文档、或人类明确说要继续第 N 轮）
-- 这是对 Coding Agent 自身行为的约束，无需人类提醒；Agent 自己识别当前所处轮次并主动加前缀
-
 ## git 规则
 
 - `.gitignore` 按目录拆分：每个目录维护自己的 `.gitignore`，不要把子目录的忽略规则写到根目录的 `.gitignore` 里。
@@ -87,66 +89,6 @@
   DEEPSEEK_BASEURL=https://api.deepseek.com
   ```
 
-## 项目本地推荐配置（由 stack 模板统一管理）
-
-每个项目应配置一份与 `fix-after-edit.sh`（PostToolUse 自动 fix hook）输出对齐的本地工具链，避免「Coding Agent 编辑 → VS Code 保存触发 formatOnSave → 大 diff」的反复重排，并在 commit 前增加 lint 闸门。
-
-**这些配置不再由各项目手动维护，而是通过 stack 模板统一管理：**
-
-- 新项目 → `/bootstrap` 选 stack（如 `python-uv`），自动写入 `.prettierrc` / `.vscode/` / `.pre-commit-config.yaml` / `.gitignore` / `.github/workflows/lint.yml` / `pyproject.toml [tool.ruff]` + `[[tool.uv.index]]` 段、并生成 `.agent-template.yml` marker
-- python-uv stack 还会自动 `uv init --bare` + `uv add --dev pytest pytest-cov ruff` + `pre-commit install`（含必要时 `uv tool install pre-commit`），跑完即可 `uv run pytest` / `git commit`，不再需要手敲 4 步
-- 已有老项目 → `/sync-project-config` 进入 adopt 模式补全（python-uv stack 同样自动跑上述 uv / pre-commit bootstrap；已有 `pyproject.toml` 时跳过 `uv init`）
-- 模板更新后 → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策；normal sync 不重跑 uv / pre-commit bootstrap）
-
-每个 stack 模板包含的具体内容见 `~/.claude/templates/<stack>/`，schema 与设计见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/`。
-
-模板核心要素（python-uv stack 示例，其他 stack 各自约定）：
-
-- `.prettierrc`：`{ "proseWrap": "preserve" }`，防止 prettier 强制换行中文长段落
-- `.vscode/settings.json`：`[python]` / `[markdown]` 块的 `formatOnSave + defaultFormatter`（python 用 `charliermarsh.ruff`，markdown 用 `esbenp.prettier-vscode`）+ `editor.codeActionsOnSave: { "source.fixAll": "explicit", "source.organizeImports": "explicit" }`
-- `.vscode/extensions.json`：推荐 `charliermarsh.ruff` / `esbenp.prettier-vscode` / `ms-python.python` 给协作者
-- `.pre-commit-config.yaml`：commit 前 lint 闸门，`ruff-check` + `ruff-format`（不带 `--fix`）+ `pre-commit-hooks` 通用项
-- `.github/workflows/lint.yml`：CI 兜底，跑 `ruff check` + `ruff format --check`
-- `pyproject.toml` 的 `[tool.ruff]` 段：line-length / 选 rule 集 / format 风格
-
-## Backlog 与开发项管理（Issue 驱动，GitHub / GitLab 双轨）
-
-每个项目的开发项以 **issue 为真源**：详情、讨论、跨轮上下文都沉淀在 issue 里；`docs/BACKLOG.md` 退化为 **未关闭 issue 的扁平索引**，方便一眼看待选清单。
-
-平台由 `git remote get-url origin` 自动判定 GitHub / GitLab —— 三件套 skill 不直接调 `gh` / `glab`，全部走 `~/.claude/scripts/platform_issue.py` helper（封装平台 dispatch + 字段归一）。
-
-### 三轴 label
-
-每条 issue 必须打三个 label，由 `_common` 模板的 `.github/labels.yml` 维护（schema 跨平台一致，GitLab 项目下也读同一份）：
-
-- **`type:*`**：`feat` / `bug` / `refactor` / `perf` / `test` / `docs`（项目无关，全集统一）
-- **`area:*`**：模块分类，**项目特异**（每个项目按自己模块改 labels.yml 中 `area:` 段）
-- **`priority:*`**：`P0` 必须做、不做有重大风险 / `P1` 重大新功能 / `P2` 一般小功能
-
-### Issue templates
-
-`_common` 模板**双轨**提供：
-
-- GitHub：`.github/ISSUE_TEMPLATE/{feat,bug,spike}.md`（frontmatter `labels:` 自动打 type label）
-- GitLab：`.gitlab/issue_templates/{feat,bug,spike}.md`（首行 `/label ~"type:..."` quick action 自动打 type label）
-
-两套同时落到所有项目（互不干扰，对端文件被平台忽略）。
-
-### 三件套 skill 工作流
-
-- **`/backlog`**：新增想法 → 走 issue template → 调 helper `issue-create` 含三轴 label → 自动在 `docs/BACKLOG.md` 对应 priority 段加一行链接
-- **`/start <issue#>`**：开新轮 → 调 helper `issue-view` 拉详情（输出归一为 GitHub 风格 schema） → 写到 `docs/N-*/PROMPT.md` 顶部
-- **`/finish`**：收尾 → SUMMARY.md → 在 commit message body 写 `Closes #<N>` → 从 BACKLOG.md 删对应那行
-
-### Closes #N 与 git history 双向链接
-
-commit/PR 描述里写 `Closes #N`，合并到 default branch 时**自动关 issue** —— GitHub 与 GitLab 均原生支持（GitLab 还支持 `Fixes` / `Resolves` / `Implements` 等更多关键词与 cross-project `Closes group/project#N` 引用）。issue 永久保留（含评论历史），与对应 commit/MR 双向可查 —— 这是把跨轮上下文从 BACKLOG 文件搬到 issue 后**最关键的可追溯保证**。
-
-### 已完成 / 不再追踪
-
-- 已完成项不在 BACKLOG.md 追踪，直接看 GitHub / GitLab closed issues
-- BACKLOG.md 末尾「## 已完成 / 不再追踪」段记录**刻意决定不做**的项 + 原因（避免未来翻 SUMMARY 误以为遗漏）
-
 ## Python 开发规则
 
 - 使用 uv 管理项目依赖，使用 `uv add` 添加依赖，在 `pyproject.toml` 中记录 (`uv add` 天然支持) 依赖列表，**禁止使用 `pip install` 或 `uv pip install`**
@@ -154,5 +96,5 @@ commit/PR 描述里写 `Closes #N`，合并到 default branch 时**自动关 iss
 - 使用 ruff 做代码格式化和 python 语法检查
 - pypi index指南：为了提高中国的下载速度，我们使用两个指定的源
   - 普通库从[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)下载
-  - `torch/torchaudio/torchvision` 等 `torch` 相关的库从[aliyun镜像站](https://mirrors.aliyun.com/pytorch-wheels/cu121/) 下载. 你这个进程并不是一个完整的pypi源，需要使用 `extra` 方式在 `pyproject.toml` 中指定
-  - `torch` 使用 2.5.1 版本，cu121
+  - `torch/torchaudio/torchvision` 等 `torch` 相关的库从[aliyun镜像站](https://mirrors.aliyun.com/pytorch-wheels/cu121/) 下载. 这并不是一个完整的pypi源，需要使用 `extra` 方式在 `pyproject.toml` 中指定
+- 如无特殊要求，`torch` 使用 2.5.1 版本，cu121
