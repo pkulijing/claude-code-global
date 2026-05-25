@@ -21,13 +21,18 @@ disable-model-invocation: false
      - 先修（推荐）：修完再调 `/commit`
      - 强制提交：用户明示后才用 `--no-verify` 等方式绕过
    - **不要静默修复**：lint 跑出来的错都得显式让用户知道再决策
-5. 分析所有变更，生成 commit message：
+5. **探测轮次 N**（决定是否加 `[round N]` 前缀，给跨轮追溯补一层约束）：
+   - **主信号**：当前分支名匹配 `^round(\d+)-` → 取捕获组为 N（`/start` 默认 worktree 模式的分支命名）。
+   - **兜底**（`--no-worktree` 等非 round 分支）：看本次变更涉及的文件里有没有 `docs/<N>-*/` 路径（`git diff --cached --name-only` 与 `git status --porcelain` 的并集），命中唯一的 `<N>` 则取之。
+   - 两路都判不出 N → **不加前缀**，走普通 commit，不要硬凑。
+6. 分析所有变更，生成 commit message：
    - 使用中文
    - 遵循 semantic commit message 规则（如 `feat:`, `fix:`, `refactor:` 等）
+   - **若第 5 步探出 N**：在 semantic message 最前面加 `[round N] ` 前缀，形如 `[round 3] feat(skill): 支持 xxx`
    - 简明扼要，聚焦于「为什么」而非「改了什么」
-6. 将相关文件添加到暂存区（优先按文件名添加，避免 `git add -A`）
-7. 执行提交，commit message 末尾必须包含：
+7. 将相关文件添加到暂存区（优先按文件名添加，避免 `git add -A`）
+8. 执行提交，commit message 末尾必须包含：
    ```
    Co-authored-by: Claude <noreply@anthropic.com>
    ```
-8. 运行 `git status` 确认提交成功
+9. 运行 `git status` 确认提交成功
