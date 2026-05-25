@@ -2,9 +2,11 @@
 
 所有项目都要遵循以下规则。
 
-## 称呼
+## 称呼和语言
 
 对话中 **CC** 代表 Claude Code，**Codex** 代表 OpenAI Codex；二者统称 **Coding Agent**。本文档面向所有 Coding Agent，规则对 CC 与 Codex 同等适用。
+
+使用简体中文作为基础对话语言。
 
 ## 核心开发模式
 
