@@ -70,7 +70,15 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
    `$GLOBAL_DIR` 不存在 / `URL` 取不到 / `PLAT` 空 → 跳过 file，提示「无法定位 claude-code-global，候选已记在 SUMMARY 可沉淀项段，可手动提 issue」，不阻塞 finish。
 
-2. **选三轴 label**：`type:*`（按性质取 feat/refactor/docs）+ `priority:P2`（默认排队，沉淀项少有紧急）+ `area:*`——读 `$GLOBAL_DIR/.github/labels.yml` 在 install/skill/hook/template/doc 里选最贴的一个。
+2. **选并校验三轴 label**：`type:*`（按性质取 feat/refactor/docs）+ `priority:P2`（默认排队，沉淀项少有紧急）+ `area:*`——读 `$GLOBAL_DIR/.github/labels.yml` 在 install/skill/hook/template/doc 里选最贴的一个。
+
+   **三轴 label 是硬要求**（helper 已对跨仓库零-label 创建强制拦截）。选完务必对**目标仓库**校验三个 label 都真实存在（labels.yml 是真源、未必已同步到远端，二者可能脱节）：
+
+   ```bash
+   python3 "$HOME/.claude/scripts/platform_issue.py" --platform "$PLAT" label-list --repo "$SLUG"
+   ```
+
+   只从该列表里挑 label。若选中的 label 不在列表中 → 不要硬塞（会让下一步 `issue-create` 整条失败），改选已存在的同轴 label，或先 `label-sync-from-file "$GLOBAL_DIR/.github/labels.yml"` 把 labels.yml 同步到远端后再校验。
 
 3. **写临时 body**（`/tmp/distill-<n>.md`）：来源项目名 + 轮次 + 为什么值得沉淀（重复性/通用性）+ 具体落点建议 + 末尾标注「跨项目自动沉淀、未进 BACKLOG」。当前项目有 remote 就给回链 URL，否则写项目目录名。
 
@@ -83,7 +91,9 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
      --label type:<X> --label area:<Y> --label priority:P2
    ```
 
-   打印返回的 issue URL 给用户。
+   成功则打印返回的 issue URL 给用户。
+
+   **失败兜底（关键）**：若 helper 报错（如某 label 在目标仓库不存在导致 `gh`/`glab` 整条失败），**绝不去掉 `--label` 重试以求创建成功**——那正是历史上产出无 label 裸 issue（如 #12）的原因。正确做法：按 step 2 重新校验/修正 label（改选已存在的，或先 `label-sync-from-file`），带齐三轴重试；若仍无法解决，停下把错误报给用户，候选已记在 SUMMARY 可沉淀项段、可手动补，不阻塞 finish。
 
 5. **不更新任何 BACKLOG.md**（既不是 claude-code-global 的，也不是当前项目的）。
 

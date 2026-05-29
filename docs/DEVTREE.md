@@ -99,9 +99,11 @@ graph TD
     N13["✨ 13 · finish 收尾同步 README"]:::feature
     N21["✨ 21 · finish 自动收尾 worktree"]:::feature
     N23["✨ 23 · finish 跨项目沉淀提 issue"]:::feature
+    N26["🐛 26 · finish 沉淀 issue 强制打 label"]:::bugfix
     N1 ~~~ N13
     N13 ~~~ N21
     N21 ~~~ N23
+    N23 ~~~ N26
   end
 
   subgraph e_devtree["✅ DEVTREE 管理"]
@@ -133,7 +135,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-29 | 共 26 轮
+> 最后更新：2026-05-29 | 共 27 轮
 
 | #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                                              |
 | --- | ----------------------------- | ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -163,6 +165,7 @@ graph TD
 | 23  | finish 跨项目沉淀提 issue     | ✨ 功能 | 开发项收尾    | /finish 新增「跨项目可沉淀流程反思」步，对跨项目资产候选可直接向 claude-code-global 跨仓库提 issue（不进 BACKLOG）；platform_issue.py 加 --repo；顺手把步骤编号重排为连续整数           |
 | 24  | 精简宪法与会话标题约定排查    | 🏗️ 重构 | 全局宪法治理  | 精简 GLOBAL_AGENTS.md 冗余实现细节（删「会话标题约定」「项目本地推荐配置」两节、Backlog 节并入「核心开发模式 → 需求管理」），并查实会话标题由 ai-title 摘要器生成、Round 前缀机制上无效 |
 | 25  | python 模板与子 CLAUDE 机制   | 🏗️ 重构 | 全局宪法治理  | 引入 `rules/<topic>.md` 领域规则文档机制（首例 `rules/python.md` 含 #12 七条 Python 风格 + 原 Python 章节），python-uv 模板接入 `uv init --package` 落标准 src 布局 + pytest fragment   |
+| 26  | finish 沉淀 issue 强制打 label | 🐛 修复 | 开发项收尾    | helper 对「跨仓库 `--repo` + 零 label」创建强制拦截（`--allow-no-label` 逃生）、`label-list` 支持 `--repo` 跨仓库校验；finish Step 3.5 加创建前 label 校验与「失败绝不丢 label」兜底；GLOBAL_AGENTS.md 补硬约束；回补 #12 三轴 label |
 
 ---
 
@@ -207,7 +210,7 @@ graph TD
 #### 开发项收尾
 
 - 状态：已完成
-- 轮次：1, 13, 21, 23
+- 轮次：1, 13, 21, 23, 26
 
 #### 开发项管理
 

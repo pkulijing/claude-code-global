@@ -222,7 +222,16 @@ def build_issue_create_cmd(platform, title, body_file, body, labels, repo):
     if platform == PLATFORM_GITHUB:
         cmd = ["gh", "issue", "create", "--title", title, "--body-file", str(body_file)]
     else:
-        cmd = ["glab", "issue", "create", "--title", title, "--description", body, "--yes"]
+        cmd = [
+            "glab",
+            "issue",
+            "create",
+            "--title",
+            title,
+            "--description",
+            body,
+            "--yes",
+        ]
     if repo:
         cmd += ["--repo", repo]
     for lbl in labels or []:
@@ -230,11 +239,33 @@ def build_issue_create_cmd(platform, title, body_file, body, labels, repo):
     return cmd
 
 
+def cross_repo_label_guard_error(repo, labels, allow_no_label):
+    """Guard cross-repo issue creation against being filed with zero labels.
+
+    Distillation issues filed into claude-code-global from another project
+    (`--repo` set) must carry classifying labels — a label-less cross-repo
+    issue (e.g. a历史 #12 filed ad-hoc outside `/finish`) can't be triaged.
+    Returns an error string when creation should be blocked, else None.
+    In-repo creation (`repo` falsy, e.g. backlog/start) is never blocked here.
+    """
+    if repo and not (labels or []) and not allow_no_label:
+        return (
+            "cross-repo issue (--repo) requires at least one --label; "
+            "三轴 label 是跨仓库沉淀 issue 的归类前提。"
+            "pass --allow-no-label to override deliberately."
+        )
+    return None
+
+
 def cmd_issue_create(args):
     plat = resolve_platform(args.platform)
     if plat == PLATFORM_UNKNOWN:
         sys.stderr.write("error: cannot detect platform from git remote origin\n")
         return EXIT_PLATFORM_UNKNOWN
+    guard_err = cross_repo_label_guard_error(args.repo, args.label, args.allow_no_label)
+    if guard_err:
+        sys.stderr.write(f"error: {guard_err}\n")
+        return EXIT_ERROR
     body_path = Path(args.body_file)
     if not body_path.exists():
         sys.stderr.write(f"error: body file not found: {body_path}\n")
@@ -287,19 +318,35 @@ def cmd_issue_view(args):
     return EXIT_OK
 
 
+def build_label_list_cmd(platform, repo):
+    """Build the gh/glab label-list argv (pure, no execution).
+
+    `repo` (owner/name slug) lists labels of a repo other than cwd's origin —
+    used by `/finish` to validate distillation labels against the *target*
+    (cross) repo before creating the issue, so a wrong label name fails fast
+    at selection time instead of aborting `gh issue create` mid-flight.
+    """
+    if platform == PLATFORM_GITHUB:
+        cmd = ["gh", "label", "list", "--json", "name", "-q", ".[].name"]
+    else:
+        cmd = ["glab", "label", "list", "--output", "json"]
+    if repo:
+        cmd += ["--repo", repo]
+    return cmd
+
+
 def cmd_label_list(args):
     plat = resolve_platform(args.platform)
     if plat == PLATFORM_UNKNOWN:
         sys.stderr.write("error: cannot detect platform from git remote origin\n")
         return EXIT_PLATFORM_UNKNOWN
+    result = _run(build_label_list_cmd(plat, args.repo))
     if plat == PLATFORM_GITHUB:
-        result = _call_gh(["label", "list", "--json", "name", "-q", ".[].name"])
         if result.returncode != 0:
             sys.stderr.write(result.stderr)
             return EXIT_ERROR
         sys.stdout.write(result.stdout)
         return EXIT_OK
-    result = _call_glab(["label", "list", "--output", "json"])
     if result.returncode != 0:
         sys.stderr.write(result.stderr)
         return EXIT_ERROR
@@ -499,25 +546,59 @@ def cmd_self_test():
             ["gh", "issue", "create", "--title", "T", "--body-file", "/tmp/b.md"],
         ),
         (
-            (PLATFORM_GITHUB, "T", "/tmp/b.md", "BODY", ["type:feat", "area:skill"], "o/x"),
+            (
+                PLATFORM_GITHUB,
+                "T",
+                "/tmp/b.md",
+                "BODY",
+                ["type:feat", "area:skill"],
+                "o/x",
+            ),
             [
-                "gh", "issue", "create", "--title", "T", "--body-file", "/tmp/b.md",
-                "--repo", "o/x",
-                "--label", "type:feat", "--label", "area:skill",
+                "gh",
+                "issue",
+                "create",
+                "--title",
+                "T",
+                "--body-file",
+                "/tmp/b.md",
+                "--repo",
+                "o/x",
+                "--label",
+                "type:feat",
+                "--label",
+                "area:skill",
             ],
         ),
         (
             (PLATFORM_GITLAB, "T", "/tmp/b.md", "BODY", ["type:feat"], "o/x"),
             [
-                "glab", "issue", "create", "--title", "T",
-                "--description", "BODY", "--yes",
-                "--repo", "o/x",
-                "--label", "type:feat",
+                "glab",
+                "issue",
+                "create",
+                "--title",
+                "T",
+                "--description",
+                "BODY",
+                "--yes",
+                "--repo",
+                "o/x",
+                "--label",
+                "type:feat",
             ],
         ),
         (
             (PLATFORM_GITLAB, "T", "/tmp/b.md", "BODY", [], None),
-            ["glab", "issue", "create", "--title", "T", "--description", "BODY", "--yes"],
+            [
+                "glab",
+                "issue",
+                "create",
+                "--title",
+                "T",
+                "--description",
+                "BODY",
+                "--yes",
+            ],
         ),
     ]
     for (plat, title, bf, body, labels, repo), expected_cmd in create_cmd_cases:
@@ -525,6 +606,57 @@ def cmd_self_test():
         if got_cmd != expected_cmd:
             failures.append(
                 f"build_issue_create_cmd({plat}, repo={repo!r}): {got_cmd!r} != {expected_cmd!r}"
+            )
+
+    # 跨仓库零-label 护栏：跨仓库(--repo)创建必须带 label，除非显式逃生
+    guard_cases = [
+        # (repo, labels, allow_no_label) -> should_block(bool)
+        (("o/x", [], False), True),  # 跨仓库零 label → 拦截（#12 场景）
+        (("o/x", ["type:feat"], False), False),  # 跨仓库有 label → 放行
+        (("o/x", [], True), False),  # 显式逃生舱 → 放行
+        ((None, [], False), False),  # in-repo（backlog/start）→ 不受护栏约束
+    ]
+    for (repo, labels, allow), should_block in guard_cases:
+        err = cross_repo_label_guard_error(repo, labels, allow)
+        if bool(err) != should_block:
+            failures.append(
+                f"cross_repo_label_guard_error(repo={repo!r}, labels={labels!r}, "
+                f"allow={allow}) -> {err!r}, should_block={should_block}"
+            )
+
+    label_list_cmd_cases = [
+        (
+            (PLATFORM_GITHUB, None),
+            ["gh", "label", "list", "--json", "name", "-q", ".[].name"],
+        ),
+        (
+            (PLATFORM_GITHUB, "o/x"),
+            [
+                "gh",
+                "label",
+                "list",
+                "--json",
+                "name",
+                "-q",
+                ".[].name",
+                "--repo",
+                "o/x",
+            ],
+        ),
+        (
+            (PLATFORM_GITLAB, None),
+            ["glab", "label", "list", "--output", "json"],
+        ),
+        (
+            (PLATFORM_GITLAB, "o/x"),
+            ["glab", "label", "list", "--output", "json", "--repo", "o/x"],
+        ),
+    ]
+    for (plat, repo), expected_cmd in label_list_cmd_cases:
+        got_cmd = build_label_list_cmd(plat, repo)
+        if got_cmd != expected_cmd:
+            failures.append(
+                f"build_label_list_cmd({plat}, repo={repo!r}): {got_cmd!r} != {expected_cmd!r}"
             )
 
     if failures:
@@ -555,7 +687,13 @@ def build_parser():
     sub.add_parser("detect-platform")
     sub.add_parser("auth-status")
     sub.add_parser("repo-slug")
-    sub.add_parser("label-list")
+    p_label_list = sub.add_parser("label-list")
+    p_label_list.add_argument(
+        "--repo",
+        default=None,
+        help="Target repo slug (owner/name) to list labels of a repo other "
+        "than cwd's origin; used to validate cross-repo distillation labels",
+    )
 
     p_create = sub.add_parser("issue-create")
     p_create.add_argument("--title", required=True)
@@ -566,6 +704,12 @@ def build_parser():
         default=None,
         help="Target repo slug (owner/name) for cross-repo issue creation; "
         "combine with --platform to file into a repo other than cwd's origin",
+    )
+    p_create.add_argument(
+        "--allow-no-label",
+        action="store_true",
+        help="Permit a cross-repo (--repo) issue with zero labels; by default "
+        "such a label-less distillation issue is refused",
     )
 
     p_view = sub.add_parser("issue-view")

@@ -35,7 +35,7 @@
 - **三件套 skill**：`/backlog` 建 issue + 写 BACKLOG 索引、`/start <issue#>` 拉详情开轮、`/finish` 收尾并在 commit 写 `Closes #N`。
 - **Closes #N**：commit/PR 描述写 `Closes #N`，合并到 default branch 自动关 issue（GitHub / GitLab 原生支持），issue 永久保留、与 commit/MR 双向可查 —— 这是跨轮上下文可追溯的关键保证。
 - **已完成项**不在 BACKLOG.md 追踪（看平台 closed issues）；BACKLOG.md 末尾「## 已完成 / 不再追踪」段只记**刻意决定不做**的项 + 原因。
-- issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。
+- issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。跨仓库沉淀 issue（如向 claude-code-global 提改进，无论是否经 `/finish`）**必须带三轴 label** —— helper 已对「`--repo` 跨仓库 + 零 label」创建强制拦截（确需裸提才加 `--allow-no-label`）。
 
 ### 需求生命周期
 
