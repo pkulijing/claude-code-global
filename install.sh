@@ -373,6 +373,21 @@ if [ "$DEPLOYED_ANY" = "0" ]; then
     exit 0
 fi
 
+# 用户可配置项：seed 真实配置 + 应用偏好（全局一次，与具体 agent 端无关）
+# 机制见 scripts/user-config.sh 与 docs/27-用户可配置项机制/DESIGN.md
+if [ -f "$REPO_DIR/scripts/user-config.sh" ]; then
+    echo ""
+    echo "------------------------------"
+    info "用户可配置项"
+    echo "------------------------------"
+    # shellcheck disable=SC1091
+    source "$REPO_DIR/scripts/user-config.sh"
+    ccg_seed_user_config "$REPO_DIR/user.config.example.env" || warn "用户配置 seed 失败（不阻塞）"
+    ccg_apply_git_default_branch || warn "应用 git 默认分支失败（不阻塞）"
+else
+    warn "未找到 scripts/user-config.sh，跳过用户可配置项处理"
+fi
+
 # 注册 OS 自动同步调度器（launchd / systemd user timer）
 # 让 scripts/auto-update.sh 自动跑「登录 + 每小时」
 # 失败 warn 不阻塞主 install

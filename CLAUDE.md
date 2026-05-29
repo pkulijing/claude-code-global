@@ -7,10 +7,11 @@
 - `GLOBAL_AGENTS.md` — 全局开发规范（Development Constitution），通过 `install.sh` 链接为 `~/.claude/CLAUDE.md` 与 `~/.codex/AGENTS.md`，**修改此文件会影响所有项目、两端 agent**
 - `settings.base.json` — CC 端 settings 基线（JSON），通过 `install.sh` **合并**（非覆盖）进 `~/.claude/settings.json`
 - `codex.config.base.toml` — Codex 端 config 基线（TOML），通过 `install.sh` 以 marker 块形式**合并**进 `~/.codex/config.toml`
-- `install.sh` — 安装脚本，双轨软链接 + 基线 settings/config 合并
+- `user.config.example.env` — 用户可配置项的示例基线（committed），`install.sh` 据此以 **user-wins**（缺省才填、绝不覆盖）语义 seed 出仓库外的真实配置 `~/.claude-code-global/config.env`；机制见 `docs/27-用户可配置项机制/DESIGN.md`
+- `install.sh` — 安装脚本，双轨软链接 + 基线 settings/config 合并 + 用户可配置项 seed/应用
 - `skills/` — 全局 slash commands（`/start`、`/finish`、`/commit`、`/pybump`、`/rebase`、`/devtree` 等），双轨软链到两端 `skills/`
 - `hooks/` — 全局 hook 脚本（如 `fix-after-edit.sh`），双轨软链到两端 `hooks/`，由各端 settings/config 中的 hook 条目以绝对路径引用
-- `scripts/` — 被引用的稳定脚本，双轨软链到两端 `scripts/`。包括 `auto-update.sh`（多设备自动同步本仓库的 pull + install，由 OS 调度器和 SessionStart hook 共用，`AGENT_HOME` 变量化）
+- `scripts/` — 被引用的稳定脚本，双轨软链到两端 `scripts/`。包括 `auto-update.sh`（多设备自动同步本仓库的 pull + install，由 OS 调度器和 SessionStart hook 共用，`AGENT_HOME` 变量化）、`user-config.sh`（用户可配置项的可 source 库：`ccg_seed_user_config` / `ccg_read_config` / `ccg_apply_git_default_branch`，供 install.sh 与未来 hook/skill 复用）
 - `scheduler/` — OS 层调度器注册脚本与模板（macOS launchd / Linux systemd user timer），由 `install.sh` 末尾自动调用，注册"登录跑 + 每小时跑"的自动同步任务。逃生舱：`bash scheduler/uninstall.sh`
 - `templates/` — 跨项目共享开发配置模板（`_common/` 全项目套用 + `<stack>/` 技术栈特异，如 `python-uv`），目录级软链到两端 `templates/`，由 `bootstrap` / `sync-project-config` skill 消费
 - `rules/` — 领域规则文档（按 `<topic>.md` 拆分，如 `python.md`），目录级软链到两端 `rules/`，由 `GLOBAL_AGENTS.md` 顶层指针引用、Agent 命中触发条件时主动 Read
@@ -24,5 +25,6 @@
 - 新增或删除 skill 目录后需重新运行 `bash install.sh`
 - 新增或删除 hook 脚本后需重新运行 `bash install.sh`（hook 脚本本体是软链，修改其内容无需重装）
 - 修改 `settings.base.json` 或 `codex.config.base.toml` 后需重新运行 `bash install.sh`（合并的是快照，不是软链接）
+- 修改 `user.config.example.env` 后需重新运行 `bash install.sh`（新增的 key 会「补缺追加」到用户真实配置，已设值不动）；用户真实配置 `~/.claude-code-global/config.env` 在仓库外，改完下次 install/自动同步即生效
 - Codex 端 hooks 首次需进入 Codex 跑一次 `/hooks` 命令 review 后才生效
 - 开发流程遵循 `GLOBAL_AGENTS.md` 中定义的四步模式（需求 - 计划 - 执行 - 总结）
