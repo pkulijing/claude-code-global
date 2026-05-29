@@ -31,6 +31,7 @@ graph TD
   ROOT --> toolchain["开发工具链"]:::epic
   base --> e_cc_reuse
   base --> e_cc_merge
+  base --> e_userconfig
   base --> e_template
   base --> e_multi_agent
   base --> e_constitution
@@ -59,6 +60,11 @@ graph TD
     N6["📦 6 · settings 合并机制"]:::infra
     N8["📦 8 · 权限配置治理与清理 skill"]:::infra
     N6 ~~~ N8
+  end
+
+  subgraph e_userconfig["🔄 用户可配置项"]
+    direction TB
+    N27["🌱 27 · 用户可配置项机制"]:::genesis
   end
 
   subgraph e_template["🔄 项目模板机制"]
@@ -135,37 +141,38 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-29 | 共 27 轮
+> 最后更新：2026-05-29 | 共 28 轮
 
-| #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                                              |
-| --- | ----------------------------- | ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0   | 安装脚本                      | 🌱 初建 | CC 工具复用   | 通过符号链接将 CLAUDE.md 与 skills 部署到 ~/.claude/                                                                                                                                    |
-| 1   | 创建 commit-skill             | ✨ 功能 | 开发项收尾    | 创建 /commit skill，补全 /finish 流程的最后一环                                                                                                                                         |
-| 2   | 重构项目 CLAUDE 文件结构      | 🏗️ 重构 | CC 工具复用   | 分离全局规范与项目说明，解决 CLAUDE.md 语义错位                                                                                                                                         |
-| 3   | 创建 rebase-skill             | ✨ 功能 | rebase 工作流 | 创建 /rebase skill，诊断+分段引导本地分叉整理                                                                                                                                           |
-| 4   | 创建 devtree-skill            | ✨ 功能 | DEVTREE 管理  | 创建 /devtree skill，可视化开发树并集成到 /finish 流程                                                                                                                                  |
-| 5   | 重构 devtree-skill-epic 模型  | 🏗️ 重构 | DEVTREE 管理  | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案                                                                                                                                  |
-| 6   | settings 合并机制             | 📦 工程 | CC 配置合并   | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集）                                                                                            |
-| 7   | 创建 backlog-skill            | ✨ 功能 | BACKLOG 管理  | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                                                                                      |
-| 8   | 权限配置治理与清理 skill      | 📦 工程 | CC 配置合并   | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条）                                                                     |
-| 9   | 创建 bootstrap-skill          | 📦 工程 | 项目初始化    | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查                                                                                   |
-| 10  | 接入 prettier 格式化 hook     | 📦 工程 | 代码格式化    | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定                                                                          |
-| 11  | 跨项目共享模板与 sync-skill   | ✨ 功能 | 项目模板机制  | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理                                                                      |
-| 12  | backlog 改为 issue 驱动       | ✨ 功能 | BACKLOG 管理  | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                                                         |
-| 13  | finish 收尾同步 README        | ✨ 功能 | 开发项收尾    | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流）                                  |
-| 14  | 模板支持 GitLab 双轨          | ✨ 功能 | 项目模板机制  | \_common 与 python-uv 模板同时落 GitHub + GitLab 两套等价文件（issue templates + CI），bootstrap/sync 的 gh label create 按 origin 平台三分支判定                                       |
-| 15  | 三件套 skill 支持 GitLab 双轨 | ✨ 功能 | 项目模板机制  | 新增 scripts/platform_issue.py helper（封装 gh ↔ glab 双轨调用），让 /backlog /start /finish /bootstrap /sync-project-config 在 GitLab 项目上等价可用                                   |
-| 16  | 自动同步全局配置              | 📦 工程 | CC 工具复用   | scripts/auto-update.sh + scheduler/(launchd/systemd) + SessionStart hook 三位一体，多设备自动 git pull + install 并在 Claude 启动时反馈版本/更新                                        |
-| 17  | python-uv 模板自动 bootstrap  | ✨ 功能 | 项目模板机制  | bootstrap / sync adopt 在 python-uv stack 自动跑 uv init --bare + uv add --dev pytest pytest-cov ruff + pre-commit install，新项目即开即可 uv run pytest / git commit                   |
-| 18  | sync 支持无 stack 路径        | ✨ 功能 | 项目模板机制  | /sync-project-config 放宽 `len(stacks) ≤ 1` 断言，adopt 加「无 stack（只 \_common）」选项，length=0 项目把 skipped 写在 marker 顶层，闭环可跑                                           |
-| 19  | 修复 Linux 自动同步缺陷       | 🐛 修复 | CC 工具复用   | 修开发项 16 Linux 侧两缺陷：systemd timer 改 `OnCalendar=hourly` 解「燃尽」；auto-update.sh 加 untracked 撞名预检，归入「跳过」而非反复 git pull failed                                 |
-| 20  | CC 与 Codex 双兼容调研        | 🔬 探索 | 多 Agent 兼容 | 调研 Codex 配置约定与本仓库耦合度，确认 ~85% 内容 Agent-neutral，提出「单一真源 + install.sh 双轨」方案 A 并落 issue #8                                                                 |
-| 21  | finish 自动收尾 worktree      | ✨ 功能 | 开发项收尾    | /start 默认建独立 worktree、/finish 新增 Step 5 自动 rebase+FF merge+清理，工作流并行化；附 GLOBAL_CLAUDE.md 简述与 .claude/.gitignore                                                  |
-| 22  | CC 与 Codex 双兼容主链        | ✨ 功能 | 多 Agent 兼容 | GLOBAL_AGENTS.md 改名 + skills 中性化 + 新增 codex.config.base.toml + install.sh 双轨重构（deploy_agent / merge_toml），单一真源部署到 ~/.claude 与 ~/.codex                            |
-| 23  | finish 跨项目沉淀提 issue     | ✨ 功能 | 开发项收尾    | /finish 新增「跨项目可沉淀流程反思」步，对跨项目资产候选可直接向 claude-code-global 跨仓库提 issue（不进 BACKLOG）；platform_issue.py 加 --repo；顺手把步骤编号重排为连续整数           |
-| 24  | 精简宪法与会话标题约定排查    | 🏗️ 重构 | 全局宪法治理  | 精简 GLOBAL_AGENTS.md 冗余实现细节（删「会话标题约定」「项目本地推荐配置」两节、Backlog 节并入「核心开发模式 → 需求管理」），并查实会话标题由 ai-title 摘要器生成、Round 前缀机制上无效 |
-| 25  | python 模板与子 CLAUDE 机制   | 🏗️ 重构 | 全局宪法治理  | 引入 `rules/<topic>.md` 领域规则文档机制（首例 `rules/python.md` 含 #12 七条 Python 风格 + 原 Python 章节），python-uv 模板接入 `uv init --package` 落标准 src 布局 + pytest fragment   |
+| #   | 名称                           | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                                                                                           |
+| --- | ------------------------------ | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0   | 安装脚本                       | 🌱 初建 | CC 工具复用   | 通过符号链接将 CLAUDE.md 与 skills 部署到 ~/.claude/                                                                                                                                                                                 |
+| 1   | 创建 commit-skill              | ✨ 功能 | 开发项收尾    | 创建 /commit skill，补全 /finish 流程的最后一环                                                                                                                                                                                      |
+| 2   | 重构项目 CLAUDE 文件结构       | 🏗️ 重构 | CC 工具复用   | 分离全局规范与项目说明，解决 CLAUDE.md 语义错位                                                                                                                                                                                      |
+| 3   | 创建 rebase-skill              | ✨ 功能 | rebase 工作流 | 创建 /rebase skill，诊断+分段引导本地分叉整理                                                                                                                                                                                        |
+| 4   | 创建 devtree-skill             | ✨ 功能 | DEVTREE 管理  | 创建 /devtree skill，可视化开发树并集成到 /finish 流程                                                                                                                                                                               |
+| 5   | 重构 devtree-skill-epic 模型   | 🏗️ 重构 | DEVTREE 管理  | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案                                                                                                                                                                               |
+| 6   | settings 合并机制              | 📦 工程 | CC 配置合并   | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集）                                                                                                                                         |
+| 7   | 创建 backlog-skill             | ✨ 功能 | BACKLOG 管理  | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                                                                                                                                   |
+| 8   | 权限配置治理与清理 skill       | 📦 工程 | CC 配置合并   | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条）                                                                                                                  |
+| 9   | 创建 bootstrap-skill           | 📦 工程 | 项目初始化    | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查                                                                                                                                |
+| 10  | 接入 prettier 格式化 hook      | 📦 工程 | 代码格式化    | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定                                                                                                                       |
+| 11  | 跨项目共享模板与 sync-skill    | ✨ 功能 | 项目模板机制  | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理                                                                                                                   |
+| 12  | backlog 改为 issue 驱动        | ✨ 功能 | BACKLOG 管理  | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                                                                                                      |
+| 13  | finish 收尾同步 README         | ✨ 功能 | 开发项收尾    | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流）                                                                               |
+| 14  | 模板支持 GitLab 双轨           | ✨ 功能 | 项目模板机制  | \_common 与 python-uv 模板同时落 GitHub + GitLab 两套等价文件（issue templates + CI），bootstrap/sync 的 gh label create 按 origin 平台三分支判定                                                                                    |
+| 15  | 三件套 skill 支持 GitLab 双轨  | ✨ 功能 | 项目模板机制  | 新增 scripts/platform_issue.py helper（封装 gh ↔ glab 双轨调用），让 /backlog /start /finish /bootstrap /sync-project-config 在 GitLab 项目上等价可用                                                                                |
+| 16  | 自动同步全局配置               | 📦 工程 | CC 工具复用   | scripts/auto-update.sh + scheduler/(launchd/systemd) + SessionStart hook 三位一体，多设备自动 git pull + install 并在 Claude 启动时反馈版本/更新                                                                                     |
+| 17  | python-uv 模板自动 bootstrap   | ✨ 功能 | 项目模板机制  | bootstrap / sync adopt 在 python-uv stack 自动跑 uv init --bare + uv add --dev pytest pytest-cov ruff + pre-commit install，新项目即开即可 uv run pytest / git commit                                                                |
+| 18  | sync 支持无 stack 路径         | ✨ 功能 | 项目模板机制  | /sync-project-config 放宽 `len(stacks) ≤ 1` 断言，adopt 加「无 stack（只 \_common）」选项，length=0 项目把 skipped 写在 marker 顶层，闭环可跑                                                                                        |
+| 19  | 修复 Linux 自动同步缺陷        | 🐛 修复 | CC 工具复用   | 修开发项 16 Linux 侧两缺陷：systemd timer 改 `OnCalendar=hourly` 解「燃尽」；auto-update.sh 加 untracked 撞名预检，归入「跳过」而非反复 git pull failed                                                                              |
+| 20  | CC 与 Codex 双兼容调研         | 🔬 探索 | 多 Agent 兼容 | 调研 Codex 配置约定与本仓库耦合度，确认 ~85% 内容 Agent-neutral，提出「单一真源 + install.sh 双轨」方案 A 并落 issue #8                                                                                                              |
+| 21  | finish 自动收尾 worktree       | ✨ 功能 | 开发项收尾    | /start 默认建独立 worktree、/finish 新增 Step 5 自动 rebase+FF merge+清理，工作流并行化；附 GLOBAL_CLAUDE.md 简述与 .claude/.gitignore                                                                                               |
+| 22  | CC 与 Codex 双兼容主链         | ✨ 功能 | 多 Agent 兼容 | GLOBAL_AGENTS.md 改名 + skills 中性化 + 新增 codex.config.base.toml + install.sh 双轨重构（deploy_agent / merge_toml），单一真源部署到 ~/.claude 与 ~/.codex                                                                         |
+| 23  | finish 跨项目沉淀提 issue      | ✨ 功能 | 开发项收尾    | /finish 新增「跨项目可沉淀流程反思」步，对跨项目资产候选可直接向 claude-code-global 跨仓库提 issue（不进 BACKLOG）；platform_issue.py 加 --repo；顺手把步骤编号重排为连续整数                                                        |
+| 24  | 精简宪法与会话标题约定排查     | 🏗️ 重构 | 全局宪法治理  | 精简 GLOBAL_AGENTS.md 冗余实现细节（删「会话标题约定」「项目本地推荐配置」两节、Backlog 节并入「核心开发模式 → 需求管理」），并查实会话标题由 ai-title 摘要器生成、Round 前缀机制上无效                                              |
+| 25  | python 模板与子 CLAUDE 机制    | 🏗️ 重构 | 全局宪法治理  | 引入 `rules/<topic>.md` 领域规则文档机制（首例 `rules/python.md` 含 #12 七条 Python 风格 + 原 Python 章节），python-uv 模板接入 `uv init --package` 落标准 src 布局 + pytest fragment                                                |
 | 26  | finish 沉淀 issue 强制打 label | 🐛 修复 | 开发项收尾    | helper 对「跨仓库 `--repo` + 零 label」创建强制拦截（`--allow-no-label` 逃生）、`label-list` 支持 `--repo` 跨仓库校验；finish Step 3.5 加创建前 label 校验与「失败绝不丢 label」兜底；GLOBAL_AGENTS.md 补硬约束；回补 #12 三轴 label |
+| 27  | 用户可配置项机制               | 🌱 初建 | 用户可配置项  | 引入扁平 env 用户配置（仓库外、user-wins seed、CC/Codex 共享），首例 git init 默认分支 → install.sh 设 git config --global init.defaultBranch；附 verify 脚本与 DESIGN 设计文档                                                      |
 
 ---
 
@@ -184,6 +191,11 @@ graph TD
 
 - 状态：已完成
 - 轮次：6, 8
+
+#### 用户可配置项
+
+- 状态：进行中
+- 轮次：27
 
 #### 项目模板机制
 
