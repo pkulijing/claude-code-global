@@ -1,0 +1,7 @@
+# 此片段由 bootstrap / sync-project-config 智能合并进项目 pyproject.toml。
+# 已自定义的字段（如 testpaths / addopts / markers）会被保留，模板段以追加方式叠加。
+# 该段配合 src 布局，让 `uv run pytest` 在 tests/ 下能干净 import src/<pkg>/。
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

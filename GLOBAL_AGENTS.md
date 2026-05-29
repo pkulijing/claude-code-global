@@ -8,6 +8,19 @@
 
 使用简体中文作为基础对话语言。
 
+## 领域规则文档（rules/）
+
+为避免本宪法臃肿，"领域专属"规则（语言、栈、流程）下沉到 `rules/<topic>.md`：
+
+- CC 端实际路径：`~/.claude/rules/<topic>.md`
+- Codex 端实际路径：`~/.codex/rules/<topic>.md`
+
+**约定**：本宪法相应章节只保留"指针 + 触发条件"两句话；Agent 命中触发条件时**必须主动 Read 对应文件**，不依赖 `@mention` 自动展开（两端解析行为不一致，显式 Read 才是稳的契约）。
+
+当前已沉淀的领域规则：
+
+- `rules/python.md` — Python 项目（pyproject.toml / uv / ruff / 包内代码风格 / 测试）
+
 ## 核心开发模式
 
 人类开发者与 Coding Agent 合作，分为需求 - 计划 - 执行 - 总结四步。
@@ -93,10 +106,9 @@
 
 ## Python 开发规则
 
-- 使用 uv 管理项目依赖，使用 `uv add` 添加依赖，在 `pyproject.toml` 中记录 (`uv add` 天然支持) 依赖列表，**禁止使用 `pip install` 或 `uv pip install`**
-- 使用 `uv run` 运行 python 脚本，如 `uv run some_script.py`, `uv run python -m ruff xxxx`，**禁止直接调用 python 或 python3**
-- 使用 ruff 做代码格式化和 python 语法检查
-- pypi index指南：为了提高中国的下载速度，我们使用两个指定的源
-  - 普通库从[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)下载
-  - `torch/torchaudio/torchvision` 等 `torch` 相关的库从[aliyun镜像站](https://mirrors.aliyun.com/pytorch-wheels/cu121/) 下载. 这并不是一个完整的pypi源，需要使用 `extra` 方式在 `pyproject.toml` 中指定
-- 如无特殊要求，`torch` 使用 2.5.1 版本，cu121
+Python 项目（`pyproject.toml` / uv / ruff / 包内代码 / 测试）相关规范集中维护在领域规则文档 **`rules/python.md`**：
+
+- CC 端：`~/.claude/rules/python.md`
+- Codex 端：`~/.codex/rules/python.md`
+
+**触发条件**：本轮任务一旦涉及 Python 代码、`pyproject.toml`、依赖管理或 Python 风格判断，**必须先把 `rules/python.md` 读入上下文**，再开始动手。

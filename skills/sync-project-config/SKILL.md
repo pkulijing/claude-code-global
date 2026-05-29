@@ -230,8 +230,10 @@ stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先询�
 #### 4.4.1 确保 pyproject.toml 存在
 
 ```bash
-[ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --bare
+[ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
 ```
+
+`--package` 让 uv 直接落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件 + 含 `[build-system] uv_build` 的 `pyproject.toml`），由领域规则 `~/.claude/rules/python.md` §2 固化。adopt 模式下 `pyproject.toml` 多半已存在，本步是 no-op；空目录走 `uv init --package` 分支。
 
 跑完后回处理 2.4 标记「待 4.4 后合并」的所有 `pyproject.toml.*.fragment`（清华源段必须先合，否则 4.4.2 在国内会卡）。
 

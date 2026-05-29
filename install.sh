@@ -314,6 +314,13 @@ deploy_agent() {
         warn "仓库中未找到 templates/ 目录，跳过"
     fi
 
+    # rules 目录（领域规则文档，按 <topic>.md 组织；目录级软链，新增 md 不需要重跑 install）
+    if [ -d "$REPO_DIR/rules" ]; then
+        link_item "$REPO_DIR/rules" "$agent_home/rules"
+    else
+        warn "仓库中未找到 rules/ 目录，跳过"
+    fi
+
     # 仓库根 → global-repo（供 /sync-project-config 访问模板 git 历史）
     link_item "$REPO_DIR" "$agent_home/global-repo"
 

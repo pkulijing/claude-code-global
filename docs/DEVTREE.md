@@ -84,6 +84,8 @@ graph TD
   subgraph e_constitution["🔄 全局宪法治理"]
     direction TB
     N24["🏗️ 24 · 精简宪法与会话标题约定排查"]:::refactor
+    N25["🏗️ 25 · python 模板与子 CLAUDE 机制"]:::refactor
+    N24 ~~~ N25
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -131,7 +133,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-22 | 共 25 轮
+> 最后更新：2026-05-29 | 共 26 轮
 
 | #   | 名称                          | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                                              |
 | --- | ----------------------------- | ------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -160,6 +162,7 @@ graph TD
 | 22  | CC 与 Codex 双兼容主链        | ✨ 功能 | 多 Agent 兼容 | GLOBAL_AGENTS.md 改名 + skills 中性化 + 新增 codex.config.base.toml + install.sh 双轨重构（deploy_agent / merge_toml），单一真源部署到 ~/.claude 与 ~/.codex                            |
 | 23  | finish 跨项目沉淀提 issue     | ✨ 功能 | 开发项收尾    | /finish 新增「跨项目可沉淀流程反思」步，对跨项目资产候选可直接向 claude-code-global 跨仓库提 issue（不进 BACKLOG）；platform_issue.py 加 --repo；顺手把步骤编号重排为连续整数           |
 | 24  | 精简宪法与会话标题约定排查    | 🏗️ 重构 | 全局宪法治理  | 精简 GLOBAL_AGENTS.md 冗余实现细节（删「会话标题约定」「项目本地推荐配置」两节、Backlog 节并入「核心开发模式 → 需求管理」），并查实会话标题由 ai-title 摘要器生成、Round 前缀机制上无效 |
+| 25  | python 模板与子 CLAUDE 机制   | 🏗️ 重构 | 全局宪法治理  | 引入 `rules/<topic>.md` 领域规则文档机制（首例 `rules/python.md` 含 #12 七条 Python 风格 + 原 Python 章节），python-uv 模板接入 `uv init --package` 落标准 src 布局 + pytest fragment   |
 
 ---
 
@@ -192,7 +195,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24
+- 轮次：24, 25
 
 ### 开发工具链
 

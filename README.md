@@ -1,6 +1,6 @@
 # Coding Agent 全局配置（Claude Code + Codex）
 
-通过 GitHub 仓库**单一真源**地管理 Claude Code 与 OpenAI Codex 两个 coding agent 的全局配置（`GLOBAL_AGENTS.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json` / `codex.config.base.toml`）和「跨项目共享开发配置模板」（`templates/`），支持多设备同步与跨项目复用。`install.sh` 双轨部署到 `~/.claude/` 与 `~/.codex/`，缺哪端就只装哪端，详见下文「同时支持 Claude Code 与 Codex」。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
+通过 GitHub 仓库**单一真源**地管理 Claude Code 与 OpenAI Codex 两个 coding agent 的全局配置（`GLOBAL_AGENTS.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json` / `codex.config.base.toml`）、「跨项目共享开发配置模板」（`templates/`）和「领域规则文档」（`rules/`，按 `<topic>.md` 拆分语言 / 栈 / 流程细则，由 GLOBAL_AGENTS.md 顶层指针引用），支持多设备同步与跨项目复用。`install.sh` 双轨部署到 `~/.claude/` 与 `~/.codex/`，缺哪端就只装哪端，详见下文「同时支持 Claude Code 与 Codex」。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
 
 开发流程遵循 [`GLOBAL_AGENTS.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_AGENTS.md) 中定义的「需求 → 计划 → 执行 → 总结」四步模式，开发项以 issue 为真源（GitHub / GitLab 双轨自动判定，详见下文「Backlog 与开发项管理」）。
 
@@ -8,16 +8,17 @@
 
 Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。本仓库通过 `install.sh` 双轨部署到两端（软链接 / 合并）。下表以 Claude Code 端为例，Codex 端结构对称（见「同时支持 Claude Code 与 Codex」）：
 
-| 仓库文件             | 部署到                                                 | 方式                     | 说明                                                                                                       |
-| -------------------- | ------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `GLOBAL_AGENTS.md`   | `~/.claude/CLAUDE.md`（Codex 为 `~/.codex/AGENTS.md`） | 软链接                   | 修改仓库即修改实际配置，`git pull` 即完成同步                                                              |
-| `skills/*/`          | `~/.claude/skills/*/`                                  | 软链接（逐个子目录）     | 不影响 `~/.claude/skills/` 下不属于本仓库的 skill                                                          |
-| `hooks/*`            | `~/.claude/hooks/*`                                    | 软链接（逐个文件）       | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用        |
-| `scripts/*`          | `~/.claude/scripts/*`                                  | 软链接（逐个文件）       | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用   |
-| `templates/`         | `~/.claude/templates/`                                 | 软链接（整目录）         | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                      |
-| 仓库根目录           | `~/.claude/global-repo/`                               | 软链接                   | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                            |
-| `settings.base.json` | `~/.claude/settings.json`                              | **合并**（非破坏性）     | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                |
-| `scheduler/`         | （不部署）                                             | 由 `install.sh` 末尾消费 | 渲染模板后写到 `~/Library/LaunchAgents/`（macOS）或 `~/.config/systemd/user/`（Linux），注册自动同步调度器 |
+| 仓库文件             | 部署到                                                 | 方式                     | 说明                                                                                                             |
+| -------------------- | ------------------------------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `GLOBAL_AGENTS.md`   | `~/.claude/CLAUDE.md`（Codex 为 `~/.codex/AGENTS.md`） | 软链接                   | 修改仓库即修改实际配置，`git pull` 即完成同步                                                                    |
+| `skills/*/`          | `~/.claude/skills/*/`                                  | 软链接（逐个子目录）     | 不影响 `~/.claude/skills/` 下不属于本仓库的 skill                                                                |
+| `hooks/*`            | `~/.claude/hooks/*`                                    | 软链接（逐个文件）       | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用              |
+| `scripts/*`          | `~/.claude/scripts/*`                                  | 软链接（逐个文件）       | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用         |
+| `templates/`         | `~/.claude/templates/`                                 | 软链接（整目录）         | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                            |
+| `rules/`             | `~/.claude/rules/`                                     | 软链接（整目录）         | 领域规则文档（按 `<topic>.md` 拆，如 `python.md`），由 GLOBAL_AGENTS 顶层指针引用，Agent 命中触发条件时主动 Read |
+| 仓库根目录           | `~/.claude/global-repo/`                               | 软链接                   | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                                  |
+| `settings.base.json` | `~/.claude/settings.json`                              | **合并**（非破坏性）     | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                      |
+| `scheduler/`         | （不部署）                                             | 由 `install.sh` 末尾消费 | 渲染模板后写到 `~/Library/LaunchAgents/`（macOS）或 `~/.config/systemd/user/`（Linux），注册自动同步调度器       |
 
 `settings.json` 之所以不软链接，是因为它通常既含跨机共享设置（如 `permissions.allow`），又含本机特有偏好（如 `effortLevel`）。合并规则：
 
@@ -36,11 +37,11 @@ Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。
 
 `install.sh` 自动检测 `~/.claude/` 与 `~/.codex/` 各自是否存在（agent 自身安装时会创建其 home 目录），对存在的一侧部署，缺哪端就跳过哪端：
 
-| 仓库产物                                                 | Claude Code（`~/.claude/`）                         | Codex（`~/.codex/`）                                            |
-| -------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------- |
-| 主指令文档                                               | `CLAUDE.md` ← `GLOBAL_AGENTS.md`                    | `AGENTS.md` ← `GLOBAL_AGENTS.md`                                |
-| `skills/` `hooks/` `scripts/` `templates/` `global-repo` | 软链                                                | 软链                                                            |
-| 配置基线                                                 | `settings.json` ← 合并 `settings.base.json`（JSON） | `config.toml` ← 合并 `codex.config.base.toml`（TOML marker 块） |
+| 仓库产物                                                          | Claude Code（`~/.claude/`）                         | Codex（`~/.codex/`）                                            |
+| ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------- |
+| 主指令文档                                                        | `CLAUDE.md` ← `GLOBAL_AGENTS.md`                    | `AGENTS.md` ← `GLOBAL_AGENTS.md`                                |
+| `skills/` `hooks/` `scripts/` `templates/` `rules/` `global-repo` | 软链                                                | 软链                                                            |
+| 配置基线                                                          | `settings.json` ← 合并 `settings.base.json`（JSON） | `config.toml` ← 合并 `codex.config.base.toml`（TOML marker 块） |
 
 Codex 端配置基线 `codex.config.base.toml` 镜像 `settings.base.json` 的 hook 注册（`SessionStart` 自动同步 + `PostToolUse` 自动 fix）。合并策略：`config.toml` 不存在则整份复制；已存在则只注入 / 整体替换 `# >>> claude-code-global managed >>>` … `# <<< … <<<` 之间的 marker 块，块外用户内容（`approval_policy` / `[projects]` 等）一律保留。
 
@@ -68,7 +69,8 @@ bash ~/Developer/claude-code-global/install.sh
 | **核心开发模式**         | 需求 → 计划 → 执行 → 总结的四步协作流程，每个开发项在 `docs/` 下留档（PROMPT.md / PLAN.md / SUMMARY.md）；每轮默认在独立 git worktree 内进行，支持多轮并行                             |
 | **git 规则**             | 中文 semantic commit message，AI 提交须带 Co-authored-by，`.gitignore` 按目录拆分                                                                                                      |
 | **环境变量管理**         | `.env.local`（真实值，gitignore）+ `.env.example`（占位符，提交），禁止泄露密钥                                                                                                        |
-| **Python 开发规则**      | 使用 uv 管理依赖（禁止 pip install），ruff 格式化，清华 + sjtu 镜像源                                                                                                                  |
+| **领域规则文档**         | 语言 / 栈 / 流程的具体细则下沉到 `rules/<topic>.md`（CC 端 `~/.claude/rules/`、Codex 端 `~/.codex/rules/`）；本宪法只保留"指针 + 触发条件"，Agent 命中条件时主动 Read 对应文件         |
+| **Python 开发规则**      | 指针到 [`rules/python.md`](rules/python.md)：uv 管依赖 / ruff / pypi index（清华 + aliyun pytorch-wheels）/ src 布局 + uv_build / 7 条 Python 风格 / 测试约定                          |
 | **Backlog / 开发项管理** | issue 为真源（GitHub / GitLab 自动双轨），三轴 label（`type:*` / `area:*` / `priority:*`），三件套 skill：`/backlog` `/start` `/finish`；`docs/BACKLOG.md` 仅作未关闭 issue 的扁平索引 |
 | **跨项目共享配置**       | `templates/_common/` + stack 模板（如 `python-uv`）由 `/bootstrap`（新项目）和 `/sync-project-config`（老项目 adopt / 拉新）统一管理                                                   |
 
@@ -136,10 +138,10 @@ bash ~/Developer/claude-code-global/install.sh
 
 `templates/` 下维护「跨项目共享开发配置模板」，由 `install.sh` 软链到 `~/.claude/templates/`，供 `/bootstrap` 与 `/sync-project-config` 在目标项目中铺设 / 同步。
 
-| 模板         | 适用项目                        | 内容（节选）                                                                                                                                                                                                               |
-| ------------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_common/`   | 所有项目（其他 stack 自动叠加） | 通用 issue templates（GitHub + GitLab 双轨）、`.github/labels.yml` 三轴 label、`.prettierrc` 等                                                                                                                            |
-| `python-uv/` | Python 项目（uv + ruff）        | `.gitignore` / `.pre-commit-config.yaml` / `.vscode/`（formatOnSave + ruff）/ `pyproject.toml [tool.ruff]` + `[[tool.uv.index]]`（清华源）两个片段 / CI workflow（GitHub Actions `lint.yml` + GitLab CI `.gitlab-ci.yml`） |
+| 模板         | 适用项目                        | 内容（节选）                                                                                                                                                                                                                                                                                                                          |
+| ------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_common/`   | 所有项目（其他 stack 自动叠加） | 通用 issue templates（GitHub + GitLab 双轨）、`.github/labels.yml` 三轴 label、`.prettierrc` 等                                                                                                                                                                                                                                       |
+| `python-uv/` | Python 项目（uv + ruff）        | `.gitignore` / `.pre-commit-config.yaml` / `.vscode/`（formatOnSave + ruff）/ `pyproject.toml` 三个片段（`[tool.ruff]` + `[[tool.uv.index]]` 清华源 + `[tool.pytest.ini_options]` src 布局 pythonpath/testpaths） / `tests/` + `configs/` 骨架（与 src/ 平级）/ CI workflow（GitHub Actions `lint.yml` + GitLab CI `.gitlab-ci.yml`） |
 
 **平台双兼容**（round 14 引入，round 15 完成 skill 端双轨适配）：模板内容同时含 GitHub（`.github/...`）与 GitLab（`.gitlab/...` + `.gitlab-ci.yml`）两套等价文件，bootstrap / sync 一并落地——对端文件在另一平台等同于死文件，互不干扰。skill 中真正调命令行的步骤（如 labels 同步、issue 创建 / 查看）由 `scripts/platform_issue.py` 按 `git remote get-url origin` 自动 dispatch 到 `gh` / `glab`，SKILL.md 不直接调平台 CLI。`.github/labels.yml` schema 跨平台一致，GitLab 项目下也读同一份（不复制 `.gitlab/labels.yml`）。详见 [docs/11-跨项目共享模板与sync-skill/SCHEMA.md](docs/11-跨项目共享模板与sync-skill/SCHEMA.md) 末尾「关于平台双兼容」一节。
 
@@ -149,7 +151,7 @@ bash ~/Developer/claude-code-global/install.sh
 - **已有老项目** → `/sync-project-config` 进入 adopt 模式补全 marker 并铺模板
 - **模板更新后** → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策；normal sync 不重跑 stack bootstrap）
 
-**python-uv stack 自动 bootstrap**（round 17 引入）：`/bootstrap` 选 `python-uv` 与 `/sync-project-config` 走 adopt 路径时，除了落配置文件，还会自动跑 `uv init --bare`（已有 `pyproject.toml` 时跳过）+ `uv add --dev pytest pytest-cov ruff` + 必要时 `uv tool install pre-commit` + `pre-commit install`。新项目跑完 `/bootstrap` 立即可 `uv run pytest` / `git commit`，不需要再手敲 4 步命令。用户可选「只要配置不要装依赖」跳过整段。详见 [docs/17-python-uv模板自动bootstrap/SUMMARY.md](docs/17-python-uv模板自动bootstrap/SUMMARY.md)。
+**python-uv stack 自动 bootstrap**（round 17 引入，round 25 改用 `uv init --package`）：`/bootstrap` 选 `python-uv` 与 `/sync-project-config` 走 adopt 路径时，除了落配置文件，还会自动跑 `uv init --package`（已有 `pyproject.toml` 时跳过）+ `uv add --dev pytest pytest-cov ruff` + 必要时 `uv tool install pre-commit` + `pre-commit install`。`--package` 让 uv 直接落标准 src 布局（`src/<pkg>/__init__.py` + 含 `[build-system] uv_build` 的 `pyproject.toml`）；模板配套 fragment 把 `[tool.pytest.ini_options] pythonpath=["src"] testpaths=["tests"]` 合并进 pyproject。新项目跑完 `/bootstrap` 立即可 `uv run pytest` / `git commit`，不需要再手敲命令。用户可选「只要配置不要装依赖」跳过整段。详见 [docs/17-python-uv模板自动bootstrap/SUMMARY.md](docs/17-python-uv模板自动bootstrap/SUMMARY.md) 与 [docs/25-python模板与子CLAUDE机制/SUMMARY.md](docs/25-python模板与子CLAUDE机制/SUMMARY.md)。
 
 ## 多设备自动同步
 

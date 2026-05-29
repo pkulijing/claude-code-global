@@ -134,10 +134,12 @@ stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先询�
 ##### Step 3.5.1：确保 pyproject.toml 存在
 
 ```bash
-[ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --bare
+[ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
 ```
 
-`--bare` 避免 `uv init` 生成 `src/<pkg>/__init__.py` + hello world，保留干净仓库。空目录 bootstrap 必然走 `uv init` 分支；老项目 adopt 走 `exists` 分支。
+`--package` 让 uv 直接落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件 + 含 `[build-system] uv_build` 的 `pyproject.toml`，零配置可编辑安装），由领域规则 `~/.claude/rules/python.md` §2 固化。空目录 bootstrap 必然走 `uv init --package` 分支；老项目 adopt 走 `exists` 分支。
+
+> 旧版用 `--bare` 是为了避免 hello world 文件；`--package` 当前产物已是空 `__init__.py`，干净度等价但额外得到 src 骨架。
 
 跑完后**回到 Step 3.3.6**处理所有标记 needs-step-3.5 的片段（清华源 fragment 必须先合，否则 3.5.2 在国内会卡）。
 
@@ -193,7 +195,7 @@ stacks:
   1. 检查并补完 `README.md` 与 `CLAUDE.md` 的「待补充」段
   2. 在 `DEVTREE.md` 的「Epic 结构」区块下添加首批叶 Epic
   3. 若 Step 3 选了 python-uv stack 且 Step 3.5 已执行：项目已可 `uv run pytest` / `git commit`；可选跑 `pre-commit run --all-files` 验证全量配置（首次接入易出 finding）
-  4. 若 Step 3.5 被用户跳过（「只要配置不要装依赖」）：未来可手动跑 `uv init --bare && uv add --dev pytest pytest-cov ruff && uv tool install pre-commit && pre-commit install`，或重跑 `/sync-project-config` adopt 走自动流程
+  4. 若 Step 3.5 被用户跳过（「只要配置不要装依赖」）：未来可手动跑 `uv init --package && uv add --dev pytest pytest-cov ruff && uv tool install pre-commit && pre-commit install`，或重跑 `/sync-project-config` adopt 走自动流程
   5. 若 Step 3 整段跳过 / `pyproject.toml` 不存在 / 选了非 python-uv stack：未来可运行 `/sync-project-config` 走 adopt 模式补全
   6. 若 Step 3.3.5 跳过了 labels 同步：
      - helper exit 3（auth 失败）：提示「跑 `gh auth login` 或 `glab auth login` 后再 `/sync-project-config`」
@@ -202,4 +204,5 @@ stacks:
   7. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后跑 `/sync-project-config` 重新同步 labels」
   8. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
   9. 准备好后运行 `/start` 开启 round 0
+  10. （仅 python-uv stack）Python 开发规范集中在领域规则 `~/.claude/rules/python.md` / `~/.codex/rules/python.md`；开发涉及 Python 时 Agent 会按 GLOBAL_AGENTS 触发条件主动读入，不需要在项目根独立放一份指针 md
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）
