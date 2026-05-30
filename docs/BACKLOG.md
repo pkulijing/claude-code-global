@@ -22,8 +22,7 @@
 
 ## P1 — 重大新功能
 
-- [#8 支持 CC 与 Codex 双兼容（单一真源 + install.sh 双轨部署）](https://github.com/pkulijing/claude-code-global/issues/8) · `type:feat` `area:install` —— user 已在用 Codex 但本仓库无法服务它，相当于工作流能力的实质缺口；拖久会出现两端配置漂移
-- [#10 [Spike] 为仓库引入用户可配置项机制（首例：git init 默认分支）](https://github.com/pkulijing/claude-code-global/issues/10) · `type:refactor` `area:install` —— 会影响整套全局配置体系的基础能力（重大新功能），当前仓库对所有偏好均硬编码，缺一层用户可配置机制
+(暂无)
 
 ## P2 — 一般小功能小修复
 
@@ -38,3 +37,4 @@
 - **平台双兼容下的「对端死文件清理」opt-out**（`area:template`）—— round 14 决定项目根永久同时落 GitHub + GitLab 两套文件，不引入 `.cc-template.yml` 的 `platforms: [...]` 字段或类似 opt-out 机制。代价：GitHub 项目里有 4 个 `.gitlab/...` 死文件、反之亦然。理由：成本（marker schema 变更 + bootstrap/sync 多一层过滤逻辑）大于收益（仅减 4 个对端不读取的死文件）。详见 [docs/14-模板支持GitLab双轨/SUMMARY.md](14-模板支持GitLab双轨/SUMMARY.md) §5.3
 - **python-uv 模板内置 torch / aliyun pytorch wheels 索引**（`area:template`）—— round 17 决定 `pyproject.toml.uv-index.fragment` 仅落清华源默认 index，**不**默认追加 torch 的 aliyun `pytorch-wheels/cu121` 镜像段。理由：99% 项目不依赖 torch，硬塞会增加 pyproject noise 与维护负担（torch 版本随项目走，模板里 pin 反而成枷锁）。torch 项目自己在 pyproject 追加 `[[tool.uv.index]] name = "aliyun-torch"` 即可。详见 [docs/17-python-uv模板自动bootstrap/SUMMARY.md](17-python-uv模板自动bootstrap/SUMMARY.md) §「关键设计」#8
 - **「会话标题可定位轮次」能力**（`area:skill`）—— round 24 查实：CC 会话标题由独立 `ai-title` 摘要器基于整段会话生成（英文、多次重算、不读首条回复），「首条回复加 `Round N:` 前缀」机制上无法影响标题，故删除该约定且**不再追求**用任何方式让标题携带轮次。轮次定位由 `docs/N-*` 目录名 + transcript 搜索承担即可。详见 [docs/24-精简宪法与会话标题约定排查/SUMMARY.md](24-精简宪法与会话标题约定排查/SUMMARY.md)
+- **Codex 双装端到端实测**（`area:install` · 原 #8 子项 #8）—— issue #8 的 8 个 checklist 子项中主链 #1–#7 已于 round 22 落地，唯「在 Codex 中实跑 `/start` `/finish` `/commit` `/devtree`，实测 `disable-model-invocation` frontmatter 容忍度 / hooks stdin JSON schema / `fix-after-edit.sh` 字段一致性」这一验证性收尾**刻意不再追踪**。理由：双装机器上 `~/.claude/` 始终存在、主链能力日常使用已够用；该项属作者手动验证而非开发任务，留待真正踩到具体问题时再针对性处理（如给 `fix-after-edit.sh` 加 `.tool_input.file_path // .tool_call.file_path` fallback）。详见 [docs/22-CC与codex双兼容主链/SUMMARY.md](22-CC与codex双兼容主链/SUMMARY.md) §局限性
