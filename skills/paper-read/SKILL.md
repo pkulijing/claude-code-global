@@ -12,10 +12,10 @@ description: 阅读一篇 paper（PDF 或 tex），生成结构化的中文阅�
 
 ## 文件命名
 
-- 笔记文件命名为 readingx.y-paper-keyword.md
-  - 其中 x.y 代表这是第x个reading session的第y篇论文
-  - paper keyword是论文最具有代表性的关键词，全部小写
-- 举例：如第3个reading session的第2篇paper是讲 PixelCNN 的，文件名就叫 reading3.2-pixel-cnn.md
+- 笔记文件默认命名为 reading-paper-keyword.md
+  - paper keyword 是论文最具代表性的关键词，全部小写，多个词用连字符 - 连接
+  - 举例：讲 PixelCNN 的论文，文件名就叫 reading-pixel-cnn.md
+- 若项目级 CLAUDE.md / AGENTS.md 另有命名规则，以项目规则为准
 
 ## 文件格式
 
@@ -36,7 +36,7 @@ description: 阅读一篇 paper（PDF 或 tex），生成结构化的中文阅�
 
 #### 标题层次
 
-- Markdown一级标题：笔记大标题，格式为 `Reading x.y [论文标题](论文下载链接)`
+- Markdown一级标题：笔记大标题，格式为 `[论文标题](论文下载链接)`
 - Markdown 二、三、四级标题需要包含数字序号，与标题内容用空格隔开。
   - 二级标题： 如`2. 论文的前序知识`。目录除外，目录不需要序号
   - 三级标题： 如`2.1 BPE Encoding`
