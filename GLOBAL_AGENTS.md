@@ -25,6 +25,7 @@
 当前已沉淀的领域规则：
 
 - `rules/python.md` — Python 项目（pyproject.toml / uv / ruff / 包内代码风格 / 测试）
+- `rules/lark.md` — lark-cli 创作飞书云文档（署名约定 + docx 实操技巧）
 
 ## 核心开发模式
 
@@ -117,3 +118,12 @@ Python 项目（`pyproject.toml` / uv / ruff / 包内代码 / 测试）相关规
 - Codex 端：`~/.codex/rules/python.md`
 
 **触发条件**：本轮任务一旦涉及 Python 代码、`pyproject.toml`、依赖管理或 Python 风格判断，**必须先把 `rules/python.md` 读入上下文**，再开始动手。
+
+## lark-cli 文档创作规则
+
+用 lark-cli（lark-doc）创作 / 编辑飞书云文档相关规范（署名约定 + docx 实操技巧）集中维护在领域规则文档 **`rules/lark.md`**：
+
+- CC 端：`~/.claude/rules/lark.md`
+- Codex 端：`~/.codex/rules/lark.md`
+
+**触发条件**：本轮任务一旦涉及用 lark-cli 创作或编辑飞书云文档，**必须先把 `rules/lark.md` 读入上下文**，再开始动手。

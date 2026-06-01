@@ -91,7 +91,9 @@ graph TD
     direction TB
     N24["🏗️ 24 · 精简宪法与会话标题约定排查"]:::refactor
     N25["🏗️ 25 · python 模板与子 CLAUDE 机制"]:::refactor
+    N28["✨ 28 · lark 规则文档"]:::feature
     N24 ~~~ N25
+    N25 ~~~ N28
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -141,7 +143,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-05-29 | 共 28 轮
+> 最后更新：2026-06-01 | 共 29 轮
 
 | #   | 名称                           | 类型    | 所属 Epic     | 一句话描述                                                                                                                                                                                                                           |
 | --- | ------------------------------ | ------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -173,6 +175,7 @@ graph TD
 | 25  | python 模板与子 CLAUDE 机制    | 🏗️ 重构 | 全局宪法治理  | 引入 `rules/<topic>.md` 领域规则文档机制（首例 `rules/python.md` 含 #12 七条 Python 风格 + 原 Python 章节），python-uv 模板接入 `uv init --package` 落标准 src 布局 + pytest fragment                                                |
 | 26  | finish 沉淀 issue 强制打 label | 🐛 修复 | 开发项收尾    | helper 对「跨仓库 `--repo` + 零 label」创建强制拦截（`--allow-no-label` 逃生）、`label-list` 支持 `--repo` 跨仓库校验；finish Step 3.5 加创建前 label 校验与「失败绝不丢 label」兜底；GLOBAL_AGENTS.md 补硬约束；回补 #12 三轴 label |
 | 27  | 用户可配置项机制               | 🌱 初建 | 用户可配置项  | 引入扁平 env 用户配置（仓库外、user-wins seed、CC/Codex 共享），首例 git init 默认分支 → install.sh 设 git config --global init.defaultBranch；附 verify 脚本与 DESIGN 设计文档                                                      |
+| 28  | lark 规则文档                  | ✨ 功能 | 全局宪法治理  | 新增 rules/lark.md 领域规则文档（lark-cli 创作飞书云文档默认加 `⚡ Crafted with lark-cli` 署名行 + docx 实操技巧），GLOBAL_AGENTS.md 加并列指针节                                                                                    |
 
 ---
 
@@ -210,7 +213,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25
+- 轮次：24, 25, 28
 
 ### 开发工具链
 
