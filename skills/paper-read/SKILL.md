@@ -24,7 +24,7 @@ description: 阅读一篇 paper（PDF 或 tex），生成结构化的中文阅�
 - 笔记文件为 markdown 格式
 - 数学公式使用 MathJAX 支持的 latex 格式
 - 使用 mermaid 绘制较简单的流程图
-- 论文内容中的重要插图、复杂的函数图像直接在markdown中插入，图片文件保存到根目录下的assets文件夹。
+- 论文内容中的重要插图、复杂的函数图像直接在 markdown 中插入；图片文件保存到与笔记 markdown 同级的 `assets/` 文件夹（就近原则，而非固定根目录），引用使用相对路径 `![](assets/xxx.png)`。
 
 ### 语言及编码
 
