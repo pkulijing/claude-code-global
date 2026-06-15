@@ -15,7 +15,7 @@ Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。
 | `hooks/*`                 | `~/.claude/hooks/*`                                    | 软链接（逐个文件）                  | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用                                                                                     |
 | `scripts/*`               | `~/.claude/scripts/*`                                  | 软链接（逐个文件）                  | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用                                                                                |
 | `templates/`              | `~/.claude/templates/`                                 | 软链接（整目录）                    | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                                                                                                   |
-| `rules/`                  | `~/.claude/rules/`                                     | 软链接（整目录）                    | 领域规则文档（按 `<topic>.md` 拆，如 `python.md`），由 GLOBAL_AGENTS 顶层指针引用，Agent 命中触发条件时主动 Read                                                                        |
+| `rules/`                  | `~/.claude/rules/`                                     | 软链接（整目录）                    | 领域规则文档（按 `<topic>.md` 拆，如 `python.md` / `frontend.md`），由 GLOBAL_AGENTS 顶层指针引用，Agent 命中触发条件时主动 Read                                                        |
 | 仓库根目录                | `~/.claude/global-repo/`                               | 软链接                              | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                                                                                                         |
 | `settings.base.json`      | `~/.claude/settings.json`                              | **合并**（非破坏性）                | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                                                                                             |
 | `user.config.example.env` | `~/.claude-code-global/config.env`                     | **seed**（user-wins，非软链非合并） | 仓库内是示例基线；真实配置在仓库外、`git pull`/自动同步不覆盖；只在用户未设时填默认、新增 key 才补缺追加。详见 [docs/27-用户可配置项机制/DESIGN.md](docs/27-用户可配置项机制/DESIGN.md) |
@@ -66,16 +66,17 @@ bash ~/Developer/claude-code-global/install.sh
 
 `GLOBAL_AGENTS.md` 定义了所有项目通用的开发规范：
 
-| 模块                      | 内容                                                                                                                                                                                   |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **核心开发模式**          | 需求 → 计划 → 执行 → 总结的四步协作流程，每个开发项在 `docs/` 下留档（PROMPT.md / PLAN.md / SUMMARY.md）；每轮默认在独立 git worktree 内进行，支持多轮并行                             |
-| **git 规则**              | 中文 semantic commit message，AI 提交须带 Co-authored-by，`.gitignore` 按目录拆分                                                                                                      |
-| **环境变量管理**          | `.env.local`（真实值，gitignore）+ `.env.example`（占位符，提交），禁止泄露密钥                                                                                                        |
-| **领域规则文档**          | 语言 / 栈 / 流程的具体细则下沉到 `rules/<topic>.md`（CC 端 `~/.claude/rules/`、Codex 端 `~/.codex/rules/`）；本宪法只保留"指针 + 触发条件"，Agent 命中条件时主动 Read 对应文件         |
-| **Python 开发规则**       | 指针到 [`rules/python.md`](rules/python.md)：uv 管依赖 / ruff / pypi index（清华 + aliyun pytorch-wheels）/ src 布局 + uv_build / 7 条 Python 风格 / 测试约定                          |
-| **lark-cli 文档创作规则** | 指针到 [`rules/lark.md`](rules/lark.md)：lark-cli 创作飞书云文档默认加署名行（`⚡ Crafted with lark-cli · <YYYY-MM-DD>`）+ docx 实操技巧（署名落位 / 媒体置顶 / 内容文件相对路径）     |
-| **Backlog / 开发项管理**  | issue 为真源（GitHub / GitLab 自动双轨），三轴 label（`type:*` / `area:*` / `priority:*`），三件套 skill：`/backlog` `/start` `/finish`；`docs/BACKLOG.md` 仅作未关闭 issue 的扁平索引 |
-| **跨项目共享配置**        | `templates/_common/` + stack 模板（如 `python-uv`）由 `/bootstrap`（新项目）和 `/sync-project-config`（老项目 adopt / 拉新）统一管理                                                   |
+| 模块                      | 内容                                                                                                                                                                                            |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **核心开发模式**          | 需求 → 计划 → 执行 → 总结的四步协作流程，每个开发项在 `docs/` 下留档（PROMPT.md / PLAN.md / SUMMARY.md）；每轮默认在独立 git worktree 内进行，支持多轮并行                                      |
+| **git 规则**              | 中文 semantic commit message，AI 提交须带 Co-authored-by，`.gitignore` 按目录拆分                                                                                                               |
+| **环境变量管理**          | `.env.local`（真实值，gitignore）+ `.env.example`（占位符，提交），禁止泄露密钥                                                                                                                 |
+| **领域规则文档**          | 语言 / 栈 / 流程的具体细则下沉到 `rules/<topic>.md`（CC 端 `~/.claude/rules/`、Codex 端 `~/.codex/rules/`）；本宪法只保留"指针 + 触发条件"，Agent 命中条件时主动 Read 对应文件                  |
+| **Python 开发规则**       | 指针到 [`rules/python.md`](rules/python.md)：uv 管依赖 / ruff / pypi index（清华 + aliyun pytorch-wheels）/ src 布局 + uv_build / 7 条 Python 风格 / 测试约定                                   |
+| **前端开发规则**          | 指针到 [`rules/frontend.md`](rules/frontend.md)：npm 走 npmmirror / Biome（前端的 ruff）/ React 19 + Vite 6 + TS strict / tailwind v4 CSS-first / shadcn-ui / 落 `frontend/` 子目录，与后端正交 |
+| **lark-cli 文档创作规则** | 指针到 [`rules/lark.md`](rules/lark.md)：lark-cli 创作飞书云文档默认加署名行（`⚡ Crafted with lark-cli · <YYYY-MM-DD>`）+ docx 实操技巧（署名落位 / 媒体置顶 / 内容文件相对路径）              |
+| **Backlog / 开发项管理**  | issue 为真源（GitHub / GitLab 自动双轨），三轴 label（`type:*` / `area:*` / `priority:*`），三件套 skill：`/backlog` `/start` `/finish`；`docs/BACKLOG.md` 仅作未关闭 issue 的扁平索引          |
+| **跨项目共享配置**        | `templates/_common/` + stack 模板（如 `python-uv`）由 `/bootstrap`（新项目）和 `/sync-project-config`（老项目 adopt / 拉新）统一管理                                                            |
 
 ## Skills
 
@@ -142,20 +143,23 @@ bash ~/Developer/claude-code-global/install.sh
 
 `templates/` 下维护「跨项目共享开发配置模板」，由 `install.sh` 软链到 `~/.claude/templates/`，供 `/bootstrap` 与 `/sync-project-config` 在目标项目中铺设 / 同步。
 
-| 模板         | 适用项目                        | 内容（节选）                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `_common/`   | 所有项目（其他 stack 自动叠加） | 通用 issue templates（GitHub + GitLab 双轨）、`.github/labels.yml` 三轴 label、`.prettierrc` 等                                                                                                                                                                                                                                                                                    |
-| `python-uv/` | Python 项目（uv + ruff）        | `.gitignore` / `.pre-commit-config.yaml` / `.vscode/`（formatOnSave + ruff）/ `pyproject.toml` 四个片段（`[tool.ruff]` + `[tool.uv]` python-preference=only-managed + `[[tool.uv.index]]` 清华源 + `[tool.pytest.ini_options]` src 布局 pythonpath/testpaths） / `tests/` + `configs/` 骨架（与 src/ 平级）/ CI workflow（GitHub Actions `lint.yml` + GitLab CI `.gitlab-ci.yml`） |
+| 模板          | 适用项目                                                    | 内容（节选）                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `_common/`    | 所有项目（其他 stack 自动叠加）                             | 通用 issue templates（GitHub + GitLab 双轨）、`.github/labels.yml` 三轴 label、`.prettierrc` 等                                                                                                                                                                                                                                                                                                                                                            |
+| `python-uv/`  | Python 项目（uv + ruff）                                    | `.gitignore` / `.pre-commit-config.yaml` / `.vscode/`（formatOnSave + ruff）/ `pyproject.toml` 四个片段（`[tool.ruff]` + `[tool.uv]` python-preference=only-managed + `[[tool.uv.index]]` 清华源 + `[tool.pytest.ini_options]` src 布局 pythonpath/testpaths） / `tests/` + `configs/` 骨架（与 src/ 平级）/ CI workflow（GitHub Actions `lint.yml` + GitLab CI `.gitlab-ci.yml`）                                                                         |
+| `react-vite/` | 前端项目（React + Vite），落 `frontend/` 子目录、与后端正交 | `package.json`（React 19 + Vite 6 + TS strict，依赖版本写死）/ `.npmrc`（npmmirror）/ `biome.json`（前端的 ruff）/ `components.json`（shadcn new-york/neutral）/ `vite.config.ts`（`/api`·`/ws` proxy 范式）/ `tsconfig.json` / `index.html` / `src/` 基础件（`main.tsx` + `index.css` tailwind v4 CSS-first + theme-provider/mode-toggle 暗色可切 + shadcn Button + App 占位）/ `.vscode/`（Biome formatOnSave）/ `stack.yml`（`default_path: frontend`） |
 
 **平台双兼容**（round 14 引入，round 15 完成 skill 端双轨适配）：模板内容同时含 GitHub（`.github/...`）与 GitLab（`.gitlab/...` + `.gitlab-ci.yml`）两套等价文件，bootstrap / sync 一并落地——对端文件在另一平台等同于死文件，互不干扰。skill 中真正调命令行的步骤（如 labels 同步、issue 创建 / 查看）由 `scripts/platform_issue.py` 按 `git remote get-url origin` 自动 dispatch 到 `gh` / `glab`，SKILL.md 不直接调平台 CLI。`.github/labels.yml` schema 跨平台一致，GitLab 项目下也读同一份（不复制 `.gitlab/labels.yml`）。详见 [docs/11-跨项目共享模板与sync-skill/SCHEMA.md](docs/11-跨项目共享模板与sync-skill/SCHEMA.md) 末尾「关于平台双兼容」一节。
 
 工作流：
 
-- **新项目** → `/bootstrap` 选 stack（如 `python-uv`），自动写入相关配置 + 生成 `.agent-template.yml` marker
+- **新项目** → `/bootstrap` 选 stack（**可多选**，如后端 `python-uv` + 前端 `react-vite` 叠加），自动写入相关配置 + 生成 `.agent-template.yml` marker
 - **已有老项目** → `/sync-project-config` 进入 adopt 模式补全 marker 并铺模板
 - **模板更新后** → 在项目目录跑 `/sync-project-config` 拉新（AI 智能 merge，per-file 用户决策；normal sync 不重跑 stack bootstrap）
 
 **python-uv stack 自动 bootstrap**（round 17 引入，round 25 改用 `uv init --package`）：`/bootstrap` 选 `python-uv` 与 `/sync-project-config` 走 adopt 路径时，除了落配置文件，还会自动跑 `uv init --package`（已有 `pyproject.toml` 时跳过）+ `uv add --dev pytest pytest-cov ruff` + 必要时 `uv tool install pre-commit` + `pre-commit install`。`--package` 让 uv 直接落标准 src 布局（`src/<pkg>/__init__.py` + 含 `[build-system] uv_build` 的 `pyproject.toml`）；模板配套 fragment 把 `[tool.pytest.ini_options] pythonpath=["src"] testpaths=["tests"]` 合并进 pyproject。新项目跑完 `/bootstrap` 立即可 `uv run pytest` / `git commit`，不需要再手敲命令。用户可选「只要配置不要装依赖」跳过整段。详见 [docs/17-python-uv模板自动bootstrap/SUMMARY.md](docs/17-python-uv模板自动bootstrap/SUMMARY.md) 与 [docs/25-python模板与子CLAUDE机制/SUMMARY.md](docs/25-python模板与子CLAUDE机制/SUMMARY.md)。
+
+**react-vite stack 自动 bootstrap**（round 30 引入）：`/bootstrap` 选 `react-vite` 与 `/sync-project-config` 走 adopt 路径时，整套前端模板复制到 `frontend/` 子目录后，自动在 `frontend/` 跑 `npm install`（`.npmrc` 已固化 npmmirror 源，依赖走国内镜像）。前端 / 后端是正交两维、可同仓叠加（如 `python-uv` 落根 + `react-vite` 落 `frontend/`），marker 各记一条 `stack` + `path`。用户可选「只要文件不装依赖」跳过 `npm install`。详见 [docs/30-前端栈规则与scaffold模板/SUMMARY.md](docs/30-前端栈规则与scaffold模板/SUMMARY.md)。
 
 ## 多设备自动同步
 

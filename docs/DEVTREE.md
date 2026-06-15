@@ -75,12 +75,14 @@ graph TD
     N15["✨ 15 · 三件套 skill 支持 GitLab 双轨"]:::feature
     N17["✨ 17 · python-uv 模板自动 bootstrap"]:::feature
     N18["✨ 18 · sync 支持无 stack 路径"]:::feature
+    N30["✨ 30 · 前端栈规则与 scaffold 模板"]:::feature
     N31["📦 31 · python 模板默认 only-managed"]:::infra
     N11 ~~~ N14
     N14 ~~~ N15
     N15 ~~~ N17
     N17 ~~~ N18
-    N18 ~~~ N31
+    N18 ~~~ N30
+    N30 ~~~ N31
   end
 
   subgraph e_multi_agent["🔄 多 Agent 兼容"]
@@ -151,7 +153,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-06-15 | 共 31 轮
+> 最后更新：2026-06-15 | 共 32 轮
 
 | #   | 名称                           | 类型    | 所属 Epic      | 一句话描述                                                                                                                                                                                                                           |
 | --- | ------------------------------ | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -185,6 +187,7 @@ graph TD
 | 27  | 用户可配置项机制               | 🌱 初建 | 用户可配置项   | 引入扁平 env 用户配置（仓库外、user-wins seed、CC/Codex 共享），首例 git init 默认分支 → install.sh 设 git config --global init.defaultBranch；附 verify 脚本与 DESIGN 设计文档                                                      |
 | 28  | lark 规则文档                  | ✨ 功能 | 全局宪法治理   | 新增 rules/lark.md 领域规则文档（lark-cli 创作飞书云文档默认加 `⚡ Crafted with lark-cli` 署名行 + docx 实操技巧），GLOBAL_AGENTS.md 加并列指针节                                                                                    |
 | 29  | paper-read 资产就近存放        | 🐛 修复 | 内容创作 skill | paper-read skill 图片资产默认从「固定根目录 assets」改为「与笔记 markdown 同级 assets/」就近原则，引用用相对路径                                                                                                                     |
+| 30  | 前端栈规则与 scaffold 模板     | ✨ 功能 | 项目模板机制   | 新增 rules/frontend.md + templates/react-vite/ 前端 scaffold（React 19 + Vite 6 + TS strict + tailwind v4 + shadcn + Biome，npmmirror），bootstrap/sync 升级为多 stack 叠加 + stack.yml 自描述 path，前后端正交可同仓并存            |
 | 31  | python 模板默认 only-managed   | 📦 工程 | 项目模板机制   | python-uv 模板新增 `[tool.uv] python-preference=only-managed` fragment + install.sh 以 user-wins seed 系统级 `~/.config/uv/uv.toml`，让 uv 全权管 python、避免系统 python 缺 `Python.h` 致 C 扩展编译失败；rules/python.md §1 记坑   |
 
 ---
@@ -213,7 +216,7 @@ graph TD
 #### 项目模板机制
 
 - 状态：进行中
-- 轮次：11, 14, 15, 17, 18, 31
+- 轮次：11, 14, 15, 17, 18, 30, 31
 
 #### 多 Agent 兼容
 

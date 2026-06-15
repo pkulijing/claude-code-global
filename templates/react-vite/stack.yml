@@ -1,0 +1,6 @@
+# react-vite stack 自描述：bootstrap / sync-project-config 读取本文件决定落点与展示名。
+# default_path 是 __subpath__/ 下文件相对项目根的落点；缺省 stack 不放此文件即视作 "."。
+# 前端固定落 frontend/ 子目录，与后端维度（python-uv 落根）正交，可同仓并存。
+default_path: frontend
+label: "React 19 + Vite 6 + TS（前端维度）"
+description: "React 19 + Vite 6 + TypeScript(strict) + tailwind v4 + shadcn-ui + Biome，npm 走 npmmirror。落 frontend/ 子目录。"

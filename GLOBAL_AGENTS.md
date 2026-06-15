@@ -25,6 +25,7 @@
 当前已沉淀的领域规则：
 
 - `rules/python.md` — Python 项目（pyproject.toml / uv / ruff / 包内代码风格 / 测试）
+- `rules/frontend.md` — 前端项目（npm / npmmirror / Biome / Vite / tailwind v4 / shadcn / React，落 `frontend/` 子目录）
 - `rules/lark.md` — lark-cli 创作飞书云文档（署名约定 + docx 实操技巧）
 
 ## 核心开发模式
@@ -118,6 +119,15 @@ Python 项目（`pyproject.toml` / uv / ruff / 包内代码 / 测试）相关规
 - Codex 端：`~/.codex/rules/python.md`
 
 **触发条件**：本轮任务一旦涉及 Python 代码、`pyproject.toml`、依赖管理或 Python 风格判断，**必须先把 `rules/python.md` 读入上下文**，再开始动手。
+
+## 前端开发规则
+
+前端工程（npm / npmmirror、Biome、Vite、TypeScript、tailwind v4、shadcn-ui、React，落 `frontend/` 子目录）相关规范集中维护在领域规则文档 **`rules/frontend.md`**：
+
+- CC 端：`~/.claude/rules/frontend.md`
+- Codex 端：`~/.codex/rules/frontend.md`
+
+**触发条件**：本轮任务一旦涉及前端代码 / web UI、React / Vite / TypeScript 前端工程，或 Biome / tailwind / shadcn 等前端栈判断，**必须先把 `rules/frontend.md` 读入上下文**，再开始动手。
 
 ## lark-cli 文档创作规则
 

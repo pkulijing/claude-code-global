@@ -69,31 +69,34 @@ disable-model-invocation: false
 `~/.claude/templates/` 下有两类目录：
 
 - **`_common/`**：所有项目都套用，stack-无关（issue templates 双套、labels.yml、.prettierrc 等通用资源），bootstrap 会**自动应用**，不让用户选择
-- **`<stack>/`**（如 `python-uv`）：技术栈特异资源，由用户选择套用其中之一
+- **`<stack>/`**（如 `python-uv`、`react-vite`）：技术栈特异资源，**前端 / 后端正交、可多选叠加**（如后端 `python-uv` + 前端 `react-vite` 同仓并存）；各 stack 落点由其 `stack.yml` 的 `default_path` 决定
 
 #### Step 3.1：探测可用 stack
 
-- 读取 `~/.claude/templates/` 下**非下划线开头**的子目录，得到可选 stack 列表（如 `python-uv`）
+- 读取 `~/.claude/templates/` 下**非下划线开头**的子目录，得到可选 stack 列表（如 `python-uv`、`react-vite`）
+- 对每个 stack 读其 `stack.yml`（若存在）取两个字段：`default_path`（该 stack `__subpath__/` 文件相对项目根的落点，**缺省 `.`**——即 stack 目录下没有 `stack.yml` 或没写该字段时落项目根）与 `label`（选择列表展示名，缺省用 stack 目录名）。例：`python-uv` 无 `stack.yml` → path `.`（落根）；`react-vite` 的 `stack.yml` 写 `default_path: frontend` → 落 `frontend/` 子目录
 - 下划线开头的目录（如 `_common/`）是伪 stack，自动应用，不进入用户选项
 - `~/.claude/templates/` 不存在 → 提示用户「尚未通过 install.sh 部署 templates，跳过模板初始化」并跳过 Step 3 整个段落
 
-#### Step 3.2：用户选 stack
+#### Step 3.2：用户选 stack（可多选）
 
-询问用户，让其在以下选项中选一个：
+前端 / 后端是正交维度，一个项目可叠加多个 stack。询问用户，让其**勾选 0 个或多个** stack：
 
-- 各 stack 名（每个 stack 一个选项）
-- 「跳过模板初始化（不推荐，但允许）」
+- 各 stack 一个选项，展示其 `label`（来自 Step 3.1）
+- 允许全不选（只套 `_common`）
 
-若选「跳过」→ 跳过 Step 3.3，但 **`_common` 仍然应用**（除非 `_common/` 也不存在）；若 `_common/` 不存在则 Step 3.3 完全跳过。
+各 stack 的落点由其 `default_path` 决定（Step 3.1 已解析），**不向用户询问 path**：后端 `python-uv` 落项目根，前端 `react-vite` 落 `frontend/`，互不干扰、可同仓并存。
+
+若一个都没选 → 跳过 Step 3.3 的 stack 部分，但 **`_common` 仍然应用**（除非 `_common/` 也不存在）；若 `_common/` 不存在则 Step 3.3 完全跳过。
 
 #### Step 3.3：复制模板内容到项目
 
-设单 stack 项目 `path = .`。**先应用 `_common`，再应用用户选的 `<stack>`**（同名文件以 `<stack>` 优先，但理论上不应有冲突 —— 见 `~/.claude/global-repo/docs/12-backlog改为issue驱动/SUMMARY.md` 中 \_common 与 stack 的边界划分）。
+**先应用 `_common`，再按用户选的每个 `<stack>` 依次应用**（同名文件以 stack 优先，但理论上不应有冲突 —— 见 `~/.claude/global-repo/docs/12-backlog改为issue驱动/SUMMARY.md` 中 \_common 与 stack 的边界划分）。
 
-对每个生效目录（先 `_common/` 后 `<stack>/`）：
+对每个生效来源（先 `_common/`，再逐个选中的 `<stack>/`）：
 
-- 把 `__root__/` 下所有文件（含点文件、含子目录结构）复制到项目根
-- 把 `__subpath__/` 下所有文件复制到项目根（path 即 `.`）
+- 把 `__root__/` 下所有文件（含点文件、含子目录结构）复制到**项目根**
+- 把 `__subpath__/` 下所有文件复制到该来源的落点：`_common` 与 `default_path` 为 `.` 的 stack（如 `python-uv`）落**项目根**；`default_path` 为子目录的 stack（如 `react-vite` → `frontend/`）落 `<default_path>/`（目录不存在则建）
 - 遇到目标已存在的文件：列入「冲突清单」，逐条向用户确认 take 模板 / 保留项目侧 / 智能合并；不要默认覆盖
 
 特殊处理：
@@ -127,9 +130,9 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
 - 项目根**有** `pyproject.toml` → AI 智能合并，保留用户已有字段，模板新增字段追加；冲突字段询问用户。数组段（`[[tool.X]]`，如 `[[tool.uv.index]]`）按 `name` 字段 union。
 - 项目根**无** `pyproject.toml` → **标记为 needs-step-3.5**（仅 python-uv stack 接得住；其他 stack 退化为提示「先 `uv init` / 等价命令再 `/sync-project-config`」并跳过）。
 
-#### Step 3.5：（仅 python-uv stack）项目实际可跑化
+#### Step 3.5：（选中含 python-uv 时）后端项目实际可跑化
 
-stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项）；选 no 则跳过整段并在收尾反馈中提示用户后续可手动跑。
+选中的 stack **不含** `python-uv` 则**整段跳过**。含 `python-uv` 时（其落点 path 为 `.`，下列 uv 命令都在项目根执行），**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项）；选 no 则跳过整段并在收尾反馈中提示用户后续可手动跑。
 
 ##### Step 3.5.1：确保 pyproject.toml 存在
 
@@ -165,9 +168,19 @@ pre-commit install
 
 成功后打印 `pre-commit installed at .git/hooks/pre-commit`。**不**强制跑 `pre-commit run --all-files`（首次接入易出大量 finding，让用户自决）。
 
+#### Step 3.5b：（选中含 react-vite 时）前端依赖安装
+
+选中的 stack **不含** `react-vite` 则**整段跳过**。含 `react-vite` 时，模板已在 Step 3.3 整体复制到 `frontend/`（含写死版本的 `package.json` + 固化 npmmirror 源的 `.npmrc`）。**先询问用户确认是否执行**（默认 yes，给「只要文件不装依赖」选项）：
+
+```bash
+cd frontend && npm install
+```
+
+`.npmrc` 已固化 npmmirror 源，`npm install` 自动走国内镜像。失败 → 报告 stdout/stderr，提示用户手动重试，**不**自动回滚已写文件。装完可选 `npm run lint` / `npm run build` 验证。
+
 #### Step 3.6：写 `.agent-template.yml` marker
 
-在项目根创建 `.agent-template.yml`，内容如下（字段来源详见 SCHEMA.md）：
+在项目根创建 `.agent-template.yml`（字段来源详见 SCHEMA.md）。`stacks` 列表写**所有选中的 stack**，每条 `path` 取其 `default_path`（Step 3.1 解析）：
 
 ```yaml
 # 由 claude-code-global 管理，非必要请勿手动编辑
@@ -175,10 +188,15 @@ source: <git -C ~/.claude/global-repo config --get remote.origin.url 的输出>
 template_commit: <git -C ~/.claude/global-repo rev-parse HEAD 的输出>
 bootstrap_time: <当前 UTC 时间的 ISO 8601 字符串>
 stacks:
-  - stack: <用户选的 stack 名>
+  - stack: python-uv
     path: .
     skipped: []
+  - stack: react-vite
+    path: frontend
+    skipped: []
 ```
+
+上例是「后端 + 前端」并存形态；只选其一就只写对应那一条，一个都没选则写 `stacks: []` 并在顶层加 `skipped: []`（见 SCHEMA.md 无 stack 形态）。
 
 `source` 取不到 origin 时填占位符 `https://github.com/<owner>/claude-code-global`，并在收尾里提示用户手动补全。
 
@@ -194,7 +212,7 @@ stacks:
 - 给出下一步建议清单：
   1. 检查并补完 `README.md` 与 `CLAUDE.md` 的「待补充」段
   2. 在 `DEVTREE.md` 的「Epic 结构」区块下添加首批叶 Epic
-  3. 若 Step 3 选了 python-uv stack 且 Step 3.5 已执行：项目已可 `uv run pytest` / `git commit`；可选跑 `pre-commit run --all-files` 验证全量配置（首次接入易出 finding）
+  3. 若选了 python-uv 且 Step 3.5 已执行：项目已可 `uv run pytest` / `git commit`；可选跑 `pre-commit run --all-files` 验证全量配置（首次接入易出 finding）。若选了 react-vite 且 Step 3.5b 已执行：`frontend/` 已可 `npm run dev` / `npm run build`
   4. 若 Step 3.5 被用户跳过（「只要配置不要装依赖」）：未来可手动跑 `uv init --package && uv add --dev pytest pytest-cov ruff && uv tool install pre-commit && pre-commit install`，或重跑 `/sync-project-config` adopt 走自动流程
   5. 若 Step 3 整段跳过 / `pyproject.toml` 不存在 / 选了非 python-uv stack：未来可运行 `/sync-project-config` 走 adopt 模式补全
   6. 若 Step 3.3.5 跳过了 labels 同步：
@@ -204,5 +222,5 @@ stacks:
   7. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后跑 `/sync-project-config` 重新同步 labels」
   8. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
   9. 准备好后运行 `/start` 开启 round 0
-  10. （仅 python-uv stack）Python 开发规范集中在领域规则 `~/.claude/rules/python.md` / `~/.codex/rules/python.md`；开发涉及 Python 时 Agent 会按 GLOBAL_AGENTS 触发条件主动读入，不需要在项目根独立放一份指针 md
+  10. 领域规范集中在 `~/.claude/rules/` 对应文件、按 GLOBAL_AGENTS 触发条件主动读入，不需要在项目根独立放指针 md：选了 `python-uv` 见 `rules/python.md`（涉及 Python 时）、选了 `react-vite` 见 `rules/frontend.md`（涉及前端时）
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）

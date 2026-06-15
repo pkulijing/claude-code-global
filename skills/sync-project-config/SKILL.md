@@ -9,10 +9,13 @@ disable-model-invocation: false
 - **Normal sync**：项目根已有 `.agent-template.yml` marker → 计算 diff → AI 智能 merge 提议 → 用户批量决策 → 执行
 - **Adopt**：无 marker → 让用户选 stack（或选"无 stack 只 \_common"） → 当作"全是新增"完整套用一次（含冲突询问）→ 写 marker
 
-**两种项目形态**（本轮均支持）：
+**三种项目形态**（本轮均支持）：
 
+- **多 stack 项目（`len(stacks) >= 2`）**：前端 / 后端正交叠加（如 `python-uv` 落根 + `react-vite` 落 `frontend/`），各 stack 按各自 `path` 落点 + `_common` 一并参与
 - **单 stack 项目（`len(stacks) == 1`）**：选定某个 stack（如 `python-uv`），`<stack>` + `_common` 两个模板源都参与
 - **无 stack 项目（`len(stacks) == 0`）**：仅 `_common` 一个源参与，适用于模板源仓库本身（`claude-code-global`）或所有现成 stack 都不合身、但仍想复用 `_common` stack-无关资源（issue templates、`labels.yml`、`.prettierrc` 等）的项目
+
+各 stack 的 `path` 来自 marker（由 bootstrap / adopt 按 stack 的 `stack.yml` `default_path` 写入：`python-uv`→`.`、`react-vite`→`frontend`）。下文凡「遍历 stacks」在 `len == 1` 时退化为单条、**行为与旧单 stack 完全一致**；`len == 0` 走「仅 `_common`」分支。
 
 详细 schema：`~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`
 设计与决策：`~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/PROMPT.md` / `PLAN.md`
@@ -52,17 +55,15 @@ marker 文件名在 round 22 由 `.cc-template.yml` 改为 `.agent-template.yml`
 直接 Read 文件、按 YAML 语义读字段。需要：
 
 - `template_commit`（旧 commit hash）
-- `stacks` 列表
-- length == 1 时再读 `stacks[0].stack`、`stacks[0].path`、`stacks[0].skipped`（数组）
-- length == 0 时改读 marker **顶层** `skipped`（数组，可缺省视作空数组）
+- `stacks` 列表（0、1 或多条）；每条读 `stack`（名）、`path`（落点）、`skipped`（数组）
+- `len == 0` 时改读 marker **顶层** `skipped`（数组，可缺省视作空数组）
 
-**断言**（本轮支持 length 0 或 1）：
+**校验**：
 
-- `stacks` 列表 length 必须 ≤ 1
-- length == 1 时 `stacks[0].path` 必须等于 `.`
-- 任一不满足 → 报错「检测到多 stack / 非根 path 配置，本轮不支持，留至后续 round」并退出
+- `stacks` 各条的 `path` 用其声明值（如 `python-uv`→`.`、`react-vite`→`frontend`），不再强制 `path == .`
+- 同一 marker 内不应出现重复 `stack` 名或重复 `path`，若有 → 报错并请用户手动修
 
-后续 2.x / 6.x 中所有「`<stack>`」「`stacks[0].*`」描述都只在 length == 1 时适用；length == 0 时按"仅 `_common`"分支走，具体每节会显式说明。
+后续 2.x / 6.x 凡「遍历 stacks」「`<stack>`」描述对每条 stack 各跑一遍；`len == 1` 退化为单条（等价旧行为），`len == 0` 按"仅 `_common`"分支走（每节会显式说明）。
 
 ### 2.2 拿当前模板 HEAD
 
@@ -80,21 +81,18 @@ git -C ~/.claude/global-repo status --porcelain templates/
 
 ### 2.3 计算模板变更
 
-**扫的模板源由 `stacks` 长度决定**：
+**扫的模板源 = marker 里每个 stack 的 `templates/<stack>/` + 始终自动应用的 `_common/`**。把所有生效源作为 pathspec 一次性 diff：
 
-- **length == 1**：用户选定的 `<stack>/` + 自动应用的 `_common/`
+```bash
+# 例：marker 有 python-uv + react-vite 两条
+git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
+  templates/python-uv/ templates/react-vite/ templates/_common/
+```
 
-  ```bash
-  git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/<stack>/ templates/_common/
-  ```
+- `len == 1`：`templates/<stack>/ templates/_common/`（等价旧单 stack）
+- `len == 0`：仅 `templates/_common/`
 
-- **length == 0**：仅 `_common/`
-
-  ```bash
-  git -C ~/.claude/global-repo diff --name-status <old>..<new> -- templates/_common/
-  ```
-
-  ⚠️ 不要省略 pathspec：`git diff` 不传路径会扫全 templates、误把其他 stack 的变更带进来。
+⚠️ 不要省略 pathspec：`git diff` 不传路径会扫全 templates、误把项目未接入的其他 stack 的变更带进来。pathspec 只列 marker 里实际有的 stack。
 
 输出形如：
 
@@ -106,13 +104,13 @@ git -C ~/.claude/global-repo status --porcelain templates/
 
 ### 2.4 对每个变更文件做四象限分析
 
-对应到项目侧路径：
+对应到项目侧路径（**先按 diff 路径 `templates/<source>/...` 判定该文件来源是哪个 stack 或 `_common`**）：
 
-- `__root__/<rel>` → 项目根的 `<rel>`
-- `__subpath__/<rel>` → length == 1 时 `<stacks[0].path>/<rel>`（单 stack 项目 path 恒为 `.`，等同项目根）
-- length == 0 时**理论上 `_common` 不应该出 `__subpath__/` 内容**（设计约束：`_common` 只承载 stack-无关、根级资源）；若违反，按项目根 `<rel>` 兜底 + 输出警告
+- `__root__/<rel>` → 项目根的 `<rel>`（任何来源都落根）
+- `__subpath__/<rel>` → 该来源 stack 的 `<path>/<rel>`（`python-uv` path `.` → 项目根；`react-vite` path `frontend` → `frontend/<rel>`）
+- `_common` **理论上不应出 `__subpath__/` 内容**（设计约束：`_common` 只承载 stack-无关、根级资源）；若违反，按项目根 `<rel>` 兜底 + 输出警告
 
-来源（stack 或 \_common）只影响模板侧路径，**项目侧落点完全相同** —— 因此 stack 与 \_common **不应有同名冲突**（设计约束）；万一有，stack 优先。
+不同 stack 的 `__subpath__` 落到各自 `path` 子树、天然不撞；`__root__` 内容各 stack 与 \_common 共贡献到根，**不应有同名冲突**（设计约束）；万一有，stack 优先。
 
 读取 3 份内容做对比（`<source>` 是 `<stack>` 或 `_common`）：
 
@@ -142,14 +140,12 @@ git -C ~/.claude/global-repo status --porcelain templates/
 
 ### 2.5 处理 skipped 持久化语义
 
-**skipped 列表的读取位置随 `stacks` 长度切换**：
+**skipped 列表按来源归属分别维护**：
 
-- **length == 1**：读 `stacks[0].skipped`
-- **length == 0**：读 marker **顶层** `skipped`（与 `stacks[0].skipped` schema 完全一致，仅位置不同；该字段可缺省，视作空数组）
+- `len >= 1`：某 stack 自己（`templates/<stack>/...`）的 skip 项放进该 `stacks[i].skipped`；`_common`（共享源）的 skip 项统一放进 `stacks[0].skipped`（第一条 stack，`len == 1` 时即旧行为）
+- `len == 0`：读 marker **顶层** `skipped`（与 `stacks[].skipped` schema 完全一致，仅位置不同；该字段可缺省，视作空数组）。这样避免在 `len == 0` 时引入"虚拟 stack 条目"破坏「`_common` 不显式记录在 `stacks` 列表」约定
 
-  这样设计是为了避免在 length=0 时引入"虚拟 stack 条目"破坏既有「`_common` 不显式记录在 `stacks` 列表」约定。
-
-对选定列表的每条：
+把所有 stack 条的 skipped（+ `len == 0` 顶层 skipped）汇总后，对每条：
 
 - 取 `file`（含来源 source 段，如 `__root__/.github/labels.yml`） 与 `skipped_at_commit`
 - 该文件实际来源（stack 或 \_common）由 skill 在分析阶段记录到 file 字段或动态确定
@@ -190,25 +186,20 @@ TODO 同步清单（共 N 项）：
 
 `~/.claude/templates/` 下非下划线开头的子目录列表。
 
-### 4.2 用户选 stack
+### 4.2 用户选 stack（可多选）
 
-询问用户：列出可选 stack，让其选一个。本轮 path 固定 `.`，不询问 path。
+先按 bootstrap Step 3.1 同法探测每个 stack 的 `default_path`（读 `templates/<stack>/stack.yml`，缺省 `.`）。询问用户：列出可选 stack，让其**勾选 0 个或多个**（前端 / 后端可叠加）。path 不询问，由各 stack 的 `default_path` 决定（`python-uv`→`.`、`react-vite`→`frontend`）。
 
-**选项列表末尾追加一条「无 stack（只 \_common）」**：
-
-- label：`无 stack（只 _common）`
-- description：本项目所有现成 stack 都不合身，仅复用 `_common` 的 stack-无关资源（issue templates、`labels.yml`、`.prettierrc` 等）。适用于模板源仓库本身（`claude-code-global`）或确认所有 stack 都不合身的项目。
-
-用户选中此项时：跳过"选 stack"语义；4.3 仅扫 `_common/` 一个源；marker 中 `stacks` 字段最终写为 `[]`。
+**一个都不选 = 无 stack（只 \_common）**：仅复用 `_common` 的 stack-无关资源（issue templates、`labels.yml`、`.prettierrc` 等）。适用于模板源仓库本身（`claude-code-global`）或确认所有 stack 都不合身的项目。此时 4.3 仅扫 `_common/` 一个源，marker `stacks` 最终写为 `[]`。
 
 ### 4.3 全套用模板（含冲突询问）
 
 **待新增的模板源由 4.2 选择决定**：
 
-- 选了具体 stack：以下两个源的 `__root__/*` + `__subpath__/*` 全部当作"待新增"列入 TODO
-  - `~/.claude/templates/_common/`（如存在，**自动应用**）
-  - `~/.claude/templates/<stack>/`（用户选定）
-- 选了「无 stack（只 \_common）」：仅 `~/.claude/templates/_common/` 一个源
+- 选了 1 个或多个 stack：`_common/` + 每个选定 `<stack>/` 的 `__root__/*` + `__subpath__/*` 全部当作"待新增"列入 TODO
+  - `~/.claude/templates/_common/`（如存在，**自动应用**，`__root__` 落项目根）
+  - 每个 `~/.claude/templates/<stack>/`：`__root__` 落项目根、`__subpath__` 落该 stack 的 `<default_path>/`（如 `react-vite`→`frontend/`）
+- 一个都没选（无 stack）：仅 `~/.claude/templates/_common/` 一个源
 
 判断：
 
@@ -221,9 +212,9 @@ TODO 同步清单（共 N 项）：
 
 跳到第 5 节。
 
-### 4.4 （仅 python-uv stack）项目实际可跑化
+### 4.4 （选中含 python-uv 时）后端项目实际可跑化
 
-stack ≠ `python-uv` 则**整段跳过**。stack == `python-uv` 时，**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项），yes 则按以下子步骤逐条执行；no 则跳过整段并把决策记录到收尾反馈。
+选中的 stack **不含** `python-uv` 则**整段跳过**。含 `python-uv` 时（落点 path `.`，下列命令在项目根执行），**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项），yes 则按以下子步骤逐条执行；no 则跳过整段并把决策记录到收尾反馈。
 
 逻辑等同 bootstrap 的 Step 3.5，区别在 adopt 模式下 `pyproject.toml` **更可能已存在**（老项目），4.4.1 跳过 `uv init` 是常态。
 
@@ -261,6 +252,18 @@ pre-commit install
 
 跳到第 5 节。
 
+### 4.5 （选中含 react-vite 时）前端依赖安装
+
+选中的 stack **不含** `react-vite` 则**整段跳过**。含 `react-vite` 时，前端模板（含 `package.json` + 固化 npmmirror 源的 `.npmrc`）已在 4.3 当作待新增列入 TODO、第 6 节执行后落到 `frontend/`。**先询问用户确认是否执行**（默认 yes，给「只要文件不装依赖」选项）：
+
+```bash
+cd frontend && npm install
+```
+
+失败 → 报告 stdout/stderr，提示用户手动重试，**不**自动回滚。装完可选 `npm run lint` / `npm run build` 验证。
+
+跳到第 5 节。
+
 ## 5. 用户批量决策
 
 向用户呈现 2.6 / 4.3 的 TODO，让用户给出**统一指令**，例如：
@@ -291,8 +294,8 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
   - stdout 输出每条 label 的 TSV 同步结果与 summary，原样展示给用户
 
 - **skip**：在 marker 的 skipped 列表中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
-  - length == 1 项目：写 `stacks[0].skipped[]`
-  - length == 0 项目：写 marker 顶层 `skipped[]`（与 2.5 读取位置对称）
+  - `len >= 1` 项目：写该文件来源 stack 的 `stacks[i].skipped[]`；`_common` 来源统一写 `stacks[0].skipped[]`（与 2.5 对称，`len == 1` 即旧行为）
+  - `len == 0` 项目：写 marker 顶层 `skipped[]`（与 2.5 读取位置对称）
 
 注意：skipped[] 的更新策略：
 
@@ -308,16 +311,16 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - `bootstrap_time` 不动（这是首次 bootstrap 时间）
 - `source` 不动
 - skipped 按 6 节策略更新：
-  - length == 1：`stacks[0].skipped`
-  - length == 0：marker 顶层 `skipped`
+  - `len >= 1`：各 stack 写各自 `stacks[i].skipped`（`_common` 归 `stacks[0]`）
+  - `len == 0`：marker 顶层 `skipped`
 
 Adopt 模式额外：
 
 - `bootstrap_time` 设为当前 ISO 时间
 - `source` 取 `git -C ~/.claude/global-repo config --get remote.origin.url`，无则填占位
-- `stacks` 按 4.2 用户选择写：
-  - 选了具体 stack → `[{stack: <name>, path: ".", skipped: []}]`
-  - 选了「无 stack（只 \_common）」→ `[]`，同时顶层加 `skipped: []`
+- `stacks` 按 4.2 用户选择写，每条 `path` 取该 stack 的 `default_path`：
+  - 选了 1 个或多个 stack → 每个一条，如 `[{stack: python-uv, path: ".", skipped: []}, {stack: react-vite, path: "frontend", skipped: []}]`
+  - 一个都没选（无 stack）→ `stacks: []`，同时顶层加 `skipped: []`
 
 ### 6.2 收尾反馈
 

@@ -47,12 +47,13 @@ skipped:
 
 ### `stacks`（必填，列表）
 
-项目使用的 stack 列表。**本轮支持长度 0 或 1**（round 18 起放宽，原 round 11 只支持 length=1）：
+项目使用的 stack 列表。**支持长度 0、1 或多条**（length=1 起于 round 11，length=0 放宽于 round 18，多 stack 叠加放宽于 round 30）：
 
 - **length == 0**（无 stack 项目，只 `_common`）：本仓库 `claude-code-global` 自身，或所有现成 stack 都不合身、但仍想复用 `_common` stack-无关资源的项目
 - **length == 1**（单 stack 项目）：选定某个 stack（如 `python-uv`），`<stack>` + `_common` 两个模板源都参与
+- **length >= 2**（多 stack 项目）：前端 / 后端正交叠加（如 `python-uv` 落根 + `react-vite` 落 `frontend/`），各 stack 按各自 `path` 落点 + `_common` 一并参与
 
-`/sync-project-config` 启动时断言长度 ≤ 1 + length=1 时 `path == "."`，否则报错退出。多 stack monorepo schema 已设计好（见下方示例），实现留至后续 round。
+各 stack 的 `path` 由其 `templates/<stack>/stack.yml` 的 `default_path` 决定（`python-uv` 无 `stack.yml` → `.`、`react-vite` → `frontend`），bootstrap / adopt 写入 marker，**不**向用户交互询问。本轮**不**做交互式自定义 path、也**不**做 monorepo 根级同名文件（如前后端各自 `.gitignore`）的精细冲突合并 —— 留至后续 round。
 
 ### `skipped`（可选，顶层，仅 length == 0 使用）
 
@@ -67,10 +68,11 @@ stack 名称，对应 `~/.claude/templates/<stack>/` 目录。如 `python-uv`、
 
 #### `stacks[].path`（必填）
 
-stack 应用到的项目子路径（相对项目根）。
+stack 应用到的项目子路径（相对项目根），取自该 stack 的 `stack.yml` `default_path`。
 
-- 单 stack 项目恒为 `.`
-- 多 stack 项目（未来）：例如 `frontend`、`backend`
+- 后端 `python-uv`：`.`（落仓库根，维持历史、与现有单 stack 项目兼容）
+- 前端 `react-vite`：`frontend`（落子目录，与后端正交、可同仓并存）
+- 缺省（stack 无 `stack.yml` 或未写 `default_path`）：`.`
 
 #### `stacks[].skipped`（必填，可空数组）
 
@@ -128,7 +130,9 @@ skipped: [] # 顶层 skipped（与 stacks[0].skipped 互斥）
 - 模板源仓库本身（如 `claude-code-global`）—— stack 模板再设计也轮不到自己用
 - 所有现成 stack 都不合身的项目（如纯 bash + jq 工具仓库），仍想复用 `_common` 的 stack-无关资源（issue templates、`labels.yml`、`.prettierrc`）
 
-### 多 stack monorepo（schema 已支持，本轮 sync 不实现）
+### 多 stack 项目（前端 + 后端并存，round 30 起 bootstrap / sync 支持）
+
+后端落仓库根、前端落 `frontend/` 子目录，正交叠加：
 
 ```yaml
 source: https://github.com/pkuyplijing/claude-code-global
@@ -136,9 +140,9 @@ template_commit: a1b2c3d4e5f6789012345678901234567890abcd
 bootstrap_time: 2026-04-27T14:30:00Z
 stacks:
   - stack: python-uv
-    path: backend
+    path: .
     skipped: []
-  - stack: react
+  - stack: react-vite
     path: frontend
     skipped: []
 ```
@@ -147,10 +151,10 @@ stacks:
 
 模板里每个文件归属一个 scope：
 
-- `__root__/<rel>` → 写到 git 仓库根的 `<rel>`
-- `__subpath__/<rel>` → 写到 `<stacks[].path>/<rel>`
+- `__root__/<rel>` → 写到 git 仓库根的 `<rel>`（任何 stack 与 `_common` 都落根）
+- `__subpath__/<rel>` → 写到该文件来源 stack 的 `<path>/<rel>`
 
-单 stack 项目 `path = .` 时，两种 scope 都落到项目根；语义差异在多 stack 时显现（多 stack 多 stack 共同贡献到 root，AI 跨 stack merge）。
+`python-uv`（path `.`）两种 scope 都落项目根；`react-vite`（path `frontend`）的 `__subpath__` 落 `frontend/`。前后端并存时各 stack 的 `__subpath__` 落各自子树、天然不撞；`__root__` 由各 stack 与 `_common` 共同贡献到根（不应有同名冲突，万一有 stack 优先）。
 
 ## 关于 `_common` 伪 stack（round 12 引入）
 
