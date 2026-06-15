@@ -8,6 +8,7 @@
 
 - 使用 **uv** 管理项目依赖：用 `uv add <pkg>` 添加，依赖记录在 `pyproject.toml`（uv 天然支持）。**禁止使用 `pip install` 或 `uv pip install`**。
 - 使用 **`uv run`** 运行 Python 脚本，如 `uv run some_script.py`、`uv run python -m ruff check .`。**禁止直接调用 `python` / `python3`**。
+- **让 uv 全权管 python**：在 `pyproject.toml` 设 `[tool.uv] python-preference = "only-managed"`，强制 uv 只用自己托管的 standalone python、忽略系统 python。uv 默认 `python-preference=managed` 只在**已装**解释器间排序、会优先复用满足版本要求的系统 python；而系统 python 常缺 dev 头文件（无 `Python.h`），导致含 C 扩展的依赖（如 `evdev`）编译失败、且容易误判为编译器问题。托管 standalone python 永远自带头文件，配合默认 `python-downloads=automatic`，缺托管版时会自动下载。python-uv 模板已默认带此设置，手工建项目请照抄；机器级一劳永逸可在 `~/.config/uv/uv.toml` 设同名键（`claude-code-global` 的 `install.sh` 在该文件缺失时会自动 seed）。
 - 使用 **ruff** 做代码格式化与语法检查（`uv run ruff check` / `uv run ruff format`）。
 - **pypi index 指南**（为提高国内下载速度，固定两个源）：
   - 普通库走[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)

@@ -98,7 +98,7 @@ disable-model-invocation: false
 
 特殊处理：
 
-- `pyproject.toml.*.fragment` 不能直接落地为同名文件 —— 它们是片段，需合并进项目根的 `pyproject.toml` 对应段。命名约定 `pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（`ruff` → `[tool.ruff]`、`uv-index` → `[[tool.uv.index]]`）。
+- `pyproject.toml.*.fragment` 不能直接落地为同名文件 —— 它们是片段，需合并进项目根的 `pyproject.toml` 对应段。命名约定 `pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（`ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
 - 实际合并动作在 Step 3.3.6 执行；本步只把这些片段从普通文件复制流程中**剔除**（不落地为同名 fragment 文件）。
 
 #### Step 3.3.5：同步 labels（helper 自动按平台 dispatch）

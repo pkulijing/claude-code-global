@@ -219,6 +219,33 @@ merge_toml() {
     fi
 }
 
+# 以 user-wins 语义把推荐的系统级 uv 配置 seed 到 ~/.config/uv/uv.toml
+# 策略（与 scripts/user-config.sh 的 ccg_seed_user_config 一致：缺省才填、绝不覆盖）：
+#   - 目标不存在 → 建父目录 + 整份复制基线
+#   - 目标已存在 → 一律不碰（用户自管），仅打印一行提示
+# 不做字段级 merge：uv.toml 的 python-preference 是标量键，
+# 在用户已设同键时 marker-block 追加会触发 TOML 重复键错误，得不偿失。
+# 用法: seed_uv_config <基线TOML>
+seed_uv_config() {
+    local src="$1"
+    local dst="${XDG_CONFIG_HOME:-$HOME/.config}/uv/uv.toml"
+
+    if [ ! -f "$src" ]; then
+        warn "未找到 $(basename "$src")，跳过系统级 uv 配置 seed"
+        return
+    fi
+
+    if [ -f "$dst" ]; then
+        info "已跳过 ${dst}（已存在，用户自管）"
+        info "  如需机器级 only-managed，可手动加：python-preference = \"only-managed\""
+        return
+    fi
+
+    mkdir -p "$(dirname "$dst")"
+    cp "$src" "$dst"
+    success "已创建 ${dst}（从 $(basename "$src") 初始化系统级 uv 配置）"
+}
+
 # 创建一个符号链接，处理已存在的情况
 # 用法: link_item <源路径> <目标路径>
 link_item() {
@@ -386,6 +413,18 @@ if [ -f "$REPO_DIR/scripts/user-config.sh" ]; then
     ccg_apply_git_default_branch || warn "应用 git 默认分支失败（不阻塞）"
 else
     warn "未找到 scripts/user-config.sh，跳过用户可配置项处理"
+fi
+
+# 系统级 uv 配置：seed ~/.config/uv/uv.toml（机器级 only-managed + 清华源默认）
+# user-wins：缺失才创建，已存在不动。与具体 agent 端无关，故全局只跑一次。
+if [ -f "$REPO_DIR/uv.config.base.toml" ]; then
+    echo ""
+    echo "------------------------------"
+    info "系统级 uv 配置"
+    echo "------------------------------"
+    seed_uv_config "$REPO_DIR/uv.config.base.toml"
+else
+    warn "未找到 uv.config.base.toml，跳过系统级 uv 配置 seed"
 fi
 
 # 注册 OS 自动同步调度器（launchd / systemd user timer）

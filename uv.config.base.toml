@@ -1,0 +1,13 @@
+# claude-code-global 推荐的系统级 uv 配置基线。
+# 由 install.sh 以 user-wins 语义 seed 到 ~/.config/uv/uv.toml（缺失才创建，绝不覆盖）。
+# 注意 uv.toml 的 key 不带 tool.uv 前缀（顶层 python-preference + [[index]]），
+# 与 pyproject 里的 [tool.uv] / [[tool.uv.index]] 写法不同。
+
+# 只用 uv 托管的 standalone python，忽略系统 python（自带头文件，避免 C 扩展编译失败）。
+python-preference = "only-managed"
+
+# 国内默认走清华源（普通库）；torch 系列仍按项目级 pyproject 指定 aliyun 镜像。
+[[index]]
+name = "tuna"
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true

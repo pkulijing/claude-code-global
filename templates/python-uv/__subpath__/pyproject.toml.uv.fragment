@@ -1,0 +1,9 @@
+# 此片段由 bootstrap / sync-project-config 智能合并进项目 pyproject.toml。
+# 已自定义的 [tool.uv] 字段会被保留，模板新增字段追加。
+# python-preference = "only-managed"：强制 uv 只用自己托管的 standalone python、
+# 忽略系统 python。避免系统 python 缺 dev 头文件（Python.h）时含 C 扩展的依赖
+# （如 evdev）编译失败；配合默认 python-downloads=automatic，无满足要求的托管版
+# 时会自动下载一份自带头文件的 standalone python。
+
+[tool.uv]
+python-preference = "only-managed"

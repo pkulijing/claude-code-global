@@ -132,7 +132,7 @@ git -C ~/.claude/global-repo status --porcelain templates/
 
 特殊：`pyproject.toml.*.fragment` 永远不直接写文件，做项目根 `pyproject.toml` 的对应段合并。
 
-- 命名约定：`pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（如 `ruff` → `[tool.ruff]`、`uv-index` → `[[tool.uv.index]]`）。
+- 命名约定：`pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（如 `ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
 - 合并语义：项目侧无此段 → 直接追加；已有此段 → AI 智能合并，保留用户自定义字段，模板新增字段追加；冲突字段询问用户。
 - 数组段（双方括号，如 `[[tool.uv.index]]`）：按 `name` 字段 union（项目侧已有同名条目则跳过，避免重复注册）。
 - 项目无 `pyproject.toml`：
