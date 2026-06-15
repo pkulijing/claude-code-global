@@ -98,7 +98,7 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 
 - `M templates/python-uv/__root__/.gitignore`（修改，来源 stack）
 - `A templates/_common/__root__/.github/ISSUE_TEMPLATE/feat.md`（新增，来源 \_common）
-- `D templates/python-uv/__subpath__/.vscode/old.json`（删除）
+- `D templates/python-uv/__subpath__/configs/old.json`（删除）
 
 若输出为空 → 报告「模板自上次同步起未变化」，再继续走 skipped 重检（2.5）。
 
@@ -128,15 +128,29 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 | 新增   | 已存在（罕见）             | 询问 take / 保留 / 智能 merge                    |
 | 删除   | 仍存在                     | 询问删除 / 保留（用户可能仍需要）                |
 
-特殊：`pyproject.toml.*.fragment` 永远不直接写文件，做项目根 `pyproject.toml` 的对应段合并。
+**特殊：fragment 文件**（凡文件名以 `.fragment` 结尾）永远不直接写同名文件，去掉 `.fragment` 后缀得目标相对路径（始终落项目根），按目标类型**合并**。当前两类：
 
-- 命名约定：`pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（如 `ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
+**(a) `pyproject.toml.<section>.fragment`（TOML 段合并）**
+
+- 命名约定：`<section>` 用 `-` 分隔层级（如 `ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
 - 合并语义：项目侧无此段 → 直接追加；已有此段 → AI 智能合并，保留用户自定义字段，模板新增字段追加；冲突字段询问用户。
 - 数组段（双方括号，如 `[[tool.uv.index]]`）：按 `name` 字段 union（项目侧已有同名条目则跳过，避免重复注册）。
 - 项目无 `pyproject.toml`：
   - normal sync 路径 → 标记「skipped: 项目无 pyproject.toml」
   - adopt 路径下选了 `python-uv` stack → 标记为「待 4.4 完成 `uv init` 后合并」
   - 其他情况仍按 skipped 处理
+
+**(b) `.vscode/<name>.json.fragment`（JSON 合并，目标项目根 `.vscode/<name>.json`）**
+
+- 目标**不存在** → 用 fragment 内容创建（含父目录）。
+- 目标**已存在** → 按目标语义合并：`extensions.json` 的 `recommendations` 数组做**有序去重 union**；`settings.json` 对象做**顶层键 union**（键只一侧→并入；两侧都为对象→递归深合并；标量冲突→询问）。
+- 多个 stack 的同名 `.vscode/<name>.json.fragment` 依次合并进**同一个**项目根目标，得各 stack 推荐 / 设置的并集（前后端语言作用域键天然不相交，纯 union）。
+- 背景：各 stack 的编辑器配置以 fragment 汇聚到**项目根** `.vscode/`（VS Code 单根工作区只读仓库根的 `.vscode/`，子目录 stack 如 `react-vite` 也借此落根、与 `python-uv` 共存）。
+
+**fragment 迁移去重（重要）**：当模板把某资源从「`__subpath__` 普通文件」改为「`__root__/*.fragment`」时，diff 会同时出现「`D __subpath__/X`」与「`A __root__/X.fragment`」。判断二者**目标项目路径是否相同**：
+
+- **相同**（如 `python-uv` 的 `__subpath__/.vscode/settings.json`（path `.` → 根）与新 `__root__/.vscode/settings.json.fragment`（→ 根）目标都是根 `.vscode/settings.json`）→ 判为**机制迁移而非真删除**：**抑制删除提案**，仅执行 fragment 合并（content 不变时合并为幂等 no-op，原文件原样保留）。
+- **不同**（如 `react-vite` 的 `__subpath__/.vscode/*`（path `frontend` → `frontend/.vscode/`）与新根 `.vscode/*.fragment`（→ 根））→ 二者互不矛盾：照常提案删除旧 `frontend/.vscode/*` + fragment 合并进根 `.vscode/*`。
 
 ### 2.5 处理 skipped 持久化语义
 
@@ -207,7 +221,7 @@ TODO 同步清单（共 N 项）：
 - 项目侧已存在 → AI 对比模板内容与项目内容：
   - 完全一致 → 默认建议「无需操作（已等价）」
   - 不一致 → 默认建议「智能 merge」或询问 take / 保留 / merge
-- `pyproject.toml.*.fragment` 同 2.4 特殊处理
+- `*.fragment`（`pyproject.toml.*.fragment` 与 `.vscode/*.json.fragment`）同 2.4 特殊处理
 - 含 `.github/labels.yml` 时：**额外把"调 helper `label-sync-from-file` 同步 labels 到远端"作为单独一条 TODO**。helper 自动按 `git remote` 判定走 `gh` / `glab`（详见第 6 节执行步骤）。`.github/labels.yml` schema 跨平台一致，GitLab 项目下也读 `.github/` 路径同一份（不新建 `.gitlab/labels.yml` 副本）。
 
 跳到第 5 节。
@@ -280,6 +294,7 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - **accept (修改/智能 merge)**：用 Edit / Write 写回合并后内容
 - **accept (删除)**：删文件
 - **accept (pyproject 段合并)**：把 `pyproject.toml.<section>.fragment` 合并进 `pyproject.toml` 的对应段（按 2.4 命名约定与合并语义）
+- **accept (.vscode JSON 合并)**：把 `.vscode/<name>.json.fragment` 合并进项目根 `.vscode/<name>.json`（按 2.4 (b) 合并语义：`recommendations` 数组 union / `settings.json` 顶层键 union）
 - **accept (label sync)**：调 helper 自动按平台 dispatch：
 
   ```bash

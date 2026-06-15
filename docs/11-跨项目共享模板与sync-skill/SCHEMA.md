@@ -83,7 +83,8 @@ stack 应用到的项目子路径（相对项目根），取自该 stack 的 `st
 模板内的相对路径，含 scope 子目录但不含 `templates/<stack>/` 前缀。例如：
 
 - `__root__/.gitignore`
-- `__subpath__/.vscode/settings.json`
+- `__subpath__/biome.json`
+- `__root__/.vscode/settings.json.fragment`（fragment 类，见文末「与文件 scope 的关系」）
 
 ##### `skipped[].skipped_at_commit`（必填）
 
@@ -155,6 +156,15 @@ stacks:
 - `__subpath__/<rel>` → 写到该文件来源 stack 的 `<path>/<rel>`
 
 `python-uv`（path `.`）两种 scope 都落项目根；`react-vite`（path `frontend`）的 `__subpath__` 落 `frontend/`。前后端并存时各 stack 的 `__subpath__` 落各自子树、天然不撞；`__root__` 由各 stack 与 `_common` 共同贡献到根（不应有同名冲突，万一有 stack 优先）。
+
+### fragment 文件（不直接落地，合并进目标）
+
+例外：文件名以 `.fragment` 结尾的不按上表 verbatim 落地，而是去掉 `.fragment` 后缀得目标相对路径（始终落**项目根**），由 bootstrap / sync **合并**进目标。当前两类：
+
+- `pyproject.toml.<section>.fragment` → 根 `pyproject.toml` 对应段（TOML 段合并；`<section>` 用 `-` 分隔层级，如 `uv-index` → `[[tool.uv.index]]`）。
+- `.vscode/<name>.json.fragment` → 根 `.vscode/<name>.json`（JSON 合并：`recommendations` 数组 union / `settings.json` 顶层键 union）。round 32 引入，把各 stack 的编辑器配置统一汇聚到项目根 `.vscode/`（含子目录 stack `react-vite`），解决「VS Code 单根工作区只读仓库根 `.vscode/`、子目录配置不生效」。
+
+因此 fragment 让「`__root__` 不应同名冲突」的约束对编辑器配置成立：多个 stack 各出一份 `.vscode/<name>.json.fragment`，合并而非覆盖。
 
 ## 关于 `_common` 伪 stack（round 12 引入）
 

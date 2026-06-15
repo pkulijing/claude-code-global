@@ -99,10 +99,10 @@ disable-model-invocation: false
 - 把 `__subpath__/` 下所有文件复制到该来源的落点：`_common` 与 `default_path` 为 `.` 的 stack（如 `python-uv`）落**项目根**；`default_path` 为子目录的 stack（如 `react-vite` → `frontend/`）落 `<default_path>/`（目录不存在则建）
 - 遇到目标已存在的文件：列入「冲突清单」，逐条向用户确认 take 模板 / 保留项目侧 / 智能合并；不要默认覆盖
 
-特殊处理：
+特殊处理 —— **fragment 文件**（凡文件名以 `.fragment` 结尾）不能直接落地为同名文件，它们是片段、需**合并**进目标文件。去掉 `.fragment` 后缀即得目标相对路径，目标始终落**项目根**。本步只把这些片段从普通文件复制流程中**剔除**（不落地为 `*.fragment` 文件），实际合并动作在 Step 3.3.6 执行。当前两类 fragment：
 
-- `pyproject.toml.*.fragment` 不能直接落地为同名文件 —— 它们是片段，需合并进项目根的 `pyproject.toml` 对应段。命名约定 `pyproject.toml.<section>.fragment`，`<section>` 用 `-` 分隔层级（`ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
-- 实际合并动作在 Step 3.3.6 执行；本步只把这些片段从普通文件复制流程中**剔除**（不落地为同名 fragment 文件）。
+- `pyproject.toml.<section>.fragment` → 合并进项目根 `pyproject.toml` 对应段（TOML 段合并）。`<section>` 用 `-` 分隔层级（`ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
+- `.vscode/<name>.json.fragment` → 合并进项目根 `.vscode/<name>.json`（JSON 合并）。各 stack 的编辑器配置以此形式汇聚到**项目根** `.vscode/`（VS Code 单根工作区只读仓库根的 `.vscode/`，故落根才生效；子目录 stack 如 `react-vite` 也借此落根、可与 `python-uv` union）。
 
 #### Step 3.3.5：同步 labels（helper 自动按平台 dispatch）
 
@@ -123,12 +123,22 @@ helper 内部行为：
 
 helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>]`），末行 `summary: N synced, M error`。一并展示给用户。
 
-#### Step 3.3.6：合并 pyproject.toml fragments
+#### Step 3.3.6：合并 fragments
 
-对 Step 3.3 剔除出来的每一份 `pyproject.toml.<section>.fragment`：
+对 Step 3.3 剔除出来的每一份 `*.fragment`，按类型合并：
+
+**`pyproject.toml.<section>.fragment`（TOML 段合并）：**
 
 - 项目根**有** `pyproject.toml` → AI 智能合并，保留用户已有字段，模板新增字段追加；冲突字段询问用户。数组段（`[[tool.X]]`，如 `[[tool.uv.index]]`）按 `name` 字段 union。
 - 项目根**无** `pyproject.toml` → **标记为 needs-step-3.5**（仅 python-uv stack 接得住；其他 stack 退化为提示「先 `uv init` / 等价命令再 `/sync-project-config`」并跳过）。
+
+**`.vscode/<name>.json.fragment`（JSON 合并，目标项目根 `.vscode/<name>.json`）：**
+
+- 目标**不存在** → 用 fragment 内容创建（含父目录 `.vscode/`）。
+- 目标**已存在** → 按目标语义合并：
+  - `extensions.json`（`recommendations` 数组）→ 与现有 `recommendations` 做**有序去重 union**（已有不重复加，新项追加末尾）。
+  - `settings.json`（对象）→ **顶层键 union**：键只在一侧直接并入；两侧都有且值均为对象（如都定义 `[json]`）→ 递归深合并；两侧标量冲突（同键不同值）→ 询问用户。
+- 多个 stack 各自的 `.vscode/<name>.json.fragment` 依次合并进**同一个**项目根目标文件（先 `_common`，再逐个 stack），最终得各 stack 推荐 / 设置的并集。前端 / 后端的语言作用域键天然不相交（`[python]`/`[markdown]` vs `[typescript]`/…），纯 union 零冲突。
 
 #### Step 3.5：（选中含 python-uv 时）后端项目实际可跑化
 

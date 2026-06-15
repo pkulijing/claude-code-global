@@ -53,7 +53,9 @@ DOM / WebGL / canvas API 大量返回可空类型、且常在非顶层位置组�
 
 ### 4.3 import 组织交给 Biome
 
-Biome 的 assist（`organizeImports`）负责 import 排序与分组（external 一组、`@/` 一组，组间空行）。模板 `.vscode/settings.json` 已配 `source.organizeImports.biome` 保存即整；手写时按同样分组，最终以 `npm run lint` 为准。
+Biome 的 assist（`organizeImports`）负责 import 排序与分组（external 一组、`@/` 一组，组间空行）。项目根 `.vscode/settings.json`（`[typescript]` 等语言块里的 `source.organizeImports.biome`）已配保存即整；手写时按同样分组，最终以 `npm run lint` 为准。
+
+> 编辑器配置（`.vscode/`）的落点：模板把 `extensions.json` / `settings.json` 以 `.vscode/*.json.fragment` 形式从各 stack **合并进项目根** `.vscode/`（不落 `frontend/.vscode/`）。原因：VS Code 单根工作区只读「打开的工作区根」的 `.vscode/`，子目录的推荐 / 设置在「打开仓库根」这一惯例下不生效；落根后打开仓库根即提示装 Biome 插件、即享 formatOnSave。settings 全部走语言作用域键（`[typescript]` / `[json]` / …），故与后端 `python-uv` 的 `[python]` / `[markdown]` 在同一份根 `settings.json` 里 union 共存、互不污染。代价：单独打开 `frontend/` 子目录开发会丢这些设置——本仓库惯例是打开仓库根，故不在 `frontend/` 留副本以免双份漂移。
 
 ## 5. 测试
 
