@@ -39,7 +39,7 @@ disable-model-invocation: false
 
 - **探测主分支**：`git symbolic-ref --short refs/remotes/origin/HEAD`（得 `origin/master` → 取末段 `master`）；失败则本地探测 `main` / `master`。
 - **防嵌套**：若当前已在某个 linked worktree 内（`git rev-parse --git-dir` ≠ `git rev-parse --git-common-dir`）→ 停下提示用户「已在 worktree 内」，问是接续当前轮还是退出，**不嵌套创建 worktree**。
-- **补 gitignore**：确保 `.claude/.gitignore` 忽略 `worktrees/`（文件不存在则创建、已存在但未含则追加；幂等），避免主工作树把嵌套 worktree 当 untracked。
+- **确保 worktree 目录被忽略（优先复用全局）**：先 `git check-ignore -q .claude/worktrees` 探测是否已被忽略 —— 这会自动吃到全局 `core.excludesFile`（很多人已在 `~/.gitignore_global` 里全局忽略 `.claude/worktrees`）与任何本地规则。**已忽略 → 什么都不做**，绝不冗余落 `.claude/.gitignore`。仅当**未忽略**时，才创建 / 追加 `.claude/.gitignore` 忽略 `worktrees/`（幂等），避免主工作树把嵌套 worktree 当 untracked。
 - **创建**：worktree 目录名与分支名统一为 `round<N>-<中文描述>`（`<中文描述>` 同第 4 步 docs 目录的描述）：
 
   ```bash
