@@ -26,6 +26,7 @@
 
 - `rules/python.md` — Python 项目（pyproject.toml / uv / ruff / 包内代码风格 / 测试）
 - `rules/frontend.md` — 前端项目（npm / npmmirror / Biome / Vite / tailwind v4 / shadcn / React，落 `frontend/` 子目录）
+- `rules/ros2.md` — ROS 2 工程（colcon 工作空间 / ament_cmake + ament_python / package.xml / CMakeLists ament-first 约定，包落 `src/`）
 - `rules/lark.md` — lark-cli 创作飞书云文档（署名约定 + docx 实操技巧）
 
 ## 核心开发模式
@@ -128,6 +129,15 @@ Python 项目（`pyproject.toml` / uv / ruff / 包内代码 / 测试）相关规
 - Codex 端：`~/.codex/rules/frontend.md`
 
 **触发条件**：本轮任务一旦涉及前端代码 / web UI、React / Vite / TypeScript 前端工程，或 Biome / tailwind / shadcn 等前端栈判断，**必须先把 `rules/frontend.md` 读入上下文**，再开始动手。
+
+## ROS 2 开发规则
+
+ROS 2 工程（colcon 工作空间、ament_cmake + ament_python、package.xml、CMakeLists ament-first 约定、launch、依赖消费/导出、新增包检查清单，包落 `src/`）相关规范集中维护在领域规则文档 **`rules/ros2.md`**：
+
+- CC 端：`~/.claude/rules/ros2.md`
+- Codex 端：`~/.codex/rules/ros2.md`
+
+**触发条件**：本轮任务一旦涉及 ROS 2 工程、colcon 工作空间、ament（`ament_cmake` / `ament_python`）、`package.xml`、ROS 包的 `CMakeLists.txt`、launch 文件或 ROS 包构建/依赖判断，**必须先把 `rules/ros2.md` 读入上下文**，再开始动手。
 
 ## lark-cli 文档创作规则
 

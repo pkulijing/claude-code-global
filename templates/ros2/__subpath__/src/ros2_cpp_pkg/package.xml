@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>ros2_cpp_pkg</name>
+  <version>0.1.0</version>
+  <description>ROS 2 ament_cmake 参考包（请重命名为你的包名）。</description>
+  <maintainer email="you@example.com">your name</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- 编译 + 链接 + 运行都需要：用 <depend> -->
+  <depend>rclcpp</depend>
+  <depend>std_msgs</depend>
+
+  <!-- launch 文件仅运行期由 ros2 launch 拉起：用 <exec_depend> -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <!-- 仅测试：用 <test_depend> -->
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

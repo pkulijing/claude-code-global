@@ -1,0 +1,13 @@
+# ROS 2 工作空间 C++ 格式基线（clangd / clang-format 共用）。
+# Google 基线是 ROS 2 生态主流（ament_clang_format 亦以 Google 为底），ColumnLimit 100 与
+# 工作区 ruff line-length 100 对齐；2 空格缩进、c++17。各 ament_cmake 包共用本根配置，
+# 不在包内各放一份，避免风格漂移。
+---
+Language: Cpp
+BasedOnStyle: Google
+ColumnLimit: 100
+Standard: c++17
+DerivePointerAlignment: false
+PointerAlignment: Middle
+ReflowComments: false
+...

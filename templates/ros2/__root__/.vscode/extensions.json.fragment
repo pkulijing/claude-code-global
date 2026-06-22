@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "charliermarsh.ruff",
+    "ms-python.python",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "twxs.cmake",
+    "ms-iot.vscode-ros"
+  ]
+}

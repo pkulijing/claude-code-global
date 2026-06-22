@@ -1,0 +1,8 @@
+# ros2 stack 自描述：bootstrap / sync-project-config 读取本文件决定落点与展示名。
+# 一个 colcon 工作空间维度（与后端 python-uv / 前端 react-vite 维度正交）：一个仓库即一个
+# 工作空间，可含多个 ROS 2 包（Python ament_python + C++ ament_cmake 并存）。故 Python 与 C++
+# 不拆成两个 stack（二者都落工作空间根、会在 __root__ 撞车），而合并为单一 ros2 stack：
+# 工作区级配置落 __root__（仓库根），参考包落 __subpath__/src/（标准 colcon 布局，colcon 从根发现 src/）。
+default_path: .
+label: "ROS 2 (colcon workspace · ament_cmake + ament_python)"
+description: "ROS 2 colcon 工作空间脚手架：工作区级配置（colcon .gitignore + ruff + clang-format + clangd/ROS 编辑器集成）落根，src/ 下含一个 C++ 参考包（ament_cmake，演示 ament-first CMake / 依赖导出 / install 路径约定）与一个 Python 参考包（ament_python，纯逻辑 / ROS 薄壳分层）。"

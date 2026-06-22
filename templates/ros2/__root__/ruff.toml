@@ -1,0 +1,25 @@
+# ROS 2 ament_python 工作区的 ruff 配置（standalone）。
+# colcon 工作区通常无根 pyproject.toml，故 ruff 配置独立成 ruff.toml（ruff 原生支持）。
+# 这是与 python-uv stack（pyproject.toml [tool.ruff]）有意的分歧——ROS 生态约束。
+line-length = 100
+
+[lint]
+select = [
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort
+  "B",    # flake8-bugbear
+  "UP",   # pyupgrade
+  "C4",   # flake8-comprehensions
+  "SIM",  # flake8-simplify
+]
+ignore = ["E501"]  # 行宽由 formatter 处理
+
+[lint.per-file-ignores]
+"setup.py" = ["F401"]
+"**/launch/*.py" = ["E402"]  # launch 文件常在 import 间穿插逻辑
+
+[format]
+quote-style = "double"
+indent-style = "space"
