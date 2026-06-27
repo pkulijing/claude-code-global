@@ -178,3 +178,43 @@ class XxxStream:
 - **编排器 / facade 必有 ≥ 1 条 integration test**（见 §3.7），即使其他业务规则都按 TDD 走过，编排层也不能省略 happy-path smoke。
 - **测试目录结构**：`tests/` 与 `src/` 同级（不嵌进 `src/<pkg>/`），由 `pyproject.toml [tool.pytest.ini_options] pythonpath = ["src"]` 解决 import；测试文件命名 `test_<被测对象>.py`。
 - **运行**：`uv run pytest`（带覆盖率：`uv run pytest --cov=src/<pkg>`）。
+
+## 5. 打包 · 发布 · 安装
+
+§1「禁裸 pip / 用 uv」管的是**开发期**；下面三条管**打包、发布、安装期**——把库做成 wheel、推到 registry、再装到目标处时的固定坑，跨项目通用、配一次就能绕开。
+
+### 5.1 含前端（npm）产物的成员 wheel 化
+
+monorepo 里「可独立发布、且自带 npm 前端构建产物」的 Python 成员（典型：FastAPI daemon 静态托管 SPA），wheel 化时前端 `dist/` 在 Python 包外、由 npm 构建、默认不进 wheel，且包内按仓库布局解析的路径装机后失效。这与 §2.1 hatchling escape hatch 互补，构成「按成员形态选打包路径」决策的第二格（第一格：纯 Python 成员 `uv build` 即得 `py3-none-any`）：
+
+1. **构建后端切 hatchling**（§2.1 已覆盖「自定义 build / 非标布局」触发）。
+2. **用 `artifacts` glob bundle 前端产物，而非 `force-include`**：
+
+   ```toml
+   [tool.hatch.build.targets.wheel]
+   packages = ["src/<pkg>"]
+   artifacts = ["src/<pkg>/_frontend/**"]
+   ```
+
+   关键差异——`force-include` 在源路径缺失时**报错**，会让 editable `uv sync`（前端常未构建）整个失败；`artifacts` glob 存在即纳入（含 VCS-ignored），不存在不报错，editable 安装照常。
+
+3. **包内路径「优先 bundled、回落 dev 源路径」**：`_BUNDLED = Path(__file__).parent / "_frontend"`；`_FRONTEND = _BUNDLED if _BUNDLED.is_dir() else <dev 源路径>`。使 wheel 装的进程与源码/dev 跑都能定位前端。
+4. **构建顺序 + `--wheel`**：build 脚本先 `npm run build` → 拷 dist 进包 `_frontend/` → `uv build --wheel`。用 `--wheel` 直接从源构建，避开 `uv build` 默认 sdist→wheel 二段构建时 artifacts 漏进 sdist 的坑。
+5. 产物仍是 `py3-none-any`（前端是静态数据，跨架构无忧）；二进制 Python 依赖装机时由 index 拉对应平台 wheel。
+
+> 与「含 C 扩展 / 复杂 build → 退回目标机原生 build」一条互补，三者合成「按成员形态选打包路径」决策。
+
+### 5.2 uv + 自托管 GitLab Package Registry
+
+把 uv 项目发布 / 安装到**自托管 GitLab** 时有两个固定坑（同实例的项目大概率复现）：
+
+1. **TLS：内部 CA → `invalid peer certificate: UnknownIssuer`**。uv 默认走 rustls + 内置 Mozilla 根、**不读系统信任库**，故对内部 CA 签的证书报错（即使 git / glab over https 正常）。解法：`export UV_SYSTEM_CERTS=true`（旧版用已废弃的 `UV_NATIVE_TLS`），让 uv 用平台原生证书库；CA 在自定义路径时设 `SSL_CERT_FILE`。对 `uv publish` 与从该 registry `uv pip install` 都适用。
+2. **`uv publish --check-url` 与 GitLab PyPI 不兼容**。GitLab 的 PyPI simple 索引返回 `Content-Type: text/plain`，uv 的 `--check-url` 只认 JSON / HTML → `Failed to query check URL`。故对 GitLab **不要**用 `--check-url` 做幂等跳过；重复版本由 GitLab 侧拒，重发须先删旧版或 bump version。
+
+项目级上传 URL：`${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi`，user `gitlab-ci-token` + 密码 `$CI_JOB_TOKEN`。
+
+### 5.3 `pip install --target` 装本地开发 wheel：同版本号不覆盖
+
+用 `pip install --target <dir> <本地 wheel>` 把自家纯 Python 库以受控方式装进某目录（避免污染系统）时：开发期 wheel 版本号常恒定（不会每改一次就 bump），而 `--target` 见到目标里已有同版本 → **跳过不覆盖**，装的还是旧 wheel；`--force-reinstall` 在 `--target` 模式下卸载不可靠（实测不更新文件，pip 已知行为）。后果：契约改动不生效、下游 `ModuleNotFoundError`，且 wheel 是新的、目标目录是旧的，极难排查。
+
+**可靠解**：装前 `rm -rf <dir>/<pkg>*` 删旧目录再装。

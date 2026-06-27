@@ -13,6 +13,7 @@
   - **`biome.json` 必须是纯 JSON，不要加任何注释或 `"//"` 注释键**。Biome 对配置键做严格校验：`"//"` 这种键会直接报 `unknown key` 让 `biome check` 失败；而 `//` 行注释虽不报错，却会让 Biome 静默回落到默认（tab 缩进）配置，使你的 space/100 列设置全部失效、产出海量伪 error。要解释某段配置，把说明写到本规则或 PR 里，别写进 `biome.json`。
 - **TypeScript strict**：`tsconfig.json` 开 `strict` + `noUnusedLocals` + `noUnusedParameters` + `noFallthroughCasesInSwitch`。`npm run typecheck`（= `tsc --noEmit`）做类型门禁，`npm run build`（= `tsc --noEmit && vite build`）构建前先过类型。
 - 版本基线：**React 19 + Vite 6 + TypeScript 5.7**。模板 `package.json` 把依赖版本写死以保证可复现，会随时间过时，需偶尔人工 bump。
+- **worktree 内跑门禁先备齐 `node_modules`**：`/start` 默认在独立 git worktree 内开一轮，而 worktree 只 checkout tracked 文件——`frontend/node_modules` 被 gitignore、**不随 worktree 创建而来**。于是在 worktree 里跑前端门禁（`tsc` / `biome` / `vite build`）会因缺 `node_modules`（typescript / biome / vite 全找不到）直接炸。凡 `react-vite` stack + worktree 工作流并存即触发，与具体项目无关。两条路子：① 从主 checkout 软链一份过来跑完即删（`ln -s <主checkout>/.../frontend/node_modules <worktree>/.../frontend/node_modules`）；② 在 worktree 内 `npm install`（npmmirror、增量幂等）。**警告**：软链法跑完务必 `rm` 且**勿 commit**——`node_modules/` 带尾斜杠的 gitignore 模式只匹配目录、不匹配软链，软链会以 untracked 身份冒进 `git status`。
 
 ## 2. 项目骨架
 
@@ -56,6 +57,12 @@ DOM / WebGL / canvas API 大量返回可空类型、且常在非顶层位置组�
 Biome 的 assist（`organizeImports`）负责 import 排序与分组（external 一组、`@/` 一组，组间空行）。项目根 `.vscode/settings.json`（`[typescript]` 等语言块里的 `source.organizeImports.biome`）已配保存即整；手写时按同样分组，最终以 `npm run lint` 为准。
 
 > 编辑器配置（`.vscode/`）的落点：模板把 `extensions.json` / `settings.json` 以 `.vscode/*.json.fragment` 形式从各 stack **合并进项目根** `.vscode/`（不落 `frontend/.vscode/`）。原因：VS Code 单根工作区只读「打开的工作区根」的 `.vscode/`，子目录的推荐 / 设置在「打开仓库根」这一惯例下不生效；落根后打开仓库根即提示装 Biome 插件、即享 formatOnSave。settings 全部走语言作用域键（`[typescript]` / `[json]` / …），故与后端 `python-uv` 的 `[python]` / `[markdown]` 在同一份根 `settings.json` 里 union 共存、互不污染。代价：单独打开 `frontend/` 子目录开发会丢这些设置——本仓库惯例是打开仓库根，故不在 `frontend/` 留副本以免双份漂移。
+
+### 4.4 label 关联自定义输入组件用 `htmlFor` + `id`
+
+给表单控件加 `<label>` 时，**别**用 `<label>文字<Input/></label>` 包裹结构指望 Biome 推断关联。Biome 的 a11y 规则 `a11y/noLabelWithoutControl` 只认它**静态能识别为表单控件**的元素：原生 `<select>` / `<input>` 放行，而 shadcn 的 `Input` / `Textarea` 等是自定义组件，Biome 看不出其内部渲染原生 `<input>`，于是把 label 判成「没有关联控件」、`lint:fix` 也修不掉。
+
+修法：显式关联——`<label htmlFor="x">` + `<Input id="x" />` 匹配 id 即过。这是自包含、a11y-correct 的解，优于在 `biome.json` 给该规则配 `inputComponents`（后者要改全局配置）。
 
 ## 5. 测试
 

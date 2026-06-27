@@ -82,7 +82,17 @@ ROS 2 是一个**工作空间（colcon workspace）维度**：一个仓库即一
 - `target_compile_features(<tgt> PUBLIC cxx_std_17)`（或更高）。
 - **第三方 SDK**：路径用 `CACHE PATH` + 相对路径；架构分支用 `CMAKE_SYSTEM_PROCESSOR` 区分 x86_64 / aarch64；缺失用 `WARNING` + 条件编译不阻断整包；功能开关用 `option(ENABLE_XXX ...)` + `target_compile_definitions`；动态库 `target_link_libraries(... PRIVATE ...)` 并设 RPATH。
 
-## 5. 纯逻辑 / ROS 薄壳分层（跨语言通用）
+## 5. Python / pip 依赖（ament_python 包消费 pip 依赖）
+
+任何 ROS 2 工程都会遇到「一个 ROS 包怎么装它的 pip 依赖」。与 §4 的 C++（CMake / ament）依赖并列，Python 依赖的选型默认走轻方案：
+
+- **默认：`requirements.txt` + 一条 `pip install -r requirements.txt`**。公网包走团队源（清华）；私有包在 `requirements.txt` 顶部加 `--extra-index-url`（含只读 token）+ `--trusted-host` 两行即可。这是兄弟仓 `record_agent`（同为 `ament_python` + pip 依赖）的既有做法，简单可靠。
+- **rosdep 自定义 yaml 是重武器，仅必须时用**：只有当确需让 `rosdep install` 解析私有 key（如 CI 强制全程走 rosdep）时才上。坑有二，配套成本不低：
+  - rosdep 的 pip installer 用 `sudo -H --preserve-env=... pip3 install` 跑，会**剥掉** `PIP_CONFIG_FILE` / `PIP_TRUSTED_HOST` 等环境变量 → 私有 index / 自签证书全失效；需 sudoers `env_keep` 显式穿透。
+  - pip 配置文件里的 `trusted-host` **不被** pip 的下载会话采纳（只有命令行 flag / `PIP_TRUSTED_HOST` env 生效）。
+- **一句话原则：选型前先看兄弟仓既有做法**，别凭「更正规」的直觉直接上重机制——重武器的隐性成本（registry index + token + 跳过自签证书 + sudoers）往往远超「requirements.txt 顶部两行」。
+
+## 6. 纯逻辑 / ROS 薄壳分层（跨语言通用）
 
 呼应 `rules/python.md` §3 的 OO/分层偏好，ROS 包同样遵循：
 
@@ -90,13 +100,13 @@ ROS 2 是一个**工作空间（colcon workspace）维度**：一个仓库即一
 - 好处：纯逻辑可在无运行时 ROS 上下文下单测（Python 侧 `test/pure/` 在任意机器含 macOS 快测；C++ 侧 gtest 不必拉起节点）；装配错误（missing include / 参数顺序 / 成员未初始化）由 build 期与节点冒烟抓出。
 - C++ 把节点声明放公共头时，其 PUBLIC 依赖（rclcpp / 消息包）要进 `ament_target_dependencies(PUBLIC ...)` 并 `ament_export_dependencies`。
 
-## 6. 测试
+## 7. 测试
 
 - 跑测试：`colcon test`，结果 `colcon test-result --verbose`。
 - C++ 用 `ament_add_gtest`（`find_package(ament_cmake_gtest REQUIRED)`，`test/` 下 gtest 源）。注意统一构建系统常把全局 `BUILD_TESTING` 默认设 `0`，需 `--cmake-args -DBUILD_TESTING=ON`（或团队构建脚本的 `-d BUILD_TESTING=ON`）显式打开。
 - Python 包测试细则（pytest / 纯逻辑分层 / 编排器 happy-path）遵循 `rules/python.md` §4；ROS 节点至少有一条「能 import + 构造」的冒烟测试（无 rclpy 环境用 `pytest.importorskip` 整文件 skip）。
 
-## 7. 新增包检查清单
+## 8. 新增包检查清单
 
 新增 ROS 2 包前逐条核对：
 
@@ -113,7 +123,7 @@ ROS 2 是一个**工作空间（colcon workspace）维度**：一个仓库即一
 - [ ] 纯逻辑与 ROS 薄壳分层，纯逻辑有单测
 - [ ] 本地验证可构建可跑（`colcon build` / `colcon test`，或团队统一构建入口）
 
-## 8. 构建
+## 9. 构建
 
 - 通用：`colcon build --symlink-install`；按包构建 `--packages-select <pkg>`；测试 `colcon test`。
 - 团队监仓若提供统一构建入口（如 `script/build.sh`），优先走它（便于 ccache / clang / 交叉编译 / 产品化打包等下游优化）——具体参数以该仓库文档为准，本规则不复刻。

@@ -28,6 +28,7 @@
 - `rules/frontend.md` — 前端项目（npm / npmmirror / Biome / Vite / tailwind v4 / shadcn / React，落 `frontend/` 子目录）
 - `rules/ros2.md` — ROS 2 工程（colcon 工作空间 / ament_cmake + ament_python / package.xml / CMakeLists ament-first 约定，包落 `src/`）
 - `rules/lark.md` — lark-cli 创作飞书云文档（署名约定 + docx 实操技巧）
+- `rules/shell.md` — Shell 脚本（中文 / 全角字符 × 引号与变量名的两个固定坑）
 
 ## 核心开发模式
 
@@ -147,3 +148,12 @@ ROS 2 工程（colcon 工作空间、ament_cmake + ament_python、package.xml、
 - Codex 端：`~/.codex/rules/lark.md`
 
 **触发条件**：本轮任务一旦涉及用 lark-cli 创作或编辑飞书云文档，**必须先把 `rules/lark.md` 读入上下文**，再开始动手。
+
+## Shell 脚本开发规则
+
+写含中文注释 / 中文输出的 bash / shell 脚本相关规范（「中文 / 全角字符 × shell 引号与变量名」的两个固定坑）集中维护在领域规则文档 **`rules/shell.md`**：
+
+- CC 端：`~/.claude/rules/shell.md`
+- Codex 端：`~/.codex/rules/shell.md`
+
+**触发条件**：本轮任务一旦涉及生成 / 编辑含中文注释或中文输出的 bash / shell 脚本，**必须先把 `rules/shell.md` 读入上下文**，再开始动手。
