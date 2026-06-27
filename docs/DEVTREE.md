@@ -145,6 +145,8 @@ graph TD
   subgraph e_format["🔄 代码格式化"]
     direction TB
     N10["📦 10 · 接入 prettier 格式化 hook"]:::infra
+    N34["🐛 34 · 修复主题与 formatter 双 bug"]:::bugfix
+    N10 ~~~ N34
   end
 
   subgraph e_content["🔄 内容创作 skill"]
@@ -157,7 +159,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-06-22 | 共 34 轮
+> 最后更新：2026-06-28 | 共 35 轮
 
 | #   | 名称                           | 类型    | 所属 Epic      | 一句话描述                                                                                                                                                                                                                                                         |
 | --- | ------------------------------ | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -195,6 +197,7 @@ graph TD
 | 31  | python 模板默认 only-managed   | 📦 工程 | 项目模板机制   | python-uv 模板新增 `[tool.uv] python-preference=only-managed` fragment + install.sh 以 user-wins seed 系统级 `~/.config/uv/uv.toml`，让 uv 全权管 python、避免系统 python 缺 `Python.h` 致 C 扩展编译失败；rules/python.md §1 记坑                                 |
 | 32  | vscode 配置落根跨栈合并        | 🐛 修复 | 项目模板机制   | 泛化 fragment 机制新增 `.vscode/*.json.fragment` 类，各 stack 编辑器配置合并进项目根 `.vscode/`（修 react-vite 落 `frontend/.vscode/`、打开仓库根 biome 推荐不触发）；react-vite settings 全语言作用域化防污染 Python；bootstrap/sync 加 JSON 合并 + 迁移去重      |
 | 33  | ros2 工作空间模板              | ✨ 功能 | 项目模板机制   | 新增 templates/ros2/（合并 Python ament_python + C++ ament_cmake 参考包于单一 colcon 工作空间 stack，参考包落 src/）+ rules/ros2.md（ament-first CMake / 依赖消费导出 / 新增包检查清单），GLOBAL_AGENTS.md 加 ROS 2 指针段；据飞书《软件构建集成规范》沉淀通用约定 |
+| 34  | 修复主题与 formatter 双 bug    | 🐛 修复 | 代码格式化     | 修两个跨项目沉淀小 bug：react-vite 模板 theme-provider 暴露 resolvedTheme（修 system 模式按钮错乱 + matchMedia 实时跟随）；fix-after-edit.sh 的 ruff 加 `--unfixable F401`，分步 Edit 间不再误删未用 import（致 F821）                                             |
 
 ---
 
@@ -268,7 +271,7 @@ graph TD
 ##### 代码格式化
 
 - 状态：进行中
-- 轮次：10
+- 轮次：10, 34
 
 #### 内容创作 skill
 
