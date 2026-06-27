@@ -25,7 +25,13 @@ disable-model-invocation: false
 
 ### 通用流程
 
-1. **确定轮次编号 N**：扫 `docs/` 下现有 `N-*` 目录取最大值 +1。
+1. **确定轮次编号 N**：取「已占用编号」并集的最大值 +1。**为什么要并集**：并行多 round 各在独立 worktree、未合回主分支时，新建的 `docs/<N>-*` 尚未合入、本树看不见，只扫本树 `docs/` 会让各 round 算出同一个 N+1，合入时撞车。故三个信号源取并集：
+   1. **本树 `docs/`**：现有 `docs/<N>-*` 目录名解析出的 N；
+   2. **在途分支名**：`git branch --list 'round*'` 输出里 `round<N>-*` 前缀解析的 N（worktree 一创建分支就带 N，docs 目录还没建也能防撞）；
+   3. **其它 worktree 的 docs**：`git worktree list --porcelain` 遍历每个 worktree 路径，扫其 `docs/<N>-*` 解析 N（覆盖「worktree 内已建 docs 目录」）。
+
+   三源并集取 max + 1。**解析失败一律跳过该条、不报错**——非 `round<N>-` 规范的分支（如自由描述分支、`feat/xxx`）、worktree 路径不可达等都跳过，不阻断开轮。
+
 2. **确定本轮中文描述**：issue 驱动 → 先按「issue 驱动分支」第 1 步调 helper 拉 issue 详情，从 issue 标题提炼简短中文描述；自由描述 → 从描述文字提炼。
 3. **创建 worktree**（默认；带 `--no-worktree` 时跳过本步）—— 见下方「worktree 创建」小节。
 4. 在 `docs/` 下创建开发项文件夹 `docs/<N>-<中文描述>/`（worktree 模式下落在新 worktree 内）。

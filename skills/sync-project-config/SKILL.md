@@ -132,12 +132,13 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 
 **(a) `pyproject.toml.<section>.fragment`（TOML 段合并）**
 
-- 命名约定：`<section>` 用 `-` 分隔层级（如 `ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
+- 命名约定：`<section>` 用 `-` 分隔层级（如 `ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`、`uv-workspace` → `[tool.uv.workspace]`、`pytest` → `[tool.pytest.ini_options]`；以 fragment 内实际表头为准）。
 - 合并语义：项目侧无此段 → 直接追加；已有此段 → AI 智能合并，保留用户自定义字段，模板新增字段追加；冲突字段询问用户。
 - 数组段（双方括号，如 `[[tool.uv.index]]`）：按 `name` 字段 union（项目侧已有同名条目则跳过，避免重复注册）。
 - 项目无 `pyproject.toml`：
   - normal sync 路径 → 标记「skipped: 项目无 pyproject.toml」
   - adopt 路径下选了 `python-uv` stack → 标记为「待 4.4 完成 `uv init` 后合并」
+  - adopt 路径下选了 `python-uv-workspace` stack → **直接用本 stack 的 workspace fragments 内容创建虚拟根 `pyproject.toml`**（虚拟根无 `[project]`、不该 `uv init`），**不**等 4.4
   - 其他情况仍按 skipped 处理
 
 **(b) `.vscode/<name>.json.fragment`（JSON 合并，目标项目根 `.vscode/<name>.json`）**
@@ -226,19 +227,23 @@ TODO 同步清单（共 N 项）：
 
 跳到第 5 节。
 
-### 4.4 （选中含 python-uv 时）后端项目实际可跑化
+### 4.4 （选中含 python-uv 或 python-uv-workspace 时）后端项目实际可跑化
 
-选中的 stack **不含** `python-uv` 则**整段跳过**。含 `python-uv` 时（落点 path `.`，下列命令在项目根执行），**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项），yes 则按以下子步骤逐条执行；no 则跳过整段并把决策记录到收尾反馈。
+选中的 stack **既不含** `python-uv` **也不含** `python-uv-workspace` 则**整段跳过**。命中其一时（落点 path 均 `.`，下列命令在项目根执行），**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项），yes 则按以下子步骤逐条执行；no 则跳过整段并把决策记录到收尾反馈。
 
-逻辑等同 bootstrap 的 Step 3.5，区别在 adopt 模式下 `pyproject.toml` **更可能已存在**（老项目），4.4.1 跳过 `uv init` 是常态。
+逻辑等同 bootstrap 的 Step 3.5，区别在 adopt 模式下 `pyproject.toml` **更可能已存在**（老项目），4.4.1 跳过 `uv init` 是常态。`python-uv` 与 `python-uv-workspace` **互斥**，正常只命中其一。
 
 #### 4.4.1 确保 pyproject.toml 存在
+
+**单包 `python-uv`**：
 
 ```bash
 [ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
 ```
 
 `--package` 让 uv 直接落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件 + 含 `[build-system] uv_build` 的 `pyproject.toml`），由领域规则 `~/.claude/rules/python.md` §2 固化。adopt 模式下 `pyproject.toml` 多半已存在，本步是 no-op；空目录走 `uv init --package` 分支。
+
+**多包 `python-uv-workspace`**：**绝不 `uv init --package`**（会在虚拟根写 `[project]` + `src/` 破坏 workspace 形态）。虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments 合并而成、成员包随模板 `packages/*` 复制就位；本步只确保上述 fragments 已合（2.4 的 TOML 段合并对「目标不存在」会用 fragment 内容创建根 `pyproject.toml`）。
 
 跑完后回处理 2.4 标记「待 4.4 后合并」的所有 `pyproject.toml.*.fragment`（清华源段必须先合，否则 4.4.2 在国内会卡）。
 
@@ -249,6 +254,8 @@ uv add --dev pytest pytest-cov ruff
 ```
 
 uv 会跳过已装的，幂等。失败 → 报告 stdout/stderr，提示用户手动重试 + 暂停 skill，**不**自动回滚已写文件。
+
+> **`python-uv-workspace`**：`uv add --dev` 在虚拟根同样写入根 `[dependency-groups] dev` 并触发一次 `uv sync`，把 `packages/*` 各成员 editable 装入、解析跨成员 `workspace=true` 依赖——本步即让整个工作区可跑。
 
 #### 4.4.3 确保 pre-commit 全局可用
 

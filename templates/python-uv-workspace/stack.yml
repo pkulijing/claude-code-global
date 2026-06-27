@@ -1,0 +1,10 @@
+# python-uv-workspace stack 自描述：bootstrap / sync-project-config 读取本文件决定落点与展示名。
+# 这是「uv workspace 多包单仓」布局（虚拟根 + 一份 lockfile，成员落 packages/*），与单包
+# python-uv stack **互斥**——一个 Python 后端要么单包（python-uv）、要么多包 workspace
+# （本 stack），二选一，不要同仓叠加（二者都向根 pyproject.toml 注入配置、会语义打架）。
+# 工作区级共享配置（[tool.uv] / [tool.uv.workspace] / 清华 index / [tool.ruff] /
+# [tool.pytest.ini_options]）以 fragment 合进根 pyproject.toml；各成员独立 pyproject.toml
+# 落 packages/<member>/，跨成员依赖走 [tool.uv.sources] <dep> = { workspace = true }。
+default_path: .
+label: "Python uv workspace（多包单仓 · 虚拟根 + packages/*）"
+description: "uv workspace 多包单仓脚手架：虚拟根 pyproject.toml（无 [project]，仅 [tool.uv.workspace]）+ 共享配置上提到根（only-managed / 清华源 / ruff / pytest importlib 模式）+ packages/ 下两个参考成员（example_core 库 + example_app 应用，演示 [tool.uv.sources] workspace=true 跨成员依赖、纯逻辑可独立单测、各成员 tests/ 无 __init__.py）。与单包 python-uv 互斥。"

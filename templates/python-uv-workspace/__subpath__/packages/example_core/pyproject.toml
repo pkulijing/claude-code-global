@@ -1,0 +1,10 @@
+[project]
+name = "example-core"
+version = "0.1.0"
+description = "工作区库成员：放可独立单测的纯逻辑（参考样板，可重命名/删除）。"
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.11.11,<0.13.0"]
+build-backend = "uv_build"

@@ -129,8 +129,13 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
 
 **`pyproject.toml.<section>.fragment`（TOML 段合并）：**
 
+`<section>` 用 `-` 分隔层级映射到 TOML 表头：`ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`、`uv-workspace` → `[tool.uv.workspace]`、`pytest` → `[tool.pytest.ini_options]`（以 fragment 内实际表头为准）。
+
 - 项目根**有** `pyproject.toml` → AI 智能合并，保留用户已有字段，模板新增字段追加；冲突字段询问用户。数组段（`[[tool.X]]`，如 `[[tool.uv.index]]`）按 `name` 字段 union。
-- 项目根**无** `pyproject.toml` → **标记为 needs-step-3.5**（仅 python-uv stack 接得住；其他 stack 退化为提示「先 `uv init` / 等价命令再 `/sync-project-config`」并跳过）。
+- 项目根**无** `pyproject.toml`：
+  - `python-uv`（单包）→ **标记为 needs-step-3.5**（待 Step 3.5.1 `uv init --package` 生成 `[project]` 骨架后再合）。
+  - `python-uv-workspace`（多包虚拟根）→ **直接用本 stack 的 workspace fragments 内容创建根 `pyproject.toml`**（虚拟根本就无 `[project]`、不该 `uv init`；多份 fragment 依次合并即得 `[tool.uv.workspace]` + 共享配置的完整虚拟根）。**不**标记 needs-step-3.5。
+  - 其他 stack → 退化为提示「先 `uv init` / 等价命令再 `/sync-project-config`」并跳过。
 
 **`.vscode/<name>.json.fragment`（JSON 合并，目标项目根 `.vscode/<name>.json`）：**
 
@@ -140,11 +145,15 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
   - `settings.json`（对象）→ **顶层键 union**：键只在一侧直接并入；两侧都有且值均为对象（如都定义 `[json]`）→ 递归深合并；两侧标量冲突（同键不同值）→ 询问用户。
 - 多个 stack 各自的 `.vscode/<name>.json.fragment` 依次合并进**同一个**项目根目标文件（先 `_common`，再逐个 stack），最终得各 stack 推荐 / 设置的并集。前端 / 后端的语言作用域键天然不相交（`[python]`/`[markdown]` vs `[typescript]`/…），纯 union 零冲突。
 
-#### Step 3.5：（选中含 python-uv 时）后端项目实际可跑化
+#### Step 3.5：（选中含 python-uv 或 python-uv-workspace 时）后端项目实际可跑化
 
-选中的 stack **不含** `python-uv` 则**整段跳过**。含 `python-uv` 时（其落点 path 为 `.`，下列 uv 命令都在项目根执行），**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项）；选 no 则跳过整段并在收尾反馈中提示用户后续可手动跑。
+选中的 stack **既不含** `python-uv` **也不含** `python-uv-workspace` 则**整段跳过**。命中其一时（落点 path 均为 `.`，下列 uv 命令都在项目根执行），**先询问用户确认是否执行**（默认 yes，给「只要配置不要装依赖」选项）；选 no 则跳过整段并在收尾反馈中提示用户后续可手动跑。
+
+> `python-uv`（单包）与 `python-uv-workspace`（多包虚拟根）**互斥**，正常只会命中其一；两步分别按各自分支走。
 
 ##### Step 3.5.1：确保 pyproject.toml 存在
+
+**单包 `python-uv`**：
 
 ```bash
 [ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
@@ -153,6 +162,8 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
 `--package` 让 uv 直接落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件 + 含 `[build-system] uv_build` 的 `pyproject.toml`，零配置可编辑安装），由领域规则 `~/.claude/rules/python.md` §2 固化。空目录 bootstrap 必然走 `uv init --package` 分支；老项目 adopt 走 `exists` 分支。
 
 > 旧版用 `--bare` 是为了避免 hello world 文件；`--package` 当前产物已是空 `__init__.py`，干净度等价但额外得到 src 骨架。
+
+**多包 `python-uv-workspace`**：**不要 `uv init --package`** —— 它会在虚拟根写出 `[project]` + `src/` 破坏 workspace 形态。虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments（`uv-workspace` / `uv` / `uv-index` / `ruff` / `pytest`）合并而成，成员包随模板 `packages/*` 已整体复制就位。故本步只需**确保上述 fragments 已合**（Step 3.3.6 对「目标不存在」会用 fragment 内容创建根 `pyproject.toml`），不执行任何 `uv init`。
 
 跑完后**回到 Step 3.3.6**处理所有标记 needs-step-3.5 的片段（清华源 fragment 必须先合，否则 3.5.2 在国内会卡）。
 
@@ -163,6 +174,8 @@ uv add --dev pytest pytest-cov ruff
 ```
 
 uv 会跳过已装的，幂等。失败 → 报告 stdout/stderr，提示用户手动重试，暂停 skill 不继续。**不**自动回滚已写文件。
+
+> **`python-uv-workspace`**：`uv add --dev` 在虚拟根（无 `[project]`）同样把依赖写进根 `[dependency-groups] dev` 并触发一次 `uv sync`——会把 `packages/*` 各成员一并 editable 装入、解析跨成员 `[tool.uv.sources] workspace=true` 依赖。无需额外 `uv init`，本步即让整个工作区可跑（`uv run pytest` 跑全树）。
 
 ##### Step 3.5.3：确保 pre-commit 全局可用
 

@@ -1,0 +1,31 @@
+# 此片段由 bootstrap / sync-project-config 智能合并进项目根 pyproject.toml。
+# 已在项目里手动调整的字段（如 line-length / target-version / extend-exclude）会被保留。
+# workspace 形态下 ruff 配置放在根、对全工作区各成员统一生效。
+
+[tool.ruff]
+line-length = 100
+# 生成码（如 protobuf 的 *_pb2.py / _pb 目录）不该被 lint，按需在此豁免。
+# ** 前缀匹配任意成员子树下的 _pb 目录。
+extend-exclude = ["**/_pb"]
+# 项目实际 Python 版本由各成员 [project].requires-python 控制，
+# target-version 由 ruff 自动推断；如要显式 pin 取消下行注释。
+# target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort
+  "B",    # flake8-bugbear
+  "UP",   # pyupgrade
+  "C4",   # flake8-comprehensions
+  "SIM",  # flake8-simplify
+]
+ignore = [
+  "E501",  # line too long（由 formatter 处理）
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

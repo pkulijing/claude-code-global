@@ -48,6 +48,19 @@ packages = ["src/<pkg>"]
 
 其余 src 布局约定不变。
 
+### 2.2 escape hatch：多包 uv workspace（单仓多包）
+
+§2 的单包 src 布局覆盖「一个仓库 = 一个包」。当一个仓库要装**多个可独立发布、又互相依赖**的包（典型：`proto` + 多个 service 共用一份 lockfile）时，切换为 **uv workspace 多包单仓**。配套脚手架是 `python-uv-workspace` stack（与单包 `python-uv` **互斥**，`bootstrap` / `sync-project-config` 二选一），落点仍是仓库根。模板需固化的要素：
+
+- **虚拟根**：根 `pyproject.toml` **无 `[project]`**，仅 `[tool.uv.workspace] members = ["packages/*"]`。**绝不对虚拟根跑 `uv init --package`**（会写出 `[project]` + `src/` 破坏 workspace 形态）。
+- **共享配置上提到根**：`[tool.uv]`（`python-preference="only-managed"`）/ 清华 index / `[tool.ruff]` / `[tool.pytest.ini_options]` 都在根，各成员不重复。dev 依赖 `uv add --dev pytest pytest-cov ruff` 在根写入 `[dependency-groups] dev`、并触发把各成员 editable 装入。
+- **各成员独立 `pyproject.toml`** 落 `packages/<member>/`（标准 src 布局 + `[build-system] uv_build`）。跨成员依赖：成员 `dependencies = ["<dep>"]` + `[tool.uv.sources] <dep> = { workspace = true }`，解析到本仓源码而非去 index 拉。
+- **测试**：仓根一条 `uv run pytest` 跑全树，根 `[tool.pytest.ini_options]` 必带 `addopts = ["--import-mode=importlib"]`，否则多个成员同名 `tests` 包碰撞（`No module named 'tests.test_xxx'`）；配套各成员 `tests/` **不放 `__init__.py`**。`pythonpath` / `testpaths` 列全各成员的 `src` / `tests`，新增成员时追加。
+- **生成码**（如 protobuf `_pb`）入库时 `ruff` `extend-exclude` 豁免。
+- **VSCode**：`.vscode/settings.json` 带 `python.analysis.extraPaths` 指向各成员 `src`（Pylance 静态解析跨成员 import 不稳，extraPaths 显式喂才认 `from <other_member> import ...`）+ `python.defaultInterpreterPath` 钉死 workspace 根 `.venv`。
+
+> 与 §2.1 hatchling 是正交的两个 escape hatch：2.1 换 **build backend**（含 C 扩展 / 自定义 build），2.2 换 **仓库布局**（单包 → 多包 workspace），可叠加（workspace 里某个含 C 扩展的成员自己切 hatchling）。
+
 ## 3. 开发风格
 
 下列 7 条来自跨项目实战沉淀（详见 issue #12），是 Python 代码层面的硬性偏好。

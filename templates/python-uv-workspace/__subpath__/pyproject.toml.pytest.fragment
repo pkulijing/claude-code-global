@@ -1,0 +1,19 @@
+# 此片段由 bootstrap / sync-project-config 智能合并进项目根 pyproject.toml。
+# 已自定义的字段（如 testpaths / addopts / markers）会被保留，模板段以追加方式叠加。
+#
+# workspace 多包单仓的关键三点（实战踩坑提炼）：
+# 1. addopts 必带 `--import-mode=importlib`：否则多个成员同名 `tests` 包会碰撞
+#    （报 `No module named 'tests.test_xxx'`）。配套：各成员 tests/ **不放** __init__.py。
+# 2. pythonpath / testpaths 要**列全各成员**的 src / tests —— 新增成员时在这两行追加。
+# 3. 仓根一条 `uv run pytest` 即跑全树。
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+pythonpath = [
+  "packages/example_core/src",
+  "packages/example_app/src",
+]
+testpaths = [
+  "packages/example_core/tests",
+  "packages/example_app/tests",
+]

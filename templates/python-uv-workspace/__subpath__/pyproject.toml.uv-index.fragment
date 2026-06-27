@@ -1,0 +1,9 @@
+# 此片段由 bootstrap / sync-project-config 智能合并进项目根 pyproject.toml。
+# 已自定义的 index 配置（如内网源 / 私有 mirror）会被保留，模板段以追加方式叠加。
+# 该段决定 uv 拉依赖走的源——在国内默认走清华，避免 pypi.org 直连慢。
+# workspace 形态下放在根、全工作区共享一份 index 配置。
+
+[[tool.uv.index]]
+name = "tuna"
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+default = true

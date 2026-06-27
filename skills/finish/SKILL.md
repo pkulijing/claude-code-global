@@ -6,7 +6,15 @@ disable-model-invocation: false
 
 用户调用此 skill 表示当前开发项已完成。
 
-**参数处理**：调用时可能附带参数（args），参数是用户对本次开发的额外说明，比如需要特别强调的点、遗留问题、后续 TODO 等。撰写 SUMMARY.md 时应把参数内容融入到对应章节中（如「局限性」「后续TODO」或「关键设计」）。若无参数则按常规总结即可。
+**参数处理**：调用时可能附带参数（args）。先解析并剔除以下**收尾开关**，剩余 args 才当作用户对本次开发的额外说明（撰写 SUMMARY.md 时融入对应章节，如「局限性」「后续TODO」「关键设计」；若剔除开关后无剩余则按常规总结）。
+
+**收尾开关**（控制 Step 8 worktree 收尾行为，可组合；默认不带任何开关 = rebase + FF merge + 删 worktree + 删分支 + 删 backup tag 一站到底）：
+
+- `--no-merge`（同义词 `--keep-branch`）：rebase 让分支线性，但**不** FF merge 到主分支；worktree、分支、backup tag **全保留**。用于发包 / 外审前想先留分支等 review、或本轮想继续迭代的场景。
+- `--keep-backup`：正常 FF merge + 清理 worktree / 分支，但**保留** backup tag（高风险轮想多保几天兜底）。
+- `--no-rebase`：跳过 8.2 的 rebase（与备份 tag）；更激进的可选项，仅在「分支相对主分支已可 FF」时仍能 merge，否则停下提示用户先 rebase 或加 `--no-merge`。
+
+各开关行为对照见 Step 8 顶部对比表。
 
 执行以下步骤：
 
@@ -101,9 +109,20 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 读 `docs/<本轮编号>-*/PROMPT.md` 顶部，看是否有 `> 来自 [#<N> ...](<URL>)` 引用块（由 `/start <issue#>` 写入）：
 
-- **有 issue 关联** → 提取 issue 号 `#N` 与 URL，记下用于后续：
+- **有 issue 关联** → 提取**全部** issue 号 `#N` 与 URL（PROMPT.md 顶部可能有多个引用块——一轮批量收多个 issue 时每个 issue 各一行），记下用于后续：
   - 让 `/commit` 在 message body 写 `Closes #N`，commit/PR 合并到 default branch 时**自动关 issue** —— 该关键字在 GitHub 与 GitLab 默认分支均原生生效（GitLab 还支持 `Fixes` / `Resolves` / `Implements` 等更多关键词与 cross-project `Closes group/project#N` 引用），本 SKILL 不需要平台分支处理
-  - 从 `docs/BACKLOG.md` 索引中**删除**对应 URL 那一行（无 BACKLOG.md 文件则跳过）
+  - **关多个 issue 时：每个 issue 都要带自己的关闭关键字，各占一行**：
+
+    ```
+    Closes #13
+    Closes #20
+    Closes #23
+    ```
+
+    **绝不要**写成 `Closes #13 #20 #23`（含逗号的 `Closes #13, #20` 同样不行）—— GitHub / GitLab 的关闭关键字只对**紧跟其后的第一个** issue 号生效，后面的号会被当成普通引用、**不会关闭**。这是踩过的坑（一行写四个只关了第一个），务必逐个带关键字。
+
+  - 从 `docs/BACKLOG.md` 索引中**删除**对应 URL 那一/那几行（无 BACKLOG.md 文件则跳过）
+
 - **无 issue 关联**（自由描述分支） → 仅按本步骤剩余动作走，不涉及 issue/BACKLOG
 
 ## Step 5：调用 `/devtree`
@@ -148,7 +167,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 调用 `/commit` 提交所有变更（包括 SUMMARY.md / DEVTREE.md / 本次 BACKLOG.md / README.md 的变化）。
 
-**关键**：如果 Step 4 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N` 这一行（不要嵌入 title）。GitHub / GitLab 均原生识别此关键字，无需平台分支。
+**关键**：如果 Step 4 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N`（不要嵌入 title）。GitHub / GitLab 均原生识别此关键字，无需平台分支。**关多个 issue 时务必每个 issue 各一行、各带关键字**（`Closes #13` / `Closes #20` / …），**不能**一行写 `Closes #13 #20`（只会关第一个，见 Step 4 的硬规则）。
 
 ## Step 8：worktree 收尾
 
@@ -161,7 +180,18 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 ```
 
 - **不在 worktree**（两者相等，含 `--no-worktree` round）→ 打印一行「non-worktree round，跳过 worktree 收尾」，直接进 Step 9。
-- **在 worktree** → 进入下面的收尾流程。
+- **在 worktree** → 按下方**收尾开关对照表**决定流程。
+
+**收尾开关对照表**（开关来自 ARGUMENTS 解析，✓=执行 / ✗=跳过保留）：
+
+| 调用                           | 8.2 rebase + 备份 tag | 8.3 FF merge   | 8.4 删 worktree | 8.4 删分支     | 8.4 删 backup tag |
+| ------------------------------ | --------------------- | -------------- | --------------- | -------------- | ----------------- |
+| `/finish`（默认）              | ✓                     | ✓              | ✓               | ✓              | ✓                 |
+| `--no-merge` / `--keep-branch` | ✓                     | ✗              | ✗               | ✗              | ✗（保留）         |
+| `--keep-backup`                | ✓                     | ✓              | ✓               | ✓              | ✗（保留）         |
+| `--no-rebase`                  | ✗                     | ⚠️ 仅当已可 FF | （随其它开关）  | （随其它开关） | （随其它开关）    |
+
+开关可组合，语义叠加（如 `--no-merge --keep-backup` 与单 `--no-merge` 等价——后者本就保留全部）。各分支的具体动作见 8.3 / 8.4。
 
 收尾流程遵循 `/rebase` skill 的核心原则（FF-only、备份 tag、冲突逐文件解、abort 兜底、分段确认），但**不调用 `/rebase` skill** —— 因 `/rebase` 阶段 3 的 `git checkout <主分支>` 在 worktree 下必失败（主分支已被主工作树占用），FF merge 须改用 `git -C <主工作树> merge`。
 
@@ -177,6 +207,8 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 ### 8.2 备份 + rebase
 
+> **`--no-rebase`**：跳过本整节（不打备份 tag、不 rebase），直接进 8.3。后续 8.3 仅在分支相对主分支「已可 FF」时才合并，否则停下提示。
+
 1. **备份 tag**：`git tag backup/<分支名>-$(date +%Y%m%d-%H%M)`，告诉用户「搞砸了用 `git reset --hard <该 tag>` 回退」。
 2. **rebase**：`git rebase <主分支>`。
    - **无冲突** → 展示 `git log --graph --oneline -10`，停下等用户确认后进 8.3。
@@ -184,29 +216,45 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 ### 8.3 FF merge 到主分支
 
+> **`--no-merge` / `--keep-branch`**：跳过本节与 8.4，改走 **8.4-skip**（见下），把 worktree / 分支 / backup tag 全保留并打印其位置。
+
 主分支 checkout 在主工作树，当前 worktree 不能 `git checkout` 它，故用 `-C` 在主工作树内合并：
 
 ```bash
 git -C <主工作树> merge --ff-only <当前分支>
 ```
 
-若 `--ff-only` 失败（主分支在本轮期间又前进）→ 回到 8.2 把当前分支继续 rebase 到最新主分支，再重试。**禁止 fallback 普通 merge。**
+若 `--ff-only` 失败（主分支在本轮期间又前进）→ 回到 8.2 把当前分支继续 rebase 到最新主分支，再重试（`--no-rebase` 下不能自动 rebase → 停下提示用户去掉 `--no-rebase` 重跑或手动 rebase）。**禁止 fallback 普通 merge。**
 
 ### 8.4 二次确认 + 清理
 
-向用户**明确列出**将删除的三项：worktree 目录、`round<N>-*` 分支、`backup/*` tag。等用户确认（销毁性动作）：
+向用户**明确列出**将删除的项，等用户确认（销毁性动作）。**`--keep-backup` 时** backup tag 不在删除列表里、保留。
 
 - **用户确认** → 先 `cd <主工作树>`（当前 cwd 即将随 worktree 一起消失），再依次执行：
 
   ```bash
   git worktree remove <当前 worktree 路径>
   git branch -d <当前分支>
-  git tag -d backup/<分支名>-<时间戳>
+  git tag -d backup/<分支名>-<时间戳>   # --keep-backup 时跳过此行，末尾打印保留的 tag 名
   ```
 
   若 `git worktree remove` 失败（IDE / 编辑器占用 worktree 内文件）→ 给清晰提示「请关闭打开该目录的编辑器后重试」，**不加 `--force` 硬删**，保留全部状态。
 
 - **用户拒绝** → 保留 worktree / 分支 / backup tag 全部状态，打印当前状态，结束。
+
+### 8.4-skip（`--no-merge` / `--keep-branch` 专用）
+
+不 merge、不删除任何东西。打印三项的保留位置供用户后续手动处理：
+
+```
+本轮已 commit + SUMMARY 就位，按 --no-merge 保留：
+  worktree : <当前 worktree 路径>
+  分支     : <当前分支>（已 rebase 到 <主分支>，线性可后续 FF）
+  backup   : backup/<分支名>-<时间戳>
+后续可：① 让人 review / 提 PR；② 继续在此 worktree 迭代；③ 准备好后手动 git -C <主工作树> merge --ff-only <当前分支> 并清理。
+```
+
+然后直接进 Step 9（跳过 8.5 的 push 提示——主分支未前进）。
 
 ### 8.5 不自动 push
 

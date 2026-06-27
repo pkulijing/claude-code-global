@@ -1,0 +1,7 @@
+# 此片段由 bootstrap / sync-project-config 智能合并进项目根 pyproject.toml。
+# 它把仓库根声明为 uv workspace 的「虚拟根」：根 pyproject **不含** [project]，
+# 仅靠下面这段把 packages/* 下各成员纳入同一工作区（一份 lockfile、一个 .venv）。
+# 新增成员目录放在 packages/ 下即自动被 glob 命中，无需改本段。
+
+[tool.uv.workspace]
+members = ["packages/*"]
