@@ -82,6 +82,7 @@ graph TD
     N32["🐛 32 · vscode 配置落根跨栈合并"]:::bugfix
     N33["✨ 33 · ros2 工作空间模板"]:::feature
     N36["✨ 36 · skill 与模板批量清理"]:::feature
+    N43["✨ 43 · gitlab-ci 按 runner 选变体"]:::feature
     N11 ~~~ N14
     N14 ~~~ N15
     N15 ~~~ N17
@@ -91,6 +92,7 @@ graph TD
     N31 ~~~ N32
     N32 ~~~ N33
     N33 ~~~ N36
+    N36 ~~~ N43
   end
 
   subgraph e_multi_agent["🔄 多 Agent 兼容"]
@@ -179,7 +181,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-04 | 共 40 轮
+> 最后更新：2026-07-04 | 共 41 轮
 
 | #   | 名称                              | 类型    | 所属 Epic      | 一句话描述                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --- | --------------------------------- | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -224,6 +226,7 @@ graph TD
 | 39  | 废弃 backlog 单一真源             | ✨ 功能 | 需求管理       | 废弃 docs/BACKLOG.md、需求管理改为云端 issue 单一真源（open 项速览走按 priority 过滤的 saved query，「刻意不做」项归档为带 wontfix 的 closed issue）；改 backlog/finish/sync-project-config 三 skill + GLOBAL_AGENTS.md + README，sync 加老项目遗留 BACKLOG.md 一次性迁移节                                                                                                                                                                       |
 | 40  | rebase 静默直行与 commit 署名身份 | 🏗️ 重构 | rebase 工作流  | /rebase 由「每阶段必停」改为「默认静默直行 + 必停清单」（无冲突近乎瞬间跑完，脏区 / 冲突 / FF 失败 / 公共分支 / push 才停，备份 tag 无条件必打）；commit/finish 的 Co-authored-by 按执行 Agent 自选身份（CC → Claude / Codex → OpenAI Codex），修 Codex 收尾误写 Claude                                                                                                                                                                           |
 | 41  | 新增 /quick 轻量开发流            | ✨ 功能 | 轻量开发流     | 新增单个 skill /quick 补齐「三档开发流」最轻一档：不落 docs / 不开 worktree / 不进计划模式，直接改代码 → 自动 /commit 收尾（复用其 lint 门禁与署名）；默认当前分支直接改，`--branch` 切轻量分支、`#<issue>` 可选带 Closes；GLOBAL_AGENTS.md 第 37 行做成三档流程权威指针                                                                                                                                                                          |
+| 43  | gitlab-ci 按 runner 选变体        | ✨ 功能 | 项目模板机制   | 引入通用「变体组」模板机制（文件名约定 `<target>.variant.<key>`，选择前移到 bootstrap/sync 交互、只落一份、记进 marker `variants`），把 python-uv 的 `.gitlab-ci.yml` 拆为 docker/shell 两变体（shell 版去 image + 脚本装 uv + 禁 !reference 用 YAML 锚点）；改 bootstrap/sync 两 skill + SCHEMA + 根 CLAUDE，含老项目「普通文件→变体组」迁移去重防误删                                                                                           |
 
 ---
 
@@ -251,7 +254,7 @@ graph TD
 #### 项目模板机制
 
 - 状态：进行中
-- 轮次：11, 14, 15, 17, 18, 30, 31, 32, 33, 36
+- 轮次：11, 14, 15, 17, 18, 30, 31, 32, 33, 36, 43
 
 #### 多 Agent 兼容
 

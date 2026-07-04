@@ -20,6 +20,8 @@ stacks:
       - file: <string, 模板内的相对路径，含 scope 后部分>
         skipped_at_commit: <string, 当时模板 commit>
         reason: <string, 可选，用户填>
+    variants: # 可选：该 stack 落的变体组选择（map: 落地目标名 → 选中 key）
+      <target>: <key> # 如 .gitlab-ci.yml: shell
 # 仅 length == 0（无 stack 项目）使用，与 stacks[0].skipped 互斥
 skipped:
   - file: <string>
@@ -97,6 +99,16 @@ stack 应用到的项目子路径（相对项目根），取自该 stack 的 `st
 
 用户填的 skip 原因，纯文本。便于半年后回看时理解。可空可省。
 
+#### `stacks[].variants`（可选，map）
+
+该 stack 落的**变体组**选择：map 的 key 是落地目标名（`<target>`），value 是用户选中的变体 key（`<key>`）。仅当该 stack 实际落了变体组时才写；无变体组的 stack（如 `react-vite`）不写该字段（缺省视作空 map）。
+
+- 由 bootstrap Step 3.3.7 / sync adopt 4.3 在用户选定变体时写入。
+- normal sync 用它决定「模板某变体组更新时同步哪一支」：读到 `.gitlab-ci.yml: shell` → 只拿 `shell` 变体与项目侧 `.gitlab-ci.yml` 做 diff，不碰 `docker` 变体、不重问用户。
+- 老项目 marker 无此字段（bootstrap 早于本机制）→ sync 命中变体组更新时询问补选，选后写回。
+
+变体组本身由模板侧的**文件名命名约定**声明：`<target>.variant.<key>`（`.variant.` 在文件名末段、`<key>` 不含点），详见文末「变体组文件」。
+
 ## 完整示例
 
 ### 单 stack 项目（最常见形态）
@@ -166,6 +178,15 @@ stacks:
 
 因此 fragment 让「`__root__` 不应同名冲突」的约束对编辑器配置成立：多个 stack 各出一份 `.vscode/<name>.json.fragment`，合并而非覆盖。
 
+### 变体组文件（不直接落地，按环境选一个）
+
+另一类例外：文件名形如 `<target>.variant.<key>`（`.variant.` 在文件名末段、`<key>` 不含点）的是「一组互斥变体」中的一员。同一 `<target>` 的多个 `.variant.<key>` 表示「需按用户环境选一个落地」，去掉 `.variant.<key>` 后缀即得落地目标名 `<target>`（落该来源 stack 的落点）。
+
+- **为何要选而非都落**：`<target>` 常是**会被工具真实执行**的运行时配置（如 `.gitlab-ci.yml` 被 GitLab 解析执行）。把多变体都落进项目再让用户删是地雷（漏删即得会真跑的错误配置）。故选择前移到 bootstrap / sync 交互，**只落选中那一份**，项目侧永远是干净可跑的单一版本。
+- **选择记进 marker**：`stacks[].variants[<target>] = <key>`（见上文字段说明），normal sync 据此只同步选中那一支。
+- **当前唯一变体组**：`python-uv` 的 `.gitlab-ci.yml.variant.docker` / `.gitlab-ci.yml.variant.shell` → target `.gitlab-ci.yml`，按 GitLab runner 类型（docker executor / 本地 shell runner）选一个。
+- 与 fragment 互斥：一个文件不同时是 `.fragment` 和 `.variant.<key>`。
+
 ## 关于 `_common` 伪 stack（round 12 引入）
 
 `~/.claude/templates/_common/` 是承载完全 stack-无关的根级资源（如 issue templates、`.prettierrc`、`.github/labels.yml`）的"伪 stack"。
@@ -190,7 +211,7 @@ stacks:
 | GitHub | `.github/labels.yml`                          | `_common`   |
 | GitHub | `.github/workflows/lint.yml`                  | `python-uv` |
 | GitLab | `.gitlab/issue_templates/{feat,bug,spike}.md` | `_common`   |
-| GitLab | `.gitlab-ci.yml`                              | `python-uv` |
+| GitLab | `.gitlab-ci.yml`（变体组，按 runner 选一个）  | `python-uv` |
 
 **互不干扰前提**：
 

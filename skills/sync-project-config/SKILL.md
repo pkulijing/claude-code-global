@@ -74,7 +74,7 @@ marker 文件名在 round 22 由 `.cc-template.yml` 改为 `.agent-template.yml`
 直接 Read 文件、按 YAML 语义读字段。需要：
 
 - `template_commit`（旧 commit hash）
-- `stacks` 列表（0、1 或多条）；每条读 `stack`（名）、`path`（落点）、`skipped`（数组）
+- `stacks` 列表（0、1 或多条）；每条读 `stack`（名）、`path`（落点）、`skipped`（数组）、`variants`（map: 变体落地目标名 → 选中 key，**可缺省**，缺省视作空 map —— 老项目 bootstrap 时还没这机制）
 - `len == 0` 时改读 marker **顶层** `skipped`（数组，可缺省视作空数组）
 
 **校验**：
@@ -147,6 +147,14 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 | 新增   | 已存在（罕见）             | 询问 take / 保留 / 智能 merge                    |
 | 删除   | 仍存在                     | 询问删除 / 保留（用户可能仍需要）                |
 
+**特殊：变体组文件**（凡文件名形如 `<target>.variant.<key>`）永远不直接写同名文件——同一 `<target>` 的多个 `.variant.<key>` 是「一组互斥变体」，只有一个落地为 `<target>`（去 `.variant.<key>` 后缀，落该来源 stack 的落点）。normal sync 遇到某变体组文件有 diff（`M`/`A`/`D`）时，**先看 marker 里该 stack 的 `variants[<target>]` 记没记选择**：
+
+- **有记录**（如 `variants[.gitlab-ci.yml] == shell`）→ **只处理选中 key（`shell`）那份变体**与项目侧已落地 `<target>` 的四象限（模板旧版 / 新版都取 `.variant.shell`，项目侧取 `<target>`）；**其余 key 的变体文件 diff 一律忽略**（用户没在用、不落地）。选中变体新增了 job / 改了脚本 → 按四象限（多半「模板改 + 项目侧已自定义或一致」）提议 take / merge 进项目侧 `<target>`。
+- **无记录**（老项目 bootstrap 早于本机制，marker 无 `variants` 字段或缺该 target）→ 该变体组标记「需补选」，进 TODO；第 5 节决策时**问用户选一个 key**（展示各变体人话说明，key 说明由 skill 按已知 key 硬编码给，同 bootstrap Step 3.3.7），选后：① 用选中变体与项目侧 `<target>` 做四象限落地；② **把选择写回 marker** 对应 stack 的 `variants[<target>]`（6.1 持久化）。
+- **变体文件被模板删除**（某 key 整个 `.variant.<key>` 从模板消失）→ 若正是当前选中 key，提示用户「所选变体已从模板移除，需改选其他变体」；非选中 key 则静默忽略。
+
+> 各变体的人话说明（当前唯一变体组 `.gitlab-ci.yml`）：`docker` → "Docker executor runner"；`shell` → "本地 shell runner（无 docker executor，脚本装 uv）"。与 bootstrap Step 3.3.7 同一份，改动时两处同步。
+
 **特殊：fragment 文件**（凡文件名以 `.fragment` 结尾）永远不直接写同名文件，去掉 `.fragment` 后缀得目标相对路径（始终落项目根），按目标类型**合并**。当前两类：
 
 **(a) `pyproject.toml.<section>.fragment`（TOML 段合并）**
@@ -171,6 +179,12 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 
 - **相同**（如 `python-uv` 的 `__subpath__/.vscode/settings.json`（path `.` → 根）与新 `__root__/.vscode/settings.json.fragment`（→ 根）目标都是根 `.vscode/settings.json`）→ 判为**机制迁移而非真删除**：**抑制删除提案**，仅执行 fragment 合并（content 不变时合并为幂等 no-op，原文件原样保留）。
 - **不同**（如 `react-vite` 的 `__subpath__/.vscode/*`（path `frontend` → `frontend/.vscode/`）与新根 `.vscode/*.fragment`（→ 根））→ 二者互不矛盾：照常提案删除旧 `frontend/.vscode/*` + fragment 合并进根 `.vscode/*`。
+
+**普通文件 → 变体组 迁移去重（重要）**：当模板把某资源从「普通文件 `X`」改为「一组变体 `X.variant.<key>`」时（如本机制把 `.gitlab-ci.yml` 改为 `.gitlab-ci.yml.variant.docker` / `.variant.shell`），老项目 normal sync 的 diff 会同时出现「`D X`」与多个「`A X.variant.<key>`」。这些变体的落地目标都是同一个 `<target> == X`（去 `.variant.<key>` 后缀），故：
+
+- **判为机制迁移而非真删除**：**抑制对 `X` 的删除提案**（项目侧已落地的 `X` 就是那份要保留 / 更新的目标文件，不能删）。
+- 改为按上文「特殊：变体组文件」处理这组 `A X.variant.<key>`：marker 有该 target 选择 → 用选中变体与项目侧 `X` 四象限；marker 无（这类老项目 marker 必然无 `variants`）→ 标记「需补选」，第 5 节问用户选一个、落地 + 写回 marker。
+- 净效果：老项目从「一份写死的 `.gitlab-ci.yml`」平滑迁到「按 runner 选定的变体」，`.gitlab-ci.yml` 文件本身不被误删。
 
 ### 2.5 处理 skipped 持久化语义
 
@@ -241,6 +255,7 @@ TODO 同步清单（共 N 项）：
 - 项目侧已存在 → AI 对比模板内容与项目内容：
   - 完全一致 → 默认建议「无需操作（已等价）」
   - 不一致 → 默认建议「智能 merge」或询问 take / 保留 / merge
+- **变体组文件**（`<target>.variant.<key>`）：与 bootstrap Step 3.3.7 对称——同一 `<target>` 的多个变体**当作一条 TODO**「选一个变体落地」，第 5 节问用户选 key（展示人话说明），只把选中那份落地为 `<target>`、其余不落地；选择在 6.1 写进 marker 该 stack 的 `variants[<target>]`。项目侧已有 `<target>` → 冲突询问 take / 保留 / merge。
 - `*.fragment`（`pyproject.toml.*.fragment` 与 `.vscode/*.json.fragment`）同 2.4 特殊处理
 - 含 `.github/labels.yml` 时：**额外把"调 helper `label-sync-from-file` 同步 labels 到远端"作为单独一条 TODO**。helper 自动按 `git remote` 判定走 `gh` / `glab`（详见第 6 节执行步骤）。`.github/labels.yml` schema 跨平台一致，GitLab 项目下也读 `.github/` 路径同一份（不新建 `.gitlab/labels.yml` 副本）。
 
@@ -334,6 +349,7 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
   - helper exit 4（CLI 缺失）→ 降级为提示「先 `brew install gh` / `brew install glab`」
   - stdout 输出每条 label 的 TSV 同步结果与 summary，原样展示给用户
 
+- **accept (变体落地 / 补选)**：把选中 key 的 `<target>.variant.<key>` 内容落地为 `<target>`（或按四象限 merge 进已存在的 `<target>`），其余变体不落地；把「`<target>` → 选中 key」写进对应 stack 的 `variants` map（6.1 持久化）。补选场景（老项目 marker 无记录）同理，落地 + 写 marker 一并完成。
 - **skip**：在 marker 的 skipped 列表中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
   - `len >= 1` 项目：写该文件来源 stack 的 `stacks[i].skipped[]`；`_common` 来源统一写 `stacks[0].skipped[]`（与 2.5 对称，`len == 1` 即旧行为）
   - `len == 0` 项目：写 marker 顶层 `skipped[]`（与 2.5 读取位置对称）
@@ -354,13 +370,14 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - skipped 按 6 节策略更新：
   - `len >= 1`：各 stack 写各自 `stacks[i].skipped`（`_common` 归 `stacks[0]`）
   - `len == 0`：marker 顶层 `skipped`
+- `variants` 按 6 节「accept (变体落地 / 补选)」更新：**保留 marker 已有的变体选择**（本次未触及的不动）；本次落地 / 补选 / 改选的变体写 / 更新对应 stack 的 `variants[<target>]`。无任何变体组的 stack 不写该字段。
 
 Adopt 模式额外：
 
 - `bootstrap_time` 设为当前 ISO 时间
 - `source` 取 `git -C ~/.claude/global-repo config --get remote.origin.url`，无则填占位
-- `stacks` 按 4.2 用户选择写，每条 `path` 取该 stack 的 `default_path`：
-  - 选了 1 个或多个 stack → 每个一条，如 `[{stack: python-uv, path: ".", skipped: []}, {stack: react-vite, path: "frontend", skipped: []}]`
+- `stacks` 按 4.2 用户选择写，每条 `path` 取该 stack 的 `default_path`；落了变体组的 stack 增写 `variants` map（4.3 的变体落地选择）：
+  - 选了 1 个或多个 stack → 每个一条，如 `[{stack: python-uv, path: ".", skipped: [], variants: {.gitlab-ci.yml: shell}}, {stack: react-vite, path: "frontend", skipped: []}]`
   - 一个都没选（无 stack）→ `stacks: []`，同时顶层加 `skipped: []`
 
 ### 6.2 收尾反馈

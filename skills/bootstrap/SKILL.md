@@ -64,7 +64,7 @@ disable-model-invocation: false
 
 ### Step 3：模板初始化（\_common + 按 stack）
 
-为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `.gitlab-ci.yml` / `pyproject.toml [tool.ruff]` / `.github/ISSUE_TEMPLATE/` / `.gitlab/issue_templates/` / `.github/labels.yml` / `.prettierrc` 等。**GitHub 与 GitLab 双轨同时落**（互不干扰：GitHub Actions 不读 `.gitlab-ci.yml`、GitLab CI 不读 `.github/workflows/`，issue templates 同理）。`.github/labels.yml` schema 跨平台一致，是 helper 私有输入而非平台读的死文件 —— GitLab 项目下也读 `.github/` 路径同一份。skill 中实际调命令行的步骤（如 labels 同步）由 helper `python3 $HOME/.claude/scripts/platform_issue.py` 按 `git remote` 自动 dispatch 到 `gh` / `glab`。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
+为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `.gitlab-ci.yml`（变体组，按 runner 类型选一个落地，见 Step 3.3.7）/ `pyproject.toml [tool.ruff]` / `.github/ISSUE_TEMPLATE/` / `.gitlab/issue_templates/` / `.github/labels.yml` / `.prettierrc` 等。**GitHub 与 GitLab 双轨同时落**（互不干扰：GitHub Actions 不读 `.gitlab-ci.yml`、GitLab CI 不读 `.github/workflows/`，issue templates 同理）。`.github/labels.yml` schema 跨平台一致，是 helper 私有输入而非平台读的死文件 —— GitLab 项目下也读 `.github/` 路径同一份。skill 中实际调命令行的步骤（如 labels 同步）由 helper `python3 $HOME/.claude/scripts/platform_issue.py` 按 `git remote` 自动 dispatch 到 `gh` / `glab`。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
 
 `~/.claude/templates/` 下有两类目录：
 
@@ -99,7 +99,11 @@ disable-model-invocation: false
 - 把 `__subpath__/` 下所有文件复制到该来源的落点：`_common` 与 `default_path` 为 `.` 的 stack（如 `python-uv`）落**项目根**；`default_path` 为子目录的 stack（如 `react-vite` → `frontend/`）落 `<default_path>/`（目录不存在则建）
 - 遇到目标已存在的文件：列入「冲突清单」，逐条向用户确认 take 模板 / 保留项目侧 / 智能合并；不要默认覆盖
 
-特殊处理 —— **fragment 文件**（凡文件名以 `.fragment` 结尾）不能直接落地为同名文件，它们是片段、需**合并**进目标文件。去掉 `.fragment` 后缀即得目标相对路径，目标始终落**项目根**。本步只把这些片段从普通文件复制流程中**剔除**（不落地为 `*.fragment` 文件），实际合并动作在 Step 3.3.6 执行。当前两类 fragment：
+特殊处理（一）—— **变体组文件**（凡文件名形如 `<target>.variant.<key>`，`.variant.` 在文件名末段、`<key>` 不含点）是「一组互斥变体」中的一员：同一 `<target>` 的多个 `.variant.<key>` 表示「需按环境选一个落地」。`.gitlab-ci.yml` 这类**会被工具真实执行**的运行时配置不能把多变体都落进项目再让用户删（漏删即得会真跑的错误配置），故选择前移到本步交互、只落选中那一份。本步把这些文件从普通复制流程中**剔除**（不落地为 `*.variant.*`），按 `<target>` 聚合成变体组，实际「选一个并落地」在 Step 3.3.7 执行。当前唯一变体组：
+
+- `.gitlab-ci.yml.variant.docker` / `.gitlab-ci.yml.variant.shell` → target `.gitlab-ci.yml`，按 GitLab runner 类型选一个（见 Step 3.3.7）。
+
+特殊处理（二）—— **fragment 文件**（凡文件名以 `.fragment` 结尾）不能直接落地为同名文件，它们是片段、需**合并**进目标文件。去掉 `.fragment` 后缀即得目标相对路径，目标始终落**项目根**。本步只把这些片段从普通文件复制流程中**剔除**（不落地为 `*.fragment` 文件），实际合并动作在 Step 3.3.6 执行。当前两类 fragment：
 
 - `pyproject.toml.<section>.fragment` → 合并进项目根 `pyproject.toml` 对应段（TOML 段合并）。`<section>` 用 `-` 分隔层级（`ruff` → `[tool.ruff]`、`uv` → `[tool.uv]`、`uv-index` → `[[tool.uv.index]]`）。
 - `.vscode/<name>.json.fragment` → 合并进项目根 `.vscode/<name>.json`（JSON 合并）。各 stack 的编辑器配置以此形式汇聚到**项目根** `.vscode/`（VS Code 单根工作区只读仓库根的 `.vscode/`，故落根才生效；子目录 stack 如 `react-vite` 也借此落根、可与 `python-uv` union）。
@@ -144,6 +148,18 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
   - `extensions.json`（`recommendations` 数组）→ 与现有 `recommendations` 做**有序去重 union**（已有不重复加，新项追加末尾）。
   - `settings.json`（对象）→ **顶层键 union**：键只在一侧直接并入；两侧都有且值均为对象（如都定义 `[json]`）→ 递归深合并；两侧标量冲突（同键不同值）→ 询问用户。
 - 多个 stack 各自的 `.vscode/<name>.json.fragment` 依次合并进**同一个**项目根目标文件（先 `_common`，再逐个 stack），最终得各 stack 推荐 / 设置的并集。前端 / 后端的语言作用域键天然不相交（`[python]`/`[markdown]` vs `[typescript]`/…），纯 union 零冲突。
+
+#### Step 3.3.7：落地变体组（按环境选一个）
+
+对 Step 3.3 剔除并按 `<target>` 聚合出来的每个变体组（同 `<target>`、多个 `.variant.<key>`）：
+
+1. **问用户选一个 key**——列出该组各变体，展示人话说明。key 的人话说明由本 skill 按已知 key 硬编码给出（未知 key 直接展示 key 字面）。当前已知：
+   - `.gitlab-ci.yml` 组：`docker` → "Docker executor runner（GitLab.com / 官方 docker runner，image 提供 uv+Python）"；`shell` → "本地 shell runner（公司自建、无 docker executor，runner 无 uv 时脚本装）"。
+2. **只把选中那份落地**为 `<target>`（去掉 `.variant.<key>` 后缀，落到该来源 stack 的落点：`python-uv` path `.` → 项目根）。其余变体一律不落地。
+3. 目标 `<target>` 已存在（罕见，如项目侧本就有 `.gitlab-ci.yml`）→ 列入冲突清单，逐条确认 take 选中变体 / 保留项目侧 / 智能合并（同 Step 3.3 普通文件冲突处理）。
+4. **记住每个变体组的选择**（`<target>` → 选中 key），供 Step 3.6 写进 marker。
+
+> 为何前移到此交互而非「都落地让用户删」：`.gitlab-ci.yml` 会被 GitLab 真实解析执行，多变体并存 + 手删是地雷（漏删即错误 CI）。选择前移、只落一份，保证项目侧永远是干净可跑的单一版本。
 
 #### Step 3.5：（选中含 python-uv 或 python-uv-workspace 时）后端项目实际可跑化
 
@@ -203,7 +219,7 @@ cd frontend && npm install
 
 #### Step 3.6：写 `.agent-template.yml` marker
 
-在项目根创建 `.agent-template.yml`（字段来源详见 SCHEMA.md）。`stacks` 列表写**所有选中的 stack**，每条 `path` 取其 `default_path`（Step 3.1 解析）：
+在项目根创建 `.agent-template.yml`（字段来源详见 SCHEMA.md）。`stacks` 列表写**所有选中的 stack**，每条 `path` 取其 `default_path`（Step 3.1 解析）；若该 stack 在 Step 3.3.7 落了变体组，把「`<target>` → 选中 key」写进该条的 `variants` map：
 
 ```yaml
 # 由 claude-code-global 管理，非必要请勿手动编辑
@@ -214,12 +230,14 @@ stacks:
   - stack: python-uv
     path: .
     skipped: []
+    variants: # 仅当该 stack 落了变体组时写，缺省不写
+      .gitlab-ci.yml: shell # Step 3.3.7 用户选的 key
   - stack: react-vite
     path: frontend
     skipped: []
 ```
 
-上例是「后端 + 前端」并存形态；只选其一就只写对应那一条，一个都没选则写 `stacks: []` 并在顶层加 `skipped: []`（见 SCHEMA.md 无 stack 形态）。
+上例是「后端 + 前端」并存形态；只选其一就只写对应那一条，一个都没选则写 `stacks: []` 并在顶层加 `skipped: []`（见 SCHEMA.md 无 stack 形态）。`variants` 是可选字段：只有落了变体组的 stack 才写，无变体组的 stack（如 `react-vite`）不写该字段。
 
 `source` 取不到 origin 时填占位符 `https://github.com/<owner>/claude-code-global`，并在收尾里提示用户手动补全。
 
