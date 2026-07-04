@@ -6,7 +6,7 @@ disable-model-invocation: false
 
 用户调用此 skill 表示要开始一个新的开发项。
 
-**前置检查**：若 `CLAUDE.md` 与 `DEVTREE.md` 都不存在，停下来提示用户先运行 `/bootstrap`，**不要**自己兜底建项目骨架。`/start` 只负责开新一轮开发，不负责项目首次初始化。
+**前置检查**：若 `CLAUDE.md` 与 `docs/DEVTREE.md` 都不存在，停下来提示用户先运行 `/bootstrap`，**不要**自己兜底建项目骨架。`/start` 只负责开新一轮开发，不负责项目首次初始化。
 
 **参数处理**：调用时可能附带参数（args），参数有两种形态：
 
