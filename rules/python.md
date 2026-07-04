@@ -61,6 +61,28 @@ packages = ["src/<pkg>"]
 
 > 与 §2.1 hatchling 是正交的两个 escape hatch：2.1 换 **build backend**（含 C 扩展 / 自定义 build），2.2 换 **仓库布局**（单包 → 多包 workspace），可叠加（workspace 里某个含 C 扩展的成员自己切 hatchling）。
 
+### 2.3 src 布局命名撞车（排障）：顶层同名目录遮蔽 src 真包
+
+src 布局下，顶层 `<pkg>/`（装 `pyproject.toml` / `package.xml`、**无 `__init__.py`**、本身不是 Python 包）常与 `src/<pkg>/` 里的真包**同名**（uv workspace 多包、colcon + Python 混合仓最易撞）。当仓库根被塞进 `sys.path` 时（`python -m pytest` 会把 CWD 塞进去、或 `cd` 到仓根直接跑 `python`），`import <pkg>` 会**先命中顶层目录**：
+
+- 顶层目录无 `__init__.py` → Python 当它是 **PEP 420 namespace package**，`import <pkg>` **成功**（看起来没事）；
+- 但 `import <pkg>.<submodule>` **失败** `ModuleNotFoundError` —— namespace 机制不再往下解析到 `src/` 的真包。
+
+**误导点**：顶包 import 成功、只子模块挂，报错像"子模块没装"，完全不会让人联想到"顶层同名目录遮蔽了 src 真包"。**判据**：`<pkg>.__file__` 为 `None`（真包会是具体路径）+ `<pkg>.__path__` 同时含顶层项目目录与 install/editable 真包**两个 portion**。
+
+**两场景两命运**：测试期（pytest 在仓根跑）触发；生产运行期（正规安装后从 site-packages import、CWD 不在仓根）**天然不触发**——故这是开发 / 测试期问题，非部署问题。
+
+**解法**：仓根 `conftest.py` 把仓根从 `sys.path` 剔除，配合 `--import-mode=prepend`：
+
+```python
+import os, sys
+
+_ROOT = os.path.dirname(os.path.abspath(__file__))
+sys.path[:] = [p for p in sys.path if p and os.path.abspath(p) != _ROOT]
+```
+
+与 §2.2 的「多成员同名 `tests` 包碰撞」并列成「src 布局命名撞车」两个**不同**的坑、**不同**的解：那条治「同名 `tests` 包」（靠 `--import-mode=importlib` + `tests/` 不放 `__init__.py`），这条治「顶层目录遮蔽 src 真包」（靠剔仓根出 `sys.path`）；别把两者的解混用。
+
 ## 3. 开发风格
 
 下列 7 条来自跨项目实战沉淀（详见 issue #12），是 Python 代码层面的硬性偏好。
@@ -189,12 +211,13 @@ class XxxStream:
 - **TDD 适用范围**：业务逻辑 / 纯函数 / 算法 / 有清晰输入输出契约的接口或模块。这类场景测试用例就是需求的具体表达，先写测试能强迫想清楚边界。
 - **例外**：探索性原型、UI / 视觉效果、与外部系统的集成（数据库 schema、第三方 API 对接）可以先跑通再补测试。**但实现稳定后必须补齐单测，不允许长期裸奔**。
 - **编排器 / facade 必有 ≥ 1 条 integration test**（见 §3.7），即使其他业务规则都按 TDD 走过，编排层也不能省略 happy-path smoke。
+- **测试 fixture 不要复用被测代码的同一套约定假设**（呼应 §3.4「注释写当前真相」——§3.4 管注释，这条管 fixture）：当测试输入由「与生产代码相同的约定」生成（坐标系、单位、字节序、编码…），测试只验证「代码自洽于该约定」、**无法证伪「约定本身对不对」**——生产代码与 fixture 一起错时单测照样全绿、真机才炸。对这类「外部约定 / 物理映射」逻辑，fixture 应来自**独立来源**：真实采集数据、手算的地面真值、或不同推导路径的等价构造，让「假设错了」也能被测出。
 - **测试目录结构**：`tests/` 与 `src/` 同级（不嵌进 `src/<pkg>/`），由 `pyproject.toml [tool.pytest.ini_options] pythonpath = ["src"]` 解决 import；测试文件命名 `test_<被测对象>.py`。
 - **运行**：`uv run pytest`（带覆盖率：`uv run pytest --cov=src/<pkg>`）。
 
 ## 5. 打包 · 发布 · 安装
 
-§1「禁裸 pip / 用 uv」管的是**开发期**；下面三条管**打包、发布、安装期**——把库做成 wheel、推到 registry、再装到目标处时的固定坑，跨项目通用、配一次就能绕开。
+§1「禁裸 pip / 用 uv」管的是**开发期**；下面几条管**打包、发布、安装期**——把库做成 wheel、推到 registry、再装到目标处时的固定坑，跨项目通用、配一次就能绕开。
 
 ### 5.1 含前端（npm）产物的成员 wheel 化
 
@@ -226,8 +249,47 @@ monorepo 里「可独立发布、且自带 npm 前端构建产物」的 Python �
 
 项目级上传 URL：`${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi`，user `gitlab-ci-token` + 密码 `$CI_JOB_TOKEN`。
 
+**补充 · 程序化查询该 registry 的最新版本**：GitLab 的项目级 PyPI **simple 索引**（`.../packages/pypi/simple/<pkg>/`）不是 JSON API——它返回 PEP 503 的锚点 HTML，列出该包所有 wheel / sdist 文件名（`Content-Type` 随 GitLab 版本为 `text/html` 或上面 `--check-url` 撞到的 `text/plain`，**要点一致：不是 JSON**）。故要在程序里查"有没有新版本"，一律**拉这个页面、正则从 wheel 文件名（`<pkg>-<version>-*.whl`）提版本号、按 `packaging.version.Version` 取最高 stable（过滤 prerelease）**，别指望 JSON 解析。整套「应用内更新自检」骨架见 §5.4。
+
 ### 5.3 `pip install --target` 装本地开发 wheel：同版本号不覆盖
 
 用 `pip install --target <dir> <本地 wheel>` 把自家纯 Python 库以受控方式装进某目录（避免污染系统）时：开发期 wheel 版本号常恒定（不会每改一次就 bump），而 `--target` 见到目标里已有同版本 → **跳过不覆盖**，装的还是旧 wheel；`--force-reinstall` 在 `--target` 模式下卸载不可靠（实测不更新文件，pip 已知行为）。后果：契约改动不生效、下游 `ModuleNotFoundError`，且 wheel 是新的、目标目录是旧的，极难排查。
 
 **可靠解**：装前 `rm -rf <dir>/<pkg>*` 删旧目录再装。
+
+### 5.4 应用内更新自检的标准骨架
+
+凡用 `uv tool install` 分发的应用（CLI / 带 UI 的 daemon）都可能要「运行时查有没有新版本 + 一键升级」。这套骨架已在多个项目独立重造，不变部分固化成可抄清单，差异点（版本源 / 凭证 / UI 框架）按项目填：
+
+1. **查最新版本**，按 registry 类型两分支：
+   - **PyPI（公共）**：GET `https://pypi.org/pypi/<pkg>/json`，读 `info.version`。
+   - **GitLab（自托管私有）**：拉项目级 PyPI **simple 索引** HTML（PEP 503 锚点、非 JSON，见 §5.2），正则从 wheel 文件名提所有版本号。
+2. **`packaging.version.Version` 比较** + **过滤 prerelease**（`Version(v).is_prerelease`，否则 `rc` / `dev` 会被误当最新）。
+3. **拼 `uv tool upgrade <pkg>` 命令**：`shutil.which("uv")` 定位 uv；私有 registry 还要带 `--extra-index-url <含只读 token 的 URL>` + `--allow-insecure-host <host>`（内部 CA，呼应 §5.2 的 TLS 坑）。
+4. **后台线程 + TTL（stale-while-revalidate）+ 失败静默**：查询放后台线程、结果带 TTL 缓存，**不拖慢启动**；网络 / 解析失败一律返 `None`、**不抛异常**、不打断主流程。
+5. **不自动重启**：`uv tool upgrade` 覆盖 venv 里的 `.py`，但**不影响已在跑的进程**；只提示用户「已升级，请手动重启」，别自作主张重启。
+
+两个版本源的最小解析片段：
+
+```python
+import re
+
+import requests
+from packaging.version import Version
+
+
+def latest_pypi(pkg: str) -> str | None:
+    """公共 PyPI：JSON API，直接读 info.version。"""
+    info = requests.get(f"https://pypi.org/pypi/{pkg}/json", timeout=5).json()["info"]
+    return info["version"]
+
+
+def latest_gitlab(simple_url: str, pkg: str) -> str | None:
+    """自托管 GitLab simple 索引：PEP 503 HTML，从 wheel 文件名提最高 stable。"""
+    html = requests.get(simple_url, timeout=5, verify=False).text  # verify=False 跳内部 CA
+    vers = re.findall(rf"{re.escape(pkg)}-(.+?)-py3-none-any\.whl", html)
+    stable = [v for v in vers if not Version(v).is_prerelease]
+    return max(stable, key=Version) if stable else None
+```
+
+拿到 latest 后与当前版本 `Version(latest) > Version(current)` 比较即得「是否有更新」；升级命令拼 `[uv, "tool", "upgrade", pkg]`（私有源追加 `--extra-index-url` / `--allow-insecure-host`），交给用户点击执行、执行完提示重启。

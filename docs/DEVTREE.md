@@ -35,6 +35,7 @@ graph TD
   base --> e_template
   base --> e_multi_agent
   base --> e_constitution
+  base --> e_rules
   toolchain --> e_bootstrap
   toolchain --> e_finish
   toolchain --> devmgmt["开发项管理"]:::epic
@@ -102,11 +103,16 @@ graph TD
     direction TB
     N24["🏗️ 24 · 精简宪法与会话标题约定排查"]:::refactor
     N25["🏗️ 25 · python 模板与子 CLAUDE 机制"]:::refactor
+    N24 ~~~ N25
+  end
+
+  subgraph e_rules["🔄 领域规则沉淀"]
+    direction TB
     N28["✨ 28 · lark 规则文档"]:::feature
     N35["✨ 35 · 批量沉淀文档类规则"]:::feature
-    N24 ~~~ N25
-    N25 ~~~ N28
+    N38["✨ 38 · 批量沉淀 python-ros2 规则"]:::feature
     N28 ~~~ N35
+    N35 ~~~ N38
   end
 
   subgraph e_bootstrap["✅ 项目初始化"]
@@ -163,7 +169,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-06-28 | 共 37 轮
+> 最后更新：2026-07-04 | 共 38 轮
 
 | #   | 名称                           | 类型    | 所属 Epic      | 一句话描述                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --- | ------------------------------ | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -195,15 +201,16 @@ graph TD
 | 25  | python 模板与子 CLAUDE 机制    | 🏗️ 重构 | 全局宪法治理   | 引入 `rules/<topic>.md` 领域规则文档机制（首例 `rules/python.md` 含 #12 七条 Python 风格 + 原 Python 章节），python-uv 模板接入 `uv init --package` 落标准 src 布局 + pytest fragment                                                                                                                                                                                                                                                             |
 | 26  | finish 沉淀 issue 强制打 label | 🐛 修复 | 开发项收尾     | helper 对「跨仓库 `--repo` + 零 label」创建强制拦截（`--allow-no-label` 逃生）、`label-list` 支持 `--repo` 跨仓库校验；finish Step 3.5 加创建前 label 校验与「失败绝不丢 label」兜底；GLOBAL_AGENTS.md 补硬约束；回补 #12 三轴 label                                                                                                                                                                                                              |
 | 27  | 用户可配置项机制               | 🌱 初建 | 用户可配置项   | 引入扁平 env 用户配置（仓库外、user-wins seed、CC/Codex 共享），首例 git init 默认分支 → install.sh 设 git config --global init.defaultBranch；附 verify 脚本与 DESIGN 设计文档                                                                                                                                                                                                                                                                   |
-| 28  | lark 规则文档                  | ✨ 功能 | 全局宪法治理   | 新增 rules/lark.md 领域规则文档（lark-cli 创作飞书云文档默认加 `⚡ Crafted with lark-cli` 署名行 + docx 实操技巧），GLOBAL_AGENTS.md 加并列指针节                                                                                                                                                                                                                                                                                                 |
+| 28  | lark 规则文档                  | ✨ 功能 | 领域规则沉淀   | 新增 rules/lark.md 领域规则文档（lark-cli 创作飞书云文档默认加 `⚡ Crafted with lark-cli` 署名行 + docx 实操技巧），GLOBAL_AGENTS.md 加并列指针节                                                                                                                                                                                                                                                                                                 |
 | 29  | paper-read 资产就近存放        | 🐛 修复 | 内容创作 skill | paper-read skill 图片资产默认从「固定根目录 assets」改为「与笔记 markdown 同级 assets/」就近原则，引用用相对路径                                                                                                                                                                                                                                                                                                                                  |
 | 30  | 前端栈规则与 scaffold 模板     | ✨ 功能 | 项目模板机制   | 新增 rules/frontend.md + templates/react-vite/ 前端 scaffold（React 19 + Vite 6 + TS strict + tailwind v4 + shadcn + Biome，npmmirror），bootstrap/sync 升级为多 stack 叠加 + stack.yml 自描述 path，前后端正交可同仓并存                                                                                                                                                                                                                         |
 | 31  | python 模板默认 only-managed   | 📦 工程 | 项目模板机制   | python-uv 模板新增 `[tool.uv] python-preference=only-managed` fragment + install.sh 以 user-wins seed 系统级 `~/.config/uv/uv.toml`，让 uv 全权管 python、避免系统 python 缺 `Python.h` 致 C 扩展编译失败；rules/python.md §1 记坑                                                                                                                                                                                                                |
 | 32  | vscode 配置落根跨栈合并        | 🐛 修复 | 项目模板机制   | 泛化 fragment 机制新增 `.vscode/*.json.fragment` 类，各 stack 编辑器配置合并进项目根 `.vscode/`（修 react-vite 落 `frontend/.vscode/`、打开仓库根 biome 推荐不触发）；react-vite settings 全语言作用域化防污染 Python；bootstrap/sync 加 JSON 合并 + 迁移去重                                                                                                                                                                                     |
 | 33  | ros2 工作空间模板              | ✨ 功能 | 项目模板机制   | 新增 templates/ros2/（合并 Python ament_python + C++ ament_cmake 参考包于单一 colcon 工作空间 stack，参考包落 src/）+ rules/ros2.md（ament-first CMake / 依赖消费导出 / 新增包检查清单），GLOBAL_AGENTS.md 加 ROS 2 指针段；据飞书《软件构建集成规范》沉淀通用约定                                                                                                                                                                                |
 | 34  | 修复主题与 formatter 双 bug    | 🐛 修复 | 代码格式化     | 修两个跨项目沉淀小 bug：react-vite 模板 theme-provider 暴露 resolvedTheme（修 system 模式按钮错乱 + matchMedia 实时跟随）；fix-after-edit.sh 的 ruff 加 `--unfixable F401`，分步 Edit 间不再误删未用 import（致 F821）                                                                                                                                                                                                                            |
-| 35  | 批量沉淀文档类规则             | ✨ 功能 | 全局宪法治理   | 一轮消化 8 条跨项目 type:docs issue：python.md 新增「打包·发布·安装」节（含前端产物 wheel 化 / 自托管 GitLab Registry / pip --target 删旧重装）、frontend.md（worktree 门禁备齐 node_modules + shadcn label htmlFor/id）、ros2.md 新增「Python/pip 依赖」节、新建 rules/shell.md（中文/全角 × shell 引号与变量名），GLOBAL_AGENTS.md 加 shell 指针                                                                                                |
+| 35  | 批量沉淀文档类规则             | ✨ 功能 | 领域规则沉淀   | 一轮消化 8 条跨项目 type:docs issue：python.md 新增「打包·发布·安装」节（含前端产物 wheel 化 / 自托管 GitLab Registry / pip --target 删旧重装）、frontend.md（worktree 门禁备齐 node_modules + shadcn label htmlFor/id）、ros2.md 新增「Python/pip 依赖」节、新建 rules/shell.md（中文/全角 × shell 引号与变量名），GLOBAL_AGENTS.md 加 shell 指针                                                                                                |
 | 36  | skill 与模板批量清理           | ✨ 功能 | 项目模板机制   | 批量收 4 条 issue：新建 python-uv-workspace stack（uv workspace 多包单仓——虚拟根 + packages/\* 成员 + 跨成员 `workspace=true` 依赖），bootstrap/sync 加 workspace 分支（跳过 uv init、fragment 创建虚拟根、uv add --dev 写 dev group）+ rules/python.md §2.2 escape hatch（#20）；/finish 加 --no-merge/--keep-backup/--no-rebase 收尾选项（#13）；/start 编号识别跨 worktree 三源并集去重（#35）；#23 被 round 33 合一 ros2 stack 取代、随轮关闭 |
+| 38  | 批量沉淀 python-ros2 规则      | ✨ 功能 | 领域规则沉淀   | 一轮消化 5 条跨项目 type:docs issue：rules/python.md 新增 §2.3（src 布局顶层同名目录遮蔽真包排障）/ §4 fixture 独立来源 / §5.4 应用内 uv tool 更新自检骨架 + §5.2 补 GitLab simple 查版本；rules/ros2.md §2 表加 ament_cmake_python 行 + §4.6 source-time hook（ament_environment_hooks）+ §5 双链路子节（同一 Python 包既作 uv 成员又作 colcon 包）                                                                                              |
 
 ---
 
@@ -241,7 +248,12 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25, 28, 35
+- 轮次：24, 25
+
+#### 领域规则沉淀
+
+- 状态：进行中
+- 轮次：28, 35, 38
 
 ### 开发工具链
 

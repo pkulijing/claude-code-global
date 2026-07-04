@@ -16,12 +16,13 @@ ROS 2 是一个**工作空间（colcon workspace）维度**：一个仓库即一
 
 ## 2. 包类型
 
-| 类型           | build_type                  | 典型用途                    |
-| -------------- | --------------------------- | --------------------------- |
-| C++ 功能包     | `ament_cmake`               | 节点、库、控制器、硬件接口  |
-| 消息/服务包    | `ament_cmake` + `rosidl`    | `.msg` / `.srv` / `.action` |
-| Bringup 配置包 | `ament_cmake`（仅 install） | launch、config、urdf、脚本  |
-| Python 包      | `ament_python`              | 纯 Python 节点              |
+| 类型                         | build_type                           | 典型用途                                                               |
+| ---------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| C++ 功能包                   | `ament_cmake`                        | 节点、库、控制器、硬件接口                                             |
+| 消息/服务包                  | `ament_cmake` + `rosidl`             | `.msg` / `.srv` / `.action`                                            |
+| Bringup 配置包               | `ament_cmake`（仅 install）          | launch、config、urdf、脚本                                             |
+| Python 包                    | `ament_python`                       | 纯 Python 节点（无 source-time hook 需求）                             |
+| Python 包 + source-time hook | `ament_cmake` + `ament_cmake_python` | 纯 Python 节点，但需 `source` 时跑逻辑（见 §4.6），或要 CMake 装配能力 |
 
 ## 3. package.xml 规范
 
@@ -82,6 +83,27 @@ ROS 2 是一个**工作空间（colcon workspace）维度**：一个仓库即一
 - `target_compile_features(<tgt> PUBLIC cxx_std_17)`（或更高）。
 - **第三方 SDK**：路径用 `CACHE PATH` + 相对路径；架构分支用 `CMAKE_SYSTEM_PROCESSOR` 区分 x86_64 / aarch64；缺失用 `WARNING` + 条件编译不阻断整包；功能开关用 `option(ENABLE_XXX ...)` + `target_compile_definitions`；动态库 `target_link_libraries(... PRIVATE ...)` 并设 RPATH。
 
+### 4.6 source-time environment hook（`ament_environment_hooks`）
+
+想让「`source install/setup.bash` 时自动跑一段逻辑」（装 pip 依赖、设环境变量、起辅助进程…），唯一的 ROS 官方机制是 `ament_cmake` 的 **`ament_environment_hooks(<name>.sh.in)`**；**纯 `ament_python` 做不到**——哪怕你用 `setup.py` 的 `data_files` 去铺 `share/<pkg>/environment/` 或 `ament_index/resource_index/environment` marker，colcon 也不会 source 它。
+
+**为什么纯 ament_python 不触发**：colcon-ros 的 `ament_python` build task 生成包 `package.dsv`（`source` 时被级联执行的清单）时，要 source 哪些 hook 是**写死的**——只有 `pythonpath` + `ament_prefix_path`。它**不扫** `share/<pkg>/environment/` 目录、**不读** `resource_index/environment` marker、**不调**任何 hook 发现函数。现象：纯 ament_python 版 build 出的 `package.sh` 里根本没有 source 你那个 hook 的行 → `source` 很快结束、逻辑不触发。而 `share/<pkg>/environment/` + marker 那套是 **`ament_cmake`** 的 `ament_environment_hooks()` 宏专属（CMake 期把 hook 装进去、由 `ament_package()` 注册进包 `local_setup`）。
+
+**正解**：包从纯 `ament_python` 改为 **`ament_cmake_python`**（`package.xml` 的 `<build_type>` 改 `ament_cmake`），CMakeLists 里用 `ament_python_install_package` 装模块、`install(PROGRAMS ...)` 装可执行入口（`ament_cmake_python` **不处理** `console_scripts`，entry 要手写）、`ament_environment_hooks(hook.sh.in)` 注册 source-time hook：
+
+```cmake
+cmake_minimum_required(VERSION 3.8)
+project(my_pkg NONE)          # 纯 Python 无编译，NONE 跳过编译器探测
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR src/${PROJECT_NAME})
+install(PROGRAMS scripts/my_node DESTINATION lib/${PROJECT_NAME})   # 手写 entry
+ament_environment_hooks(env-hook/my_pkg.sh.in)                       # source 时跑
+ament_package()
+```
+
+配套：`ament_cmake_python` 布局下没有 `setup.cfg` 作 pytest rootdir 锚，用 `pytest.ini` 接替。
+
 ## 5. Python / pip 依赖（ament_python 包消费 pip 依赖）
 
 任何 ROS 2 工程都会遇到「一个 ROS 包怎么装它的 pip 依赖」。与 §4 的 C++（CMake / ament）依赖并列，Python 依赖的选型默认走轻方案：
@@ -91,6 +113,27 @@ ROS 2 是一个**工作空间（colcon workspace）维度**：一个仓库即一
   - rosdep 的 pip installer 用 `sudo -H --preserve-env=... pip3 install` 跑，会**剥掉** `PIP_CONFIG_FILE` / `PIP_TRUSTED_HOST` 等环境变量 → 私有 index / 自签证书全失效；需 sudoers `env_keep` 显式穿透。
   - pip 配置文件里的 `trusted-host` **不被** pip 的下载会话采纳（只有命令行 flag / `PIP_TRUSTED_HOST` env 生效）。
 - **一句话原则：选型前先看兄弟仓既有做法**，别凭「更正规」的直觉直接上重机制——重武器的隐性成本（registry index + token + 跳过自签证书 + sudoers）往往远超「requirements.txt 顶部两行」。
+
+### 双链路：同一 Python 包既作 uv workspace 成员、又作 colcon 包
+
+ROS 2 + Python 混合仓里会遇到「一个纯 Python 包既要走 uv / PyPI 链路、又要走 colcon / ament 原生 import 链路」——典型是 PC 端 uv 工具与端侧 ROS 2 节点**共享一份 protobuf / 契约 / 纯逻辑**：该包既作 uv workspace 成员（`uv_build` 打 wheel、发 PyPI registry、开发机 editable 装了跑测试），又作 colcon 包（端侧 `colcon build` + `source install/setup.bash` 后**原生 import、零运行期 pip**）。这与上文「`ament_python` 包怎么装 pip 依赖」互补：一个是"装依赖"，一个是"同一包被两套构建系统消费"。
+
+**原则：双链路 = 两套构建元数据物理隔离，各读各的。**
+
+- **uv 侧不动**：`pyproject.toml` 保留 `[build-system] uv_build`（照常发 wheel / editable）。
+- **colcon 侧新增**同目录的 `package.xml`（`<build_type>ament_cmake</build_type>`）+ `CMakeLists.txt`：
+
+  ```cmake
+  cmake_minimum_required(VERSION 3.8)
+  project(my_proto NONE)          # 纯 Python 无编译，NONE 跳过编译器探测（交叉编译无关）
+  find_package(ament_cmake REQUIRED)
+  find_package(ament_cmake_python REQUIRED)
+  ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR src/${PROJECT_NAME})
+  ament_package()
+  ```
+
+- **隔离成立的关键**：colcon 只读 `package.xml` / `CMakeLists.txt`，uv 只读 `pyproject.toml`；选 `ament_cmake`（**而非** `ament_python`）正是为了避免 `setup.py` 布局与 `uv_build` 的 src 布局抢同一目录的元数据。
+- 下游 ROS 包运行期 import 它 → 在其 `package.xml` 里加 `<exec_depend>my_proto</exec_depend>`，保证 colcon 构建顺序 + `source` 后运行期可见。
 
 ## 6. 纯逻辑 / ROS 薄壳分层（跨语言通用）
 
