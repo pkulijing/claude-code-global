@@ -1,6 +1,6 @@
 ---
 name: finish
-description: 完成当前开发项：撰写 SUMMARY.md，反思跨项目可沉淀流程并可向 claude-code-global 提 issue，关联并关闭 issue（GitHub / GitLab，如有），更新 BACKLOG.md，提交代码
+description: 完成当前开发项：撰写 SUMMARY.md，反思跨项目可沉淀流程并可向 claude-code-global 提 issue，关联并关闭 issue（GitHub / GitLab，如有），提交代码
 disable-model-invocation: false
 ---
 
@@ -24,21 +24,23 @@ disable-model-invocation: false
 
 SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项」**：反思本轮过程中有没有**值得沉淀成跨项目资产 / 可复用流程**的经验，列出来并标注去向（见 Step 3 的判定标准与去向分类）。无则写「暂无」，不留空让人猜。这是本地持久记录，Step 3 据此对跨项目项采取行动。
 
-## Step 2：扫 SUMMARY 提示「不再追踪」段补录
+## Step 2：扫 SUMMARY 提示「刻意不做」项归档
 
-写完 SUMMARY 后，扫「局限性」与「后续 TODO」段，问用户：
+需求以云端 issue 为**单一真源**，无本地索引文件。写完 SUMMARY 后，扫「局限性」与「后续 TODO」段，问用户：
 
-> 「上面有没有**刻意决定不做**的项要补到 BACKLOG.md「不再追踪」段？」
+> 「上面有没有**刻意决定不做**的项要归档留痕（避免未来翻老 SUMMARY 误以为是遗漏）？」
 
-- 用户给出条目 + 原因 → 引导用户写一行追加到 `docs/BACKLOG.md` 的「## 已完成 / 不再追踪」段（每条带原因，避免未来翻老 SUMMARY 误以为是遗漏）
+- 用户给出条目 + 原因 → 把它**归档为一个带 `wontfix` label 的 closed issue**（与「issue 是真源」一致、可检索、可按 label 过滤）。二选一：
+  - 让用户跑 `/backlog` 起 issue，选完三轴后**额外加 `wontfix` label**，建完随即 close（`gh issue close <N> -r "not planned"` / `glab issue close <N>`）；
+  - 或本步直接用 helper 建：`issue-create --title "刻意不做：<一句话>" --body-file /tmp/wontfix.md --label wontfix --label type:docs --label area:<Y> --label priority:P2`，body 写原因 + 引用本轮 SUMMARY 路径，建完 close。
+  - 若 `wontfix` label 尚不存在于目标仓库 → 先补进 `.github/labels.yml` 并 `label-sync-from-file` 同步，再建 issue（三轴 + wontfix label 是硬要求，缺 label 会让 `issue-create` 整条失败）。
 - 用户说「无」→ 跳过
-- BACKLOG.md 不存在 → 跳过此步（issue 驱动模式由 `/backlog` 首次调用时初始化骨架）
 
 ## Step 3：跨项目可沉淀流程反思（在任意项目都跑）
 
 本步的价值：每个开发轮里冒出的「值得复用的重复性流程」常散落在对话里靠人捡，容易错过抽象时机。这里主动反思，并对**跨项目资产**类候选**直接向 claude-code-global 仓库提 issue**（跨仓库），不靠人事后回忆。
 
-**这类跨仓库 issue 不进任何 BACKLOG 索引**——它不是在 claude-code-global 项目内部发起的，BACKLOG 只索引「本项目内发起的待办」。
+**这类跨仓库 issue 独立于当前项目**——它是在 claude-code-global 仓库里发起的云端 issue（那里的 open 项由其自己的 saved query 速览），与当前项目无索引耦合。
 
 ### 3.1 反思候选 + 判定标准
 
@@ -59,7 +61,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 ### 3.3 自指守卫
 
-若**当前仓库就是 claude-code-global**（`git rev-parse --show-toplevel` == `realpath "$HOME/.claude/global-repo"`）→ 跨项目资产候选改为建议走**本地 `/backlog`**（遵循本项目「issue 进 BACKLOG」约定），不 API 自 file。本步剩余跳过。
+若**当前仓库就是 claude-code-global**（`git rev-parse --show-toplevel` == `realpath "$HOME/.claude/global-repo"`）→ 跨项目资产候选改为建议走**本地 `/backlog`**（遵循本项目「issue 即单一真源」约定），不 API 自 file。本步剩余跳过。
 
 ### 3.4 逐条确认（外部可见动作，不自动 file）
 
@@ -88,7 +90,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
    只从该列表里挑 label。若选中的 label 不在列表中 → 不要硬塞（会让下一步 `issue-create` 整条失败），改选已存在的同轴 label，或先 `label-sync-from-file "$GLOBAL_DIR/.github/labels.yml"` 把 labels.yml 同步到远端后再校验。
 
-3. **写临时 body**（`/tmp/distill-<n>.md`）：来源项目名 + 轮次 + 为什么值得沉淀（重复性/通用性）+ 具体落点建议 + 末尾标注「跨项目自动沉淀、未进 BACKLOG」。当前项目有 remote 就给回链 URL，否则写项目目录名。
+3. **写临时 body**（`/tmp/distill-<n>.md`）：来源项目名 + 轮次 + 为什么值得沉淀（重复性/通用性）+ 具体落点建议 + 末尾标注「跨项目自动沉淀 issue」。当前项目有 remote 就给回链 URL，否则写项目目录名。
 
 4. **调 helper 跨仓库提**：
 
@@ -103,9 +105,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
    **失败兜底（关键）**：若 helper 报错（如某 label 在目标仓库不存在导致 `gh`/`glab` 整条失败），**绝不去掉 `--label` 重试以求创建成功**——那正是历史上产出无 label 裸 issue（如 #12）的原因。正确做法：按 step 2 重新校验/修正 label（改选已存在的，或先 `label-sync-from-file`），带齐三轴重试；若仍无法解决，停下把错误报给用户，候选已记在 SUMMARY 可沉淀项段、可手动补，不阻塞 finish。
 
-5. **不更新任何 BACKLOG.md**（既不是 claude-code-global 的，也不是当前项目的）。
-
-## Step 4：识别 issue 关联与 BACKLOG.md 索引清理
+## Step 4：识别 issue 关联
 
 读 `docs/<本轮编号>-*/PROMPT.md` 顶部，看是否有 `> 来自 [#<N> ...](<URL>)` 引用块（由 `/start <issue#>` 写入）：
 
@@ -121,9 +121,9 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
     **绝不要**写成 `Closes #13 #20 #23`（含逗号的 `Closes #13, #20` 同样不行）—— GitHub / GitLab 的关闭关键字只对**紧跟其后的第一个** issue 号生效，后面的号会被当成普通引用、**不会关闭**。这是踩过的坑（一行写四个只关了第一个），务必逐个带关键字。
 
-  - 从 `docs/BACKLOG.md` 索引中**删除**对应 URL 那一/那几行（无 BACKLOG.md 文件则跳过）
+    issue 关闭由 `Closes #N` 合并时自动完成，无本地索引需清理（需求以云端 issue 为单一真源）。
 
-- **无 issue 关联**（自由描述分支） → 仅按本步骤剩余动作走，不涉及 issue/BACKLOG
+- **无 issue 关联**（自由描述分支） → 仅按本步骤剩余动作走，不涉及 issue 关联
 
 ## Step 5：调用 `/devtree`
 
@@ -142,7 +142,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 1. **skill 增减**：`skills/<name>/` 子目录新增或删除
 2. **hook 增减**：`hooks/*` 文件新增或删除
 3. **顶层目录结构变化**：仓库根目录、`skills/` / `templates/` / `hooks/` 这几层出现新增 / 删除子目录
-4. **面向用户的工作流改动**：本轮 PROMPT.md 或 SUMMARY.md 中明示「面向用户的入口/约定改了」（例：BACKLOG / issue 驱动、安装方式、模板使用方式、命令行接口）
+4. **面向用户的工作流改动**：本轮 PROMPT.md 或 SUMMARY.md 中明示「面向用户的入口/约定改了」（例：需求管理 / issue 驱动、安装方式、模板使用方式、命令行接口）
 
 明示**不触发**：
 
@@ -154,7 +154,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 ### 判定数据源
 
 - `git status --porcelain` + `git diff --cached --name-status` 的并集（本步在 commit 前跑，未提交变更也要算）
-- **明示忽略**前面几步刚改的 `SUMMARY.md` / `DEVTREE.md` / `BACKLOG.md` 自身 —— 它们不应触发 README review
+- **明示忽略**前面几步刚改的 `SUMMARY.md` / `DEVTREE.md` 自身 —— 它们不应触发 README review
 
 ### 触发后子步
 
@@ -165,7 +165,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 ## Step 7：调用 `/commit`
 
-调用 `/commit` 提交所有变更（包括 SUMMARY.md / DEVTREE.md / 本次 BACKLOG.md / README.md 的变化）。
+调用 `/commit` 提交所有变更（包括 SUMMARY.md / DEVTREE.md / README.md 的变化）。
 
 `/commit` 会**按当前执行的 Agent 选择 `Co-authored-by` 身份**（CC → Claude、Codex → OpenAI Codex，详见 `/commit` 第 8 步与全局 CLAUDE.md「git 规则」）—— **Codex 执行 `/finish` 收尾时同样不写 Claude 身份**，不要在 finish 语境下被默认成 Claude。
 

@@ -50,3 +50,8 @@
 - name: "area:doc"
   color: "C5DEF5"
   description: "GLOBAL_AGENTS.md / docs/ 文档体系"
+
+# ---------- 决策归档（三轴之外）----------
+- name: "wontfix"
+  color: "FFFFFF"
+  description: "刻意决定不做的项（decided-no），带原因归档为 closed issue"

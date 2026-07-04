@@ -41,6 +41,25 @@ marker 文件名在 round 22 由 `.cc-template.yml` 改为 `.agent-template.yml`
 - 两者**同时存在** → 报冲突并停止，请用户手动处理（不猜测哪个为准）。
 - 其余情况不动。
 
+### 废弃 BACKLOG.md 一次性迁移
+
+需求管理已改为「云端 issue 单一真源、无本地索引文件」（见 `GLOBAL_AGENTS.md`「需求管理」章）。老项目本地可能仍遗留 `docs/BACKLOG.md`——它与云端 open issues 是双写副本，正是新约定要消除的 drift。sync 是「把约定变更落地到老项目」的天然承载点，故在此做一次性迁移（做完即删文件、后续幂等无操作，类比上文「旧名 marker 自动迁移」）。
+
+**探测**：项目根 `docs/BACKLOG.md` 是否存在。
+
+- **不存在** → 跳过本节（绝大多数已迁移 / 新项目都走这里）。
+- **存在** → 停下来引导用户一次性迁移，迁完再 `git rm`，然后继续正常 sync：
+  1. **读 `docs/BACKLOG.md`**，分出两类条目：
+     - **open 项**（`## P0/P1/P2` 段里的行，每行本就带一个云端 issue 链接）；
+     - **「刻意不做」项**（`## 已完成 / 不再追踪` 段里的行，每条带原因）。
+  2. **open 项 → 确认云端已有对应 issue**：逐条核对该行的 issue 链接指向的 issue 仍 open（`python3 $HOME/.claude/scripts/platform_issue.py issue-view <N>`）。都在 → 无需动作（云端已是真源，删文件不丢信息）；若某行**没有** issue 链接（极老的裸文本条目）→ 提示用户先 `/backlog` 把它补成云端 issue，再继续。
+  3. **「刻意不做」项 → 归档为带 `wontfix` 的 closed issue**：逐条建 issue 并随即 close（与 `/finish` Step 2 同一手法）：
+     - 先确保目标仓库有 `wontfix` label：`label-list` 校验，缺则先补进 `.github/labels.yml` 并 `label-sync-from-file` 同步；
+     - `issue-create --title "刻意不做：<一句话>" --body-file <tmp> --label wontfix --label type:docs --label area:<Y> --label priority:P2`，body 保留原条目的原因文字；
+     - 建完 `gh issue close <N> -r "not planned"`（GitLab 用 `glab issue close <N>`）。
+  4. **删文件**：两类条目都迁移确认后 `git rm docs/BACKLOG.md`，告知用户「已废弃本地 BACKLOG.md，open 项速览改用 saved query（按 priority 过滤 open issues），刻意不做项已归档为 wontfix closed issue」。
+  5. 迁移完成后**继续**下面的模式判断，把本轮 sync 正常跑完（BACKLOG.md 的删除会一并进本轮 sync 的收尾 diff）。
+
 ### 判断模式
 
 读项目根 `.agent-template.yml`：

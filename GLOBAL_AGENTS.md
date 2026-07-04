@@ -38,12 +38,11 @@
 
 ### 需求管理
 
-- 需求以 **issue 为真源**：详情、讨论等都沉淀在 issue 里
-- `docs/BACKLOG.md` 是**未关闭 issue 的扁平索引**
+- 需求以 **issue 为单一真源**：详情、讨论等都沉淀在 issue 里，**无本地索引文件**——「未关闭 open 项速览」由一个按 priority label 过滤 open issues 的 **saved query** 承担（README 挂链接），消除双写与 drift。
 - **三轴 label**：每条 issue 必打 `type:*`（全局统一）/ `area:*`（项目特异）/ `priority:*`（P0/P1/P2），type 和 priority 的选项由 `_common` 模板的 `.github/labels.yml` 维护。
-- **三件套 skill**：`/backlog` 建 issue + 写 BACKLOG 索引、`/start <issue#>` 拉详情开轮、`/finish` 收尾并在 commit 写 `Closes #N`。
+- **三件套 skill**：`/backlog` 建 issue、`/start <issue#>` 拉详情开轮、`/finish` 收尾并在 commit 写 `Closes #N`。
 - **Closes #N**：commit/PR 描述写 `Closes #N`，合并到 default branch 自动关 issue（GitHub / GitLab 原生支持），issue 永久保留、与 commit/MR 双向可查 —— 这是跨轮上下文可追溯的关键保证。
-- **已完成项**不在 BACKLOG.md 追踪（看平台 closed issues）；BACKLOG.md 末尾「## 已完成 / 不再追踪」段只记**刻意决定不做**的项 + 原因。
+- **刻意决定不做**的项归档为带 `wontfix` label 的 **closed issue**（可检索、可按 label 过滤），不维护任何本地文件段。已完成项看平台 closed issues。
 - issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。跨仓库沉淀 issue（如向 claude-code-global 提改进，无论是否经 `/finish`）**必须带三轴 label** —— helper 已对「`--repo` 跨仓库 + 零 label」创建强制拦截（确需裸提才加 `--allow-no-label`）。
 
 ### 需求生命周期

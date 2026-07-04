@@ -41,7 +41,7 @@ graph TD
   toolchain --> devmgmt["开发项管理"]:::epic
   toolchain --> codemgmt["代码管理"]:::epic
   devmgmt --> e_devtree
-  devmgmt --> e_backlog
+  devmgmt --> e_reqmgmt
   codemgmt --> e_rebase
   codemgmt --> e_format
   toolchain --> e_content
@@ -140,11 +140,13 @@ graph TD
     N4 ~~~ N5
   end
 
-  subgraph e_backlog["✅ BACKLOG 管理"]
+  subgraph e_reqmgmt["✅ 需求管理"]
     direction TB
     N7["✨ 7 · 创建 backlog-skill"]:::feature
     N12["✨ 12 · backlog 改为 issue 驱动"]:::feature
+    N39["✨ 39 · 废弃 backlog 单一真源"]:::feature
     N7 ~~~ N12
+    N12 ~~~ N39
   end
 
   subgraph e_rebase["✅ rebase 工作流"]
@@ -182,12 +184,12 @@ graph TD
 | 4   | 创建 devtree-skill                | ✨ 功能 | DEVTREE 管理   | 创建 /devtree skill，可视化开发树并集成到 /finish 流程                                                                                                                                                                                                                                                                                                                                                                                            |
 | 5   | 重构 devtree-skill-epic 模型      | 🏗️ 重构 | DEVTREE 管理   | 引入 Epic 层，叶 Epic 为 subgraph 卡片，重构可视化方案                                                                                                                                                                                                                                                                                                                                                                                            |
 | 6   | settings 合并机制                 | 📦 工程 | CC 配置合并    | install.sh 新增 settings.base.json 与本地 settings.json 的非破坏性合并（对象递归、数组并集）                                                                                                                                                                                                                                                                                                                                                      |
-| 7   | 创建 backlog-skill                | ✨ 功能 | BACKLOG 管理   | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                                                                                                                                                                                                                                                                                                                                                |
+| 7   | 创建 backlog-skill                | ✨ 功能 | 需求管理       | 创建 /backlog skill，交互式扩写 + 归类后追加条目到 docs/BACKLOG.md                                                                                                                                                                                                                                                                                                                                                                                |
 | 8   | 权限配置治理与清理 skill          | 📦 工程 | CC 配置合并    | 调研 CC 权限匹配规则，重写 settings.base.json，新增 /clean-local-setting skill，清理 5 项目 local 配置（257→54 条）                                                                                                                                                                                                                                                                                                                               |
 | 9   | 创建 bootstrap-skill              | 📦 工程 | 项目初始化     | 新增 /bootstrap 处理空项目骨架（README/CLAUDE/DEVTREE），改 /devtree 支持冷启动，改 /start 加前置检查                                                                                                                                                                                                                                                                                                                                             |
 | 10  | 接入 prettier 格式化 hook         | 📦 工程 | 代码格式化     | 新增全局 PostToolUse hook（.py/.md 编辑后自动格式化），bootstrap skill 增写 .prettierrc 与项目本地推荐配置约定                                                                                                                                                                                                                                                                                                                                    |
 | 11  | 跨项目共享模板与 sync-skill       | ✨ 功能 | 项目模板机制   | 新增 templates/<stack>/，扩展 /bootstrap 与新增 /sync-project-config，跨项目模板分发 + AI 智能 merge + marker 管理                                                                                                                                                                                                                                                                                                                                |
-| 12  | backlog 改为 issue 驱动           | ✨ 功能 | BACKLOG 管理   | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                                                                                                                                                                                                                                                                                                                   |
+| 12  | backlog 改为 issue 驱动           | ✨ 功能 | 需求管理       | 把 backlog 工作流改为 GitHub Issue 真源（三轴 label + issue templates + Closes #N），引入 \_common 伪 stack 承载 stack-无关资源                                                                                                                                                                                                                                                                                                                   |
 | 13  | finish 收尾同步 README            | ✨ 功能 | 开发项收尾     | /finish 末尾新增 Step 3.5（README review），命中触发清单则同步更新 README；本轮一次性补齐 README 基线（hooks / 模板 / 全量 skill 表 / BACKLOG 工作流）                                                                                                                                                                                                                                                                                            |
 | 14  | 模板支持 GitLab 双轨              | ✨ 功能 | 项目模板机制   | \_common 与 python-uv 模板同时落 GitHub + GitLab 两套等价文件（issue templates + CI），bootstrap/sync 的 gh label create 按 origin 平台三分支判定                                                                                                                                                                                                                                                                                                 |
 | 15  | 三件套 skill 支持 GitLab 双轨     | ✨ 功能 | 项目模板机制   | 新增 scripts/platform_issue.py helper（封装 gh ↔ glab 双轨调用），让 /backlog /start /finish /bootstrap /sync-project-config 在 GitLab 项目上等价可用                                                                                                                                                                                                                                                                                             |
@@ -213,6 +215,7 @@ graph TD
 | 35  | 批量沉淀文档类规则                | ✨ 功能 | 领域规则沉淀   | 一轮消化 8 条跨项目 type:docs issue：python.md 新增「打包·发布·安装」节（含前端产物 wheel 化 / 自托管 GitLab Registry / pip --target 删旧重装）、frontend.md（worktree 门禁备齐 node_modules + shadcn label htmlFor/id）、ros2.md 新增「Python/pip 依赖」节、新建 rules/shell.md（中文/全角 × shell 引号与变量名），GLOBAL_AGENTS.md 加 shell 指针                                                                                                |
 | 36  | skill 与模板批量清理              | ✨ 功能 | 项目模板机制   | 批量收 4 条 issue：新建 python-uv-workspace stack（uv workspace 多包单仓——虚拟根 + packages/\* 成员 + 跨成员 `workspace=true` 依赖），bootstrap/sync 加 workspace 分支（跳过 uv init、fragment 创建虚拟根、uv add --dev 写 dev group）+ rules/python.md §2.2 escape hatch（#20）；/finish 加 --no-merge/--keep-backup/--no-rebase 收尾选项（#13）；/start 编号识别跨 worktree 三源并集去重（#35）；#23 被 round 33 合一 ros2 stack 取代、随轮关闭 |
 | 38  | 批量沉淀 python-ros2 规则         | ✨ 功能 | 领域规则沉淀   | 一轮消化 5 条跨项目 type:docs issue：rules/python.md 新增 §2.3（src 布局顶层同名目录遮蔽真包排障）/ §4 fixture 独立来源 / §5.4 应用内 uv tool 更新自检骨架 + §5.2 补 GitLab simple 查版本；rules/ros2.md §2 表加 ament_cmake_python 行 + §4.6 source-time hook（ament_environment_hooks）+ §5 双链路子节（同一 Python 包既作 uv 成员又作 colcon 包）                                                                                              |
+| 39  | 废弃 backlog 单一真源             | ✨ 功能 | 需求管理       | 废弃 docs/BACKLOG.md、需求管理改为云端 issue 单一真源（open 项速览走按 priority 过滤的 saved query，「刻意不做」项归档为带 wontfix 的 closed issue）；改 backlog/finish/sync-project-config 三 skill + GLOBAL_AGENTS.md + README，sync 加老项目遗留 BACKLOG.md 一次性迁移节                                                                                                                                                                       |
 | 40  | rebase 静默直行与 commit 署名身份 | 🏗️ 重构 | rebase 工作流  | /rebase 由「每阶段必停」改为「默认静默直行 + 必停清单」（无冲突近乎瞬间跑完，脏区 / 冲突 / FF 失败 / 公共分支 / push 才停，备份 tag 无条件必打）；commit/finish 的 Co-authored-by 按执行 Agent 自选身份（CC → Claude / Codex → OpenAI Codex），修 Codex 收尾误写 Claude                                                                                                                                                                           |
 
 ---
@@ -277,10 +280,10 @@ graph TD
 - 状态：已完成
 - 轮次：4, 5
 
-##### BACKLOG 管理
+##### 需求管理
 
 - 状态：已完成
-- 轮次：7, 12
+- 轮次：7, 12, 39
 
 #### 代码管理
 
@@ -298,3 +301,7 @@ graph TD
 
 - 状态：进行中
 - 轮次：29
+
+```
+
+```

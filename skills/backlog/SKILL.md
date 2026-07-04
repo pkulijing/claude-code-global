@@ -1,15 +1,14 @@
 ---
 name: backlog
-description: 把一条 backlog 创建成 issue（GitHub / GitLab 自动双轨，含三轴 label）+ 在 docs/BACKLOG.md 索引中加一行链接
+description: 把一条 backlog 创建成 issue（GitHub / GitLab 自动双轨，含三轴 label）—— issue 即单一真源，无本地索引文件
 disable-model-invocation: false
 ---
 
-用户调用此 skill 表示要新增一条 backlog。本仓库工作流：**issue 是真源**（详情、讨论、跨轮上下文都沉淀在 issue 里），`docs/BACKLOG.md` 退化为「未关闭 issue 的扁平索引」。本 skill 完成两件事：
+用户调用此 skill 表示要新增一条 backlog。本仓库工作流：**issue 是单一真源**（详情、讨论、跨轮上下文都沉淀在 issue 里），**无本地索引文件**——「未关闭 open 项速览」由一个按 priority label 过滤 open issues 的 saved query 承担（README / GLOBAL_AGENTS.md 挂链接）。本 skill 只做一件事：
 
-1. 走 issue template 创建一个 issue（含三轴 label）—— 平台由 `git remote get-url origin` 自动判定 GitHub / GitLab
-2. 在 `docs/BACKLOG.md` 对应 priority 段加一行链接
+- 走 issue template 创建一个 issue（含三轴 label）—— 平台由 `git remote get-url origin` 自动判定 GitHub / GitLab
 
-删除职责仍在 `/finish` 里（commit 含 `Closes #N` → 自动关 issue + 删 BACKLOG.md 那行；`Closes #N` 在 GitHub / GitLab 默认分支均自动关 issue）。
+issue 关闭仍由 `/finish` 完成（commit 含 `Closes #N` → 合并到 default branch 自动关 issue；`Closes #N` 在 GitHub / GitLab 均原生生效）。
 
 所有平台耦合的 CLI 调用都通过 helper `python3 $HOME/.claude/scripts/platform_issue.py <subcommand>`，本 SKILL 不直接调 `gh` / `glab`。
 
@@ -57,9 +56,7 @@ disable-model-invocation: false
 
 把 title + body + 三个 label 一并展示，等用户确认。允许调整任意字段，**不自动落盘**。
 
-### Step 6：执行 —— 创建 issue + 加 BACKLOG 索引
-
-#### 6.1 创建 issue
+### Step 6：执行 —— 创建 issue
 
 把 Step 5 确认过的 body 内容写到临时文件 `/tmp/backlog-body.md`（用 Write 工具），再调 helper：
 
@@ -74,67 +71,15 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-create \
 
 helper stdout 输出新建 issue 的 URL（单行），从中提取 issue 号 `#N`。GitHub URL pattern: `.../issues/N`；GitLab URL pattern: `.../-/issues/N`。
 
-#### 6.2 BACKLOG.md 不存在 → 用新骨架初始化
-
-新骨架（`{slug}` 由 `python3 $HOME/.claude/scripts/platform_issue.py repo-slug` 获取 —— GitHub 端为 `owner/repo`，GitLab 端为 `namespace/project`；`{项目名}` 默认取 git 仓库名；`{closed-issues-url}` 按 `detect-platform` 输出生成：GitHub 用 `https://github.com/{slug}/issues?q=is%3Aissue+is%3Aclosed+label%3Apriority%3AP0%2Cpriority%3AP1%2Cpriority%3AP2`，GitLab 用 `https://gitlab.com/{slug}/-/issues?state=closed&label_name[]=priority:P0&label_name[]=priority:P1&label_name[]=priority:P2`，自托管 GitLab 把 host 替换为对应实例域名）：
-
-```markdown
-# {项目名} — Backlog
-
-未来开发项的**速览索引**。每条都对应一个 issue（GitHub / GitLab 自动判定），**详情、讨论、跨轮上下文都在 issue 里**。
-
-**为什么这样组织**：issue 是真源（permanent history + 通过 `Closes #N` 跟 commit/PR 永久关联，开发完归档进 closed 仍可检索）。这个文件是当前还没开发的项的扁平快照，方便一眼扫到全图、决定下一轮挑哪个。
-
-## 工作流
-
-- **新增想法** → `/backlog` 走 issue templates，挂三轴 label，建完顺手在本文件相应分组里加一行
-- **开新轮** → 从下面挑一条 → `/start <issue#>` 把 issue 详情贴进 PROMPT.md → 开干
-- **收尾一轮** → PR / commit message 写 `Closes #<issue 号>` 自动关 issue → `/finish` 删本文件这一行
-
-## 三轴分类约定
-
-- **type**：`type:feat` / `type:bug` / `type:refactor` / `type:perf` / `type:test` / `type:docs`
-- **area**：模块分类，按本项目 `.github/labels.yml` 中的 `area:*` 列表
-- **priority**：`P0`（必须做、不做有重大风险）/ `P1`（重大新功能 / 用户能感知的明显问题）/ `P2`（一般小功能 / 偶发问题 / 触发面窄）
-
-## P0 — 必须做
-
-(暂无)
-
-## P1 — 重大新功能
-
-(暂无)
-
-## P2 — 一般小功能小修复
-
-(暂无)
-
-## 已完成 / 不再追踪
-
-历史已完成项**不在本文件追踪**，直接看 [closed issues with priority labels]({closed-issues-url})。
-
-下面只列**刻意决定不做**的条目（避免未来翻老 SUMMARY 误以为是遗漏）：
-
-(暂无)
-```
-
-#### 6.3 在对应 priority 段追加一行
-
-行格式：
-
-```
-- [#N <标题>](URL) · `type:X` `area:Y` —— <一句话理由（来自 priority 判断）>
-```
-
-定位策略：
-
-- priority 是 P0 → 在 `## P0 — 必须做` 段最后一条之后追加
-- priority 是 P1 → 在 `## P1 — 重大新功能` 段最后一条之后追加
-- priority 是 P2 → 在 `## P2 — 一般小功能小修复` 段最后一条之后追加
-- 如果该段当前是 `(暂无)`，把 `(暂无)` 替换成新条目（不再保留 `(暂无)`）
+**不再有任何本地索引写入**——issue 建成即已进入云端真源，open 项速览由 saved query（见 Step 7）承担。
 
 ### Step 7：反馈
 
-打印新创建的 issue URL + BACKLOG.md 中追加的位置，让用户确认。
+打印新创建的 issue URL，让用户确认。再附一行「open 项速览」的 saved query 链接（按 priority 过滤未关闭 issue），方便用户挑下一轮：
 
-**不调用 `/commit`** —— 是否立刻 commit BACKLOG.md 改动由用户决定。
+- GitHub：`https://github.com/{slug}/issues?q=is%3Aissue+is%3Aopen+label%3Apriority%3AP0%2Cpriority%3AP1%2Cpriority%3AP2`
+- GitLab：`https://gitlab.com/{slug}/-/issues?state=opened&label_name[]=priority:P0&label_name[]=priority:P1&label_name[]=priority:P2`（自托管把 host 换成对应实例域名）
+
+`{slug}` 由 `python3 $HOME/.claude/scripts/platform_issue.py repo-slug` 获取（GitHub 端 `owner/repo`，GitLab 端 `namespace/project`）。
+
+**不调用 `/commit`** —— 本 skill 只动云端 issue、不改任何本地文件，无需 commit。
