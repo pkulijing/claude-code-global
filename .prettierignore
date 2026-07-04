@@ -1,0 +1,3 @@
+# DEVTREE.md 由 /devtree 机器生成、经 VSCode preview 阅读，裸表格无需对齐。
+# Prettier 补空格把表格列对齐 → 内容一变整列重排、diff 爆炸，故豁免它、保持紧凑单空格。
+**/DEVTREE.md
