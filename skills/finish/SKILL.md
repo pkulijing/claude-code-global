@@ -125,6 +125,20 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 - **无 issue 关联**（自由描述分支） → 仅按本步骤剩余动作走，不涉及 issue 关联
 
+### Step 4.5：round 编号一致性检查
+
+`/commit` 会从 `round<N>-` 分支名或 `docs/<N>-*/` 目录推断 `[round N]` 前缀。若本轮经历过 rebase / 历史整理，目标分支可能已占用本地 round 编号，导致 **docs 目录编号** 与 **生成的 commit round** 脱节。commit 前逐条核对，命中不一致则给出**顺延计划、要求用户确认**，绝不静默继续：
+
+**触发条件**：目标分支已占用当前开发轮的本地 round 编号，或整理历史后发现 docs round 与将生成的 commit round 不一致。
+
+1. `docs/<N>-...` 目录编号是否需要顺延到下一个空位。
+2. `docs/DEVTREE.md` 的 Epic 结构、可视化与节点索引是否随之同步顺延（本步在 Step 5 `/devtree` 之前，顺延后 `/devtree` 会据最新目录重生成）。
+3. `/commit` 将生成的 `[round N]` 前缀是否与文档目录编号一致。
+4. **顺延如需改写已提交的历史**（rename docs 目录 + amend/rebase commit）→ 明确提示「这会改写历史」，等用户确认后才动手。
+5. 顺延后重新跑 `git log --oneline`、`git status` 与必要的文档检查，确认 docs 目录、`DEVTREE.md`、commit 前缀三者编号一致，再进 Step 5。
+
+三者本就一致（未经历 rebase 冲突，或编号无撞车）→ 打印一行「round 编号一致，无需顺延」，直接进 Step 5。
+
 ## Step 5：调用 `/devtree`
 
 调用 `/devtree` 更新开发树（`docs/DEVTREE.md`）。

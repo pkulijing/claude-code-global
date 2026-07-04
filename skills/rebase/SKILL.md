@@ -125,3 +125,17 @@ FF 成功则**直接继续**，不停顿。
 - 静默直行跑完后，给一份**结果汇报**：走了哪几个阶段、备份 tag 名、最终 `git log --graph --oneline -10`、是否已 / 待推送。
 - 提醒人类跑测试或启动服务，确认功能未坏。
 - 确认无误后，可删除阶段 1 的备份 tag：`git tag -d backup/...`。
+
+### round 编号一致性检查（仅涉及 docs 轮次的仓库）
+
+rebase 或历史整理后，目标分支可能已占用本地开发轮的 round 编号，导致三处编号脱节。**若本仓库用 `docs/<N>-...` 轮次目录**，rebase 完成后逐条核对，命中冲突则给出**顺延计划、要求用户确认**，绝不静默继续：
+
+**触发条件**：目标分支已占用当前开发轮的本地 round 编号，或 rebase 后发现 docs round 与 commit round 不一致。
+
+1. `docs/<N>-...` 目录编号是否需要顺延到下一个空位。
+2. `docs/DEVTREE.md` 的 Epic 结构、可视化与节点索引是否随之同步顺延。
+3. commit message 的 `[round N]` 前缀是否与文档目录编号一致。
+4. **顺延如需改写已提交的历史**（rename docs 目录 + amend/rebase commit）→ 明确提示「这会改写历史」，等用户确认后才动手。
+5. 顺延后重新跑 `git log --oneline`、`git status` 与必要的文档检查，确认 docs 目录、`DEVTREE.md`、commit 前缀三者编号一致。
+
+无 `docs/<N>-...` 轮次目录的仓库（如纯代码仓）→ 本节不适用，跳过。
