@@ -31,8 +31,8 @@ disable-model-invocation: false
    - **若第 5 步探出 N**：在 semantic message 最前面加 `[round N] ` 前缀，形如 `[round 3] feat(skill): 支持 xxx`
    - 简明扼要，聚焦于「为什么」而非「改了什么」
 7. 将相关文件添加到暂存区（优先按文件名添加，避免 `git add -A`）
-8. 执行提交，commit message 末尾必须包含：
-   ```
-   Co-authored-by: Claude <noreply@anthropic.com>
-   ```
+8. 执行提交，commit message 末尾必须**按当前执行的 Agent** 追加正确的 `Co-authored-by` trailer（详见全局 CLAUDE.md「git 规则」）：
+   - CC（Claude Code）执行 → `Co-authored-by: Claude <noreply@anthropic.com>`
+   - Codex（OpenAI Codex）执行 → `Co-authored-by: OpenAI Codex <noreply@openai.com>`
+   - **判据**：你知道自己是哪个 Agent，据此选身份；**Codex 绝不写 Claude 身份，CC 绝不写 Codex 身份**。
 9. 运行 `git status` 确认提交成功

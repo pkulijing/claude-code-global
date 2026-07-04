@@ -96,11 +96,14 @@
 - commit message 要求：
   - 使用中文，除非明确要求用英文
   - 内容遵循 semantic commit message 规则
-  - 由 AI 协助完成的提交，commit message 末尾必须包含 `Co-authored-by` trailer，例如：
+  - 由 Coding Agent 协助完成的提交，commit message 末尾必须包含 `Co-authored-by` trailer，且**按当前执行提交的 Agent 选择身份**：
 
-  ```
-  Co-authored-by: Claude Sonnet <noreply@anthropic.com>
-  ```
+    | 执行 Agent            | trailer                                             |
+    | --------------------- | --------------------------------------------------- |
+    | CC（Claude Code）     | `Co-authored-by: Claude <noreply@anthropic.com>`    |
+    | Codex（OpenAI Codex） | `Co-authored-by: OpenAI Codex <noreply@openai.com>` |
+    - **判据**：你**知道自己是哪个 Agent**（CC 跑 Claude 模型、Codex 跑 GPT 模型），据此选对应 trailer —— 这是最可靠的信号，无需探测环境变量或路径。
+    - **硬规则**：**Codex 绝不写 Claude 身份，CC 绝不写 Codex 身份**。此规则文档经 `install.sh` 双轨软链被两端共读，署名以「谁在提交」为准，而非文档示例里出现过谁。
 
 ## 环境变量管理
 

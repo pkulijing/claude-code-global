@@ -167,6 +167,8 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 调用 `/commit` 提交所有变更（包括 SUMMARY.md / DEVTREE.md / 本次 BACKLOG.md / README.md 的变化）。
 
+`/commit` 会**按当前执行的 Agent 选择 `Co-authored-by` 身份**（CC → Claude、Codex → OpenAI Codex，详见 `/commit` 第 8 步与全局 CLAUDE.md「git 规则」）—— **Codex 执行 `/finish` 收尾时同样不写 Claude 身份**，不要在 finish 语境下被默认成 Claude。
+
 **关键**：如果 Step 4 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N`（不要嵌入 title）。GitHub / GitLab 均原生识别此关键字，无需平台分支。**关多个 issue 时务必每个 issue 各一行、各带关键字**（`Closes #13` / `Closes #20` / …），**不能**一行写 `Closes #13 #20`（只会关第一个，见 Step 4 的硬规则）。
 
 ## Step 8：worktree 收尾

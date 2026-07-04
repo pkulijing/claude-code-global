@@ -10,12 +10,12 @@ disable-model-invocation: false
 
 调用时可附带参数（args），支持以下几种形式：
 
-| 参数 | 含义 | 示例 |
-|---|---|---|
-| （无） | 把**当前分支** rebase 到 `master` 上（默认 base） | `/rebase` |
-| `<base>` | 把**当前分支** rebase 到指定的 `<base>` 上 | `/rebase develop` |
-| `abort` | 当前正处于 rebase 中间状态，放弃本次 rebase | `/rebase abort` |
-| `continue` | 当前正处于 rebase 中间状态，解决完冲突后继续 | `/rebase continue` |
+| 参数       | 含义                                              | 示例               |
+| ---------- | ------------------------------------------------- | ------------------ |
+| （无）     | 把**当前分支** rebase 到 `master` 上（默认 base） | `/rebase`          |
+| `<base>`   | 把**当前分支** rebase 到指定的 `<base>` 上        | `/rebase develop`  |
+| `abort`    | 当前正处于 rebase 中间状态，放弃本次 rebase       | `/rebase abort`    |
+| `continue` | 当前正处于 rebase 中间状态，解决完冲突后继续      | `/rebase continue` |
 
 **要求**：
 
@@ -31,7 +31,17 @@ disable-model-invocation: false
 3. **个人分支才 rebase**：如果要被 rebase 的分支是 `master` / `main`、或是已被他人 review 的公共分支，立即停下问人类。
 4. **数据优先于直线历史**：一旦出现看不懂的状态，宁可 `git rebase --abort` + `git reset --hard <备份 tag>` 回退，也不要强行推进。
 5. **不支持交互式 rebase**：不使用 `-i`；如需合并/重排 commit，请人类手动处理。
-6. **分段确认**：每个阶段结束必须等人类确认再进下一阶段，禁止一口气跑完。
+6. **默认静默直行，风险才停（risk gates）**：诊断方向明确且无风险时，诊断 → 备份 → rebase → FF 合并**一气呵成、不逐阶段等确认**，末尾汇报结果即可。无冲突的 rebase 本该近乎瞬间完成，不该被反复「停下 → 等 OK」拖住。**仅在命中下面这份「必停清单」时才停下、说明原因、等人类决策**：
+   - 分叉方向不明 / 诊断看不清；
+   - 当前分支就是 base（如无参时当前分支是 `master`）；
+   - 要 rebase 的是 `master` / `main` 或已被他人 review 的公共分支（呼应原则 #3）；
+   - 工作区不干净；
+   - rebase 出现**冲突**；
+   - FF `git merge --ff-only` 失败；
+   - 需**推送到远程**（`git push --force-with-lease` 或推主干）—— 高影响，即便前面全程无冲突也停一次确认，**绝不静默 force push**；
+   - 出现任何看不懂 / 意外的状态。
+
+   不在清单内（诊断清楚且方向明确、工作区干净、rebase 无冲突、FF 成功）→ **直接继续，不打断人类**。注意：静默直行绝不牺牲安全 —— 原则 #4「数据优先于直线历史」不变，阶段 1 的备份 tag **无条件必打**，静默直行也不例外。
 
 ## 阶段 0：诊断当前状态
 
@@ -57,7 +67,7 @@ disable-model-invocation: false
 - **带 `<base>` 参数**：采用该 base 作为目标。
 - **无参数**：默认以 `master` 作为 base。**若当前分支就是 `master`，立刻停下告知人类**，不要试图去找"另一条该 rebase 的分支"。
 
-诊断报告中明确写出"将把 `<current>` rebase 到 `<base>`"，**停下来等人类确认后进入阶段 1**。
+诊断报告中明确写出"将把 `<current>` rebase 到 `<base>`"。**若方向明确且未命中必停清单（核心原则 #6），直接进入阶段 1，无需等确认**；若方向不明 / 当前分支就是 base / 目标是公共分支等命中必停项，停下说明原因、等人类决策。
 
 ## 阶段 1：前置检查与备份
 
@@ -68,7 +78,7 @@ disable-model-invocation: false
    - 明确告诉人类："如果 rebase 搞砸了，用 `git reset --hard <备份 tag>` 回到此刻。"
 3. 切到要被 rebase 的分支（如果 rebase 发生在 worktree 里，提醒人类 `cd` 到对应 worktree 目录）。
 
-**停下来等人类确认后进入下一阶段。**
+工作区干净时，打完备份 tag **直接进入阶段 2，无需等确认**；**工作区不干净则停下**，要求人类先 `git commit` / `git stash` 再继续（命中必停清单）。
 
 ## 阶段 2：执行 rebase 与冲突处理
 
@@ -76,7 +86,7 @@ disable-model-invocation: false
 
 ### 若无冲突
 
-直接展示 `git log --graph --oneline -10`，让人类肉眼验证历史正确，然后进入阶段 3。
+展示 `git log --graph --oneline -10` 备查，**直接进入阶段 3，不停顿**。
 
 ### 若有冲突
 
@@ -88,7 +98,7 @@ disable-model-invocation: false
 
 rebase 完成后，展示 `git log --graph --oneline -10` 让人类肉眼验证。
 
-**停下来等人类确认历史正确后进入下一阶段。**
+**冲突属必停项**：解决过程与解决完都停下让人类过目，确认历史正确后再进入阶段 3。
 
 ## 阶段 3：FF 合并 / 推送 / 验证
 
@@ -98,14 +108,20 @@ rebase 完成后，展示 `git log --graph --oneline -10` 让人类肉眼验证�
 
 1. `git checkout <target-branch>`
 2. `git merge --ff-only <rebased-branch>`
-3. 若 `--ff-only` 失败，说明目标分支在 rebase 期间又有新 commit。处理方式：**回到阶段 2，把 rebased-branch 继续 rebase 到最新的目标分支上**，再来一次 FF。**禁止 fallback 到普通 merge**。
+3. 若 `--ff-only` 失败，说明目标分支在 rebase 期间又有新 commit。**FF 失败属必停项**：停下告知人类，处理方式是**回到阶段 2，把 rebased-branch 继续 rebase 到最新的目标分支上**，再来一次 FF。**禁止 fallback 到普通 merge**。
+
+FF 成功则**直接继续**，不停顿。
 
 ### 推送（如需要）
 
+**推送属必停项**：无论 `--force-with-lease` 还是推主干，都是高影响操作，**即便前面全程无冲突、静默直行，推送前也必停一次、明确告知要推什么、等人类点头**，绝不静默 force push。
+
 - 被 rebase 过的分支若已推送过远程：`git push --force-with-lease origin <branch>`，**禁用 `git push --force`**。
 - FF 推上去的主干分支（如 `master`）：正常 `git push` 即可。
+- 若本次 rebase 纯本地、无需推送 → 跳过本节。
 
 ### 验证
 
+- 静默直行跑完后，给一份**结果汇报**：走了哪几个阶段、备份 tag 名、最终 `git log --graph --oneline -10`、是否已 / 待推送。
 - 提醒人类跑测试或启动服务，确认功能未坏。
 - 确认无误后，可删除阶段 1 的备份 tag：`git tag -d backup/...`。
