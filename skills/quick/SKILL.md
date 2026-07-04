@@ -32,10 +32,12 @@ disable-model-invocation: false
 args 可含以下项（三者正交、可任意组合），解析后剩余文字即本次小改动的需求描述：
 
 - **`--branch`**：切一个轻量分支 `quick/<描述>`（**不建 worktree**），改完 commit 留在该分支等用户手动合 / 提 PR。默认不带 = 在当前分支直接改。
-- **`#<issue 号>` 或 issue URL**：让收尾 commit 带 `Closes #N`。**只取号、不拉 issue 详情**（简易流不需要把 issue body 落成文档）；可传多个。
+- **`#<issue 号>` 或 issue URL**：两层用途——① **拉 issue 详情用于理解本次要改什么**，进工作上下文指导改动（这样你传 `#N` 就不必再口述一遍需求）；② issue 号进收尾 commit 的 `Closes #N`。**详情只进上下文、不落成 PROMPT.md 文档**（简易流不留档，这正是它与 `/start <issue#>` 的关键区别）；可传多个。
 - **剩余文字**：需求描述。
 
-无描述且无法从对话上下文推断要改什么 → 追问用户改什么，拿到后再继续。
+**拉 issue 详情**（仅当传了 `#N` / URL）：走 helper `python3 $HOME/.claude/scripts/platform_issue.py issue-view <N>`（按 `git remote get-url origin` 自动判定 GitHub / GitLab），从返回的 `title` / `body` 理解要改什么。传多个则逐个拉。URL 形态先从中提取 N。
+
+无描述**且**未传 `#N`（即既无口述需求、又无 issue 可拉）且无法从对话上下文推断要改什么 → 追问用户改什么，拿到后再继续。
 
 ## Step 1：（可选）切轻量分支
 
