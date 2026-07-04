@@ -38,6 +38,7 @@ graph TD
   base --> e_rules
   toolchain --> e_bootstrap
   toolchain --> e_finish
+  toolchain --> e_quick
   toolchain --> devmgmt["开发项管理"]:::epic
   toolchain --> codemgmt["代码管理"]:::epic
   devmgmt --> e_devtree
@@ -133,6 +134,11 @@ graph TD
     N23 ~~~ N26
   end
 
+  subgraph e_quick["✅ 轻量开发流"]
+    direction TB
+    N41["✨ 41 · 新增 /quick 轻量开发流"]:::feature
+  end
+
   subgraph e_devtree["✅ DEVTREE 管理"]
     direction TB
     N4["✨ 4 · 创建 devtree-skill"]:::feature
@@ -173,7 +179,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-04 | 共 39 轮
+> 最后更新：2026-07-04 | 共 40 轮
 
 | #   | 名称                              | 类型    | 所属 Epic      | 一句话描述                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --- | --------------------------------- | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -217,6 +223,7 @@ graph TD
 | 38  | 批量沉淀 python-ros2 规则         | ✨ 功能 | 领域规则沉淀   | 一轮消化 5 条跨项目 type:docs issue：rules/python.md 新增 §2.3（src 布局顶层同名目录遮蔽真包排障）/ §4 fixture 独立来源 / §5.4 应用内 uv tool 更新自检骨架 + §5.2 补 GitLab simple 查版本；rules/ros2.md §2 表加 ament_cmake_python 行 + §4.6 source-time hook（ament_environment_hooks）+ §5 双链路子节（同一 Python 包既作 uv 成员又作 colcon 包）                                                                                              |
 | 39  | 废弃 backlog 单一真源             | ✨ 功能 | 需求管理       | 废弃 docs/BACKLOG.md、需求管理改为云端 issue 单一真源（open 项速览走按 priority 过滤的 saved query，「刻意不做」项归档为带 wontfix 的 closed issue）；改 backlog/finish/sync-project-config 三 skill + GLOBAL_AGENTS.md + README，sync 加老项目遗留 BACKLOG.md 一次性迁移节                                                                                                                                                                       |
 | 40  | rebase 静默直行与 commit 署名身份 | 🏗️ 重构 | rebase 工作流  | /rebase 由「每阶段必停」改为「默认静默直行 + 必停清单」（无冲突近乎瞬间跑完，脏区 / 冲突 / FF 失败 / 公共分支 / push 才停，备份 tag 无条件必打）；commit/finish 的 Co-authored-by 按执行 Agent 自选身份（CC → Claude / Codex → OpenAI Codex），修 Codex 收尾误写 Claude                                                                                                                                                                           |
+| 41  | 新增 /quick 轻量开发流            | ✨ 功能 | 轻量开发流     | 新增单个 skill /quick 补齐「三档开发流」最轻一档：不落 docs / 不开 worktree / 不进计划模式，直接改代码 → 自动 /commit 收尾（复用其 lint 门禁与署名）；默认当前分支直接改，`--branch` 切轻量分支、`#<issue>` 可选带 Closes；GLOBAL_AGENTS.md 第 37 行做成三档流程权威指针                                                                                                                                                                          |
 
 ---
 
@@ -272,6 +279,11 @@ graph TD
 
 - 状态：已完成
 - 轮次：1, 13, 21, 23, 26
+
+#### 轻量开发流
+
+- 状态：已完成
+- 轮次：41
 
 #### 开发项管理
 

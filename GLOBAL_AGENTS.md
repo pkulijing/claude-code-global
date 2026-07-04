@@ -34,7 +34,7 @@
 
 人类开发者与 Coding Agent 合作，分为需求 - 计划 - 执行 - 总结四步。
 
-每轮开发默认在一个独立的 git worktree 内进行（`/start` 开轮时自动创建，`/finish` 收尾时自动 rebase、FF 合并并清理），使多轮开发可并行、互不污染主工作树；轻量改动可用 `/start --no-worktree` 在当前分支直接干。
+每轮开发默认在一个独立的 git worktree 内进行（`/start` 开轮时自动创建，`/finish` 收尾时自动 rebase、FF 合并并清理），使多轮开发可并行、互不污染主工作树；不值得单开 worktree 的轻量改动可用 `/start --no-worktree` 在当前分支直接干；连 docs 三件套都不需要的小改（如改个小函数、说清楚即可）用 `/quick` 直接改 → 自动 `/commit` 收尾，不落 docs、不进计划模式、不做总结/沉淀/devtree。
 
 ### 需求管理
 
