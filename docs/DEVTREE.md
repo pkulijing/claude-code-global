@@ -107,8 +107,10 @@ graph TD
     N24["🏗️ 24 · 精简宪法与会话标题约定排查"]:::refactor
     N25["🏗️ 25 · python 模板与子 CLAUDE 机制"]:::refactor
     N44["🏗️ 44 · skill 措辞 review"]:::refactor
+    N45["✨ 45 · commit 前独立 review 循环"]:::feature
     N24 ~~~ N25
     N25 ~~~ N44
+    N44 ~~~ N45
   end
 
   subgraph e_rules["🔄 领域规则沉淀"]
@@ -185,7 +187,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-06 | 共 44 轮
+> 最后更新：2026-07-06 | 共 45 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -233,6 +235,7 @@ graph TD
 | 42 | DEVTREE 表格免 prettier 对齐 | 📦 工程 | 代码格式化 | 给 DEVTREE.md 加 .prettierignore 豁免 prettier 表格对齐（内容一变整列重排致 diff 爆炸），/devtree skill 改为生成紧凑单空格表格；模板 _common 同步一份给下游 |
 | 43 | gitlab-ci 按 runner 选变体 | ✨ 功能 | 项目模板机制 | 引入通用「变体组」模板机制（文件名约定 `<target>.variant.<key>`，选择前移到 bootstrap/sync 交互、只落一份、记进 marker `variants`），把 python-uv 的 `.gitlab-ci.yml` 拆为 docker/shell 两变体（shell 版去 image + 脚本装 uv + 禁 !reference 用 YAML 锚点）；改 bootstrap/sync 两 skill + SCHEMA + 根 CLAUDE，含老项目「普通文件→变体组」迁移去重防误删 |
 | 44 | skill 措辞 review | 🏗️ 重构 | 全局宪法治理 | 借 skill-creator 判据固化 6 条精简 rubric，对 8 份进 context 文档（5 skill + python/ros2 rules + GLOBAL_AGENTS）去冗余、零行为回归（净减 147 行，实删字数更多）；GLOBAL_AGENTS 孪生化 rules 指针折叠进汇总表（-48），labels helper 契约从三处下沉 scripts/platform_issue.md 单一真源，finish Step 6 下沉 references/readme-review.md |
+| 45 | commit 前独立 review 循环 | ✨ 功能 | 全局宪法治理 | 新增 /review-loop skill + 宪法约定：commit 由 Agent 自主收口，提交前自动引入独立模型（审的模型≠写 diff 的模型才算独立，CC 写→codex 审）review 整树、迭代至 clean 才放行；含每 3 轮强制人工闸口、传已定前提给 codex、配置/指令文件不跳过、修复后重跑测试。用 review-loop 自举 review 自身实现约 20 轮，沉淀「纯策略文档 review 趋于无限、需人工闸口」等元经验 |
 
 ---
 
@@ -270,7 +273,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25, 44
+- 轮次：24, 25, 44, 45
 
 #### 领域规则沉淀
 
