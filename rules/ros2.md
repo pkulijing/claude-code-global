@@ -87,7 +87,7 @@ ROS 2 是一个**工作空间（colcon workspace）维度**：一个仓库即一
 
 想让「`source install/setup.bash` 时自动跑一段逻辑」（装 pip 依赖、设环境变量、起辅助进程…），唯一的 ROS 官方机制是 `ament_cmake` 的 **`ament_environment_hooks(<name>.sh.in)`**；**纯 `ament_python` 做不到**——哪怕你用 `setup.py` 的 `data_files` 去铺 `share/<pkg>/environment/` 或 `ament_index/resource_index/environment` marker，colcon 也不会 source 它。
 
-**为什么纯 ament_python 不触发**：colcon-ros 的 `ament_python` build task 生成包 `package.dsv`（`source` 时被级联执行的清单）时，要 source 哪些 hook 是**写死的**——只有 `pythonpath` + `ament_prefix_path`。它**不扫** `share/<pkg>/environment/` 目录、**不读** `resource_index/environment` marker、**不调**任何 hook 发现函数。现象：纯 ament_python 版 build 出的 `package.sh` 里根本没有 source 你那个 hook 的行 → `source` 很快结束、逻辑不触发。而 `share/<pkg>/environment/` + marker 那套是 **`ament_cmake`** 的 `ament_environment_hooks()` 宏专属（CMake 期把 hook 装进去、由 `ament_package()` 注册进包 `local_setup`）。
+**为什么纯 ament_python 不触发**：colcon-ros 的 `ament_python` build task 生成 `package.dsv` 时，要 source 哪些 hook 是**写死的**——只有 `pythonpath` + `ament_prefix_path`，**不扫** `share/<pkg>/environment/`、**不读** `resource_index/environment` marker、**不调**任何 hook 发现函数（build 出的 `package.sh` 根本没 source 你那个 hook 的行）。而 `share/<pkg>/environment/` + marker 那套是 **`ament_cmake`** 的 `ament_environment_hooks()` 宏专属（CMake 期装 hook、`ament_package()` 注册进 `local_setup`）。
 
 **正解**：包从纯 `ament_python` 改为 **`ament_cmake_python`**（`package.xml` 的 `<build_type>` 改 `ament_cmake`），CMakeLists 里用 `ament_python_install_package` 装模块、`install(PROGRAMS ...)` 装可执行入口（`ament_cmake_python` **不处理** `console_scripts`，entry 要手写）、`ament_environment_hooks(hook.sh.in)` 注册 source-time hook：
 
@@ -108,7 +108,7 @@ ament_package()
 
 任何 ROS 2 工程都会遇到「一个 ROS 包怎么装它的 pip 依赖」。与 §4 的 C++（CMake / ament）依赖并列，Python 依赖的选型默认走轻方案：
 
-- **默认：`requirements.txt` + 一条 `pip install -r requirements.txt`**。公网包走团队源（清华）；私有包在 `requirements.txt` 顶部加 `--extra-index-url`（含只读 token）+ `--trusted-host` 两行即可。这是兄弟仓 `record_agent`（同为 `ament_python` + pip 依赖）的既有做法，简单可靠。
+- **默认：`requirements.txt` + `pip install -r requirements.txt`**。公网包走清华源；私有包在 `requirements.txt` 顶部加 `--extra-index-url`（含只读 token）+ `--trusted-host` 两行即可。兄弟仓 `record_agent` 既有做法，简单可靠。
 - **rosdep 自定义 yaml 是重武器，仅必须时用**：只有当确需让 `rosdep install` 解析私有 key（如 CI 强制全程走 rosdep）时才上。坑有二，配套成本不低：
   - rosdep 的 pip installer 用 `sudo -H --preserve-env=... pip3 install` 跑，会**剥掉** `PIP_CONFIG_FILE` / `PIP_TRUSTED_HOST` 等环境变量 → 私有 index / 自签证书全失效；需 sudoers `env_keep` 显式穿透。
   - pip 配置文件里的 `trusted-host` **不被** pip 的下载会话采纳（只有命令行 flag / `PIP_TRUSTED_HOST` env 生效）。
@@ -116,7 +116,7 @@ ament_package()
 
 ### 双链路：同一 Python 包既作 uv workspace 成员、又作 colcon 包
 
-ROS 2 + Python 混合仓里会遇到「一个纯 Python 包既要走 uv / PyPI 链路、又要走 colcon / ament 原生 import 链路」——典型是 PC 端 uv 工具与端侧 ROS 2 节点**共享一份 protobuf / 契约 / 纯逻辑**：该包既作 uv workspace 成员（`uv_build` 打 wheel、发 PyPI registry、开发机 editable 装了跑测试），又作 colcon 包（端侧 `colcon build` + `source install/setup.bash` 后**原生 import、零运行期 pip**）。这与上文「`ament_python` 包怎么装 pip 依赖」互补：一个是"装依赖"，一个是"同一包被两套构建系统消费"。
+ROS 2 + Python 混合仓里，一个纯 Python 包可能既要走 uv / PyPI 链路、又要走 colcon / ament 原生 import——典型是 PC 端 uv 工具与端侧 ROS 2 节点**共享一份 protobuf / 契约 / 纯逻辑**：既作 uv workspace 成员（`uv_build` 打 wheel、发 registry、开发机 editable 跑测试），又作 colcon 包（端侧 `colcon build` + `source` 后**原生 import、零运行期 pip**）。与上文「装 pip 依赖」互补：那是"装依赖"，这是"同一包被两套构建系统消费"。
 
 **原则：双链路 = 两套构建元数据物理隔离，各读各的。**
 

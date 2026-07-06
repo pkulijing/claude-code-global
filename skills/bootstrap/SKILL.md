@@ -64,7 +64,7 @@ disable-model-invocation: false
 
 ### Step 3：模板初始化（\_common + 按 stack）
 
-为项目套用一份与 `claude-code-global` 仓库管理的"跨项目共享开发配置"，包含 `.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `.gitlab-ci.yml`（变体组，按 runner 类型选一个落地，见 Step 3.3.7）/ `pyproject.toml [tool.ruff]` / `.github/ISSUE_TEMPLATE/` / `.gitlab/issue_templates/` / `.github/labels.yml` / `.prettierrc` 等。**GitHub 与 GitLab 双轨同时落**（互不干扰：GitHub Actions 不读 `.gitlab-ci.yml`、GitLab CI 不读 `.github/workflows/`，issue templates 同理）。`.github/labels.yml` schema 跨平台一致，是 helper 私有输入而非平台读的死文件 —— GitLab 项目下也读 `.github/` 路径同一份。skill 中实际调命令行的步骤（如 labels 同步）由 helper `python3 $HOME/.claude/scripts/platform_issue.py` 按 `git remote` 自动 dispatch 到 `gh` / `glab`。详细字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
+为项目套用一份 `claude-code-global` 管理的「跨项目共享开发配置」（`.pre-commit-config.yaml` / `.vscode/` / `.gitignore` / `lint.yml` / `.gitlab-ci.yml`（变体组，按 runner 类型选一个落地，见 Step 3.3.7）/ `pyproject.toml [tool.ruff]` / issue templates 双套 / `.github/labels.yml` / `.prettierrc` 等）。**GitHub 与 GitLab 双轨同时落**、互不干扰（各读各的 CI / issue templates）。labels 同步等命令行步骤由 helper `$HOME/.claude/scripts/platform_issue.py` 按 `git remote` 自动 dispatch（契约见 `~/.claude/scripts/platform_issue.md`）。字段约定见 `~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`。
 
 `~/.claude/templates/` 下有两类目录：
 
@@ -116,16 +116,7 @@ disable-model-invocation: false
 python3 $HOME/.claude/scripts/platform_issue.py label-sync-from-file .github/labels.yml
 ```
 
-helper 内部行为：
-
-- 自动 detect 平台：`github` / `gitlab` / `unknown`
-- GitHub → 对每条调 `gh label create --force <name> --color <hex> --description <desc>`（`--force` 在已存在时自动覆盖更新）
-- GitLab → 先 `glab label list --output json` 拿现存 name→id 映射；存在则 `glab label edit -l <id> -c #<hex> -d <desc>`，否则 `glab label create -n <name> -c #<hex> -d <desc>`
-- color 格式由 helper 自动转换：GitHub 用裸 hex（`0E8A16`），GitLab 加 `#` 前缀（`#0E8A16`）
-- unknown 平台（无 origin / 自托管 URL 不含 `gitlab` 字样）→ helper exit 2，打印 stderr 错误；本步降级为打印「无法判定平台，labels 同步跳过；如确为 GitHub 请补 origin 后跑 `/sync-project-config`，如为自托管 GitLab 可加 `--platform gitlab` override」
-- helper exit 3（认证失败）→ 提示用户跑 `gh auth login` 或 `glab auth login`
-
-helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>]`），末行 `summary: N synced, M error`。一并展示给用户。
+helper 完整行为（平台 detect、gh/glab dispatch、color 转换、exit 2/3/4 降级、stdout TSV）见 `~/.claude/scripts/platform_issue.md`。stdout 结果原样展示给用户；exit 2/3/4 按契约降级为收尾提示（见 Step 5 收尾反馈第 6 条），不阻塞后续步骤。
 
 #### Step 3.3.6：合并 fragments
 
@@ -144,10 +135,8 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
 **`.vscode/<name>.json.fragment`（JSON 合并，目标项目根 `.vscode/<name>.json`）：**
 
 - 目标**不存在** → 用 fragment 内容创建（含父目录 `.vscode/`）。
-- 目标**已存在** → 按目标语义合并：
-  - `extensions.json`（`recommendations` 数组）→ 与现有 `recommendations` 做**有序去重 union**（已有不重复加，新项追加末尾）。
-  - `settings.json`（对象）→ **顶层键 union**：键只在一侧直接并入；两侧都有且值均为对象（如都定义 `[json]`）→ 递归深合并；两侧标量冲突（同键不同值）→ 询问用户。
-- 多个 stack 各自的 `.vscode/<name>.json.fragment` 依次合并进**同一个**项目根目标文件（先 `_common`，再逐个 stack），最终得各 stack 推荐 / 设置的并集。前端 / 后端的语言作用域键天然不相交（`[python]`/`[markdown]` vs `[typescript]`/…），纯 union 零冲突。
+- 目标**已存在** → 按目标语义合并：`extensions.json` 的 `recommendations` 数组做**有序去重 union**；`settings.json` 做**顶层键 union**（键只一侧→并入；两侧都为对象→递归深合并；标量冲突→询问）。
+- 多个 stack 的同名 fragment 依次合并进**同一个**项目根目标（先 `_common` 再逐个 stack），得各 stack 推荐 / 设置的并集（前后端语言作用域键天然不相交，纯 union）。
 
 #### Step 3.3.7：落地变体组（按环境选一个）
 
@@ -175,9 +164,7 @@ helper stdout 输出每条 label 的同步结果（TSV `<status>\t<name>[\t<msg>
 [ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
 ```
 
-`--package` 让 uv 直接落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件 + 含 `[build-system] uv_build` 的 `pyproject.toml`，零配置可编辑安装），由领域规则 `~/.claude/rules/python.md` §2 固化。空目录 bootstrap 必然走 `uv init --package` 分支；老项目 adopt 走 `exists` 分支。
-
-> 旧版用 `--bare` 是为了避免 hello world 文件；`--package` 当前产物已是空 `__init__.py`，干净度等价但额外得到 src 骨架。
+`--package` 落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件、无 hello world + 含 `[build-system] uv_build` 的 `pyproject.toml`），见 `rules/python.md` §2。空目录 bootstrap 走 `uv init --package` 分支；老项目 adopt 走 `exists` 分支。
 
 **多包 `python-uv-workspace`**：**不要 `uv init --package`** —— 它会在虚拟根写出 `[project]` + `src/` 破坏 workspace 形态。虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments（`uv-workspace` / `uv` / `uv-index` / `ruff` / `pytest`）合并而成，成员包随模板 `packages/*` 已整体复制就位。故本步只需**确保上述 fragments 已合**（Step 3.3.6 对「目标不存在」会用 fragment 内容创建根 `pyproject.toml`），不执行任何 `uv init`。
 
@@ -256,10 +243,7 @@ stacks:
   3. 若选了 python-uv 且 Step 3.5 已执行：项目已可 `uv run pytest` / `git commit`；可选跑 `pre-commit run --all-files` 验证全量配置（首次接入易出 finding）。若选了 react-vite 且 Step 3.5b 已执行：`frontend/` 已可 `npm run dev` / `npm run build`
   4. 若 Step 3.5 被用户跳过（「只要配置不要装依赖」）：未来可手动跑 `uv init --package && uv add --dev pytest pytest-cov ruff && uv tool install pre-commit && pre-commit install`，或重跑 `/sync-project-config` adopt 走自动流程
   5. 若 Step 3 整段跳过 / `pyproject.toml` 不存在 / 选了非 python-uv stack：未来可运行 `/sync-project-config` 走 adopt 模式补全
-  6. 若 Step 3.3.5 跳过了 labels 同步：
-     - helper exit 3（auth 失败）：提示「跑 `gh auth login` 或 `glab auth login` 后再 `/sync-project-config`」
-     - helper exit 2（无 origin / 自托管 URL 不含 `gitlab` 字样）：提示「先 `gh repo create` / `glab repo create` 关联 remote，再跑 `/sync-project-config`；或如已知是自托管 GitLab，跑 `python3 $HOME/.claude/scripts/platform_issue.py --platform gitlab label-sync-from-file .github/labels.yml`」
-     - helper exit 4（CLI 缺失）：提示安装对应 CLI（macOS：`brew install gh` / `brew install glab`）
+  6. 若 Step 3.3.5 跳过了 labels 同步：按 helper exit code 提示补救（exit 3 auth → `gh`/`glab auth login`；exit 2 无 origin → 关联 remote 或自托管 GitLab 加 `--platform gitlab` 重跑；exit 4 CLI 缺失 → `brew install gh`/`glab`），补齐后 `/sync-project-config`。详见 `~/.claude/scripts/platform_issue.md`
   7. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后跑 `/sync-project-config` 重新同步 labels」
   8. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
   9. 准备好后运行 `/start` 开启 round 0

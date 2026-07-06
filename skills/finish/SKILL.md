@@ -30,17 +30,12 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 > 「上面有没有**刻意决定不做**的项要归档留痕（避免未来翻老 SUMMARY 误以为是遗漏）？」
 
-- 用户给出条目 + 原因 → 把它**归档为一个带 `wontfix` label 的 closed issue**（与「issue 是真源」一致、可检索、可按 label 过滤）。二选一：
-  - 让用户跑 `/backlog` 起 issue，选完三轴后**额外加 `wontfix` label**，建完随即 close（`gh issue close <N> -r "not planned"` / `glab issue close <N>`）；
-  - 或本步直接用 helper 建：`issue-create --title "刻意不做：<一句话>" --body-file /tmp/wontfix.md --label wontfix --label type:docs --label area:<Y> --label priority:P2`，body 写原因 + 引用本轮 SUMMARY 路径，建完 close。
-  - 若 `wontfix` label 尚不存在于目标仓库 → 先补进 `.github/labels.yml` 并 `label-sync-from-file` 同步，再建 issue（三轴 + wontfix label 是硬要求，缺 label 会让 `issue-create` 整条失败）。
+- 用户给出条目 + 原因 → **归档为带 `wontfix` label 的 closed issue**（与「issue 是真源」一致、可检索）。二选一：① 用户跑 `/backlog` 起 issue、选完三轴额外加 `wontfix`，建完随即 close；② 本步直接 `issue-create --title "刻意不做：<一句话>" --body-file /tmp/wontfix.md --label wontfix --label type:docs --label area:<Y> --label priority:P2`（body 写原因 + SUMMARY 路径），建完 `gh issue close <N> -r "not planned"` / `glab issue close <N>`。`wontfix` label 缺失先补进 `.github/labels.yml` 并 sync（三轴 + wontfix 是硬要求，缺则 `issue-create` 整条失败）。label 契约见 `~/.claude/scripts/platform_issue.md`。
 - 用户说「无」→ 跳过
 
 ## Step 3：跨项目可沉淀流程反思（在任意项目都跑）
 
-本步的价值：每个开发轮里冒出的「值得复用的重复性流程」常散落在对话里靠人捡，容易错过抽象时机。这里主动反思，并对**跨项目资产**类候选**直接向 claude-code-global 仓库提 issue**（跨仓库），不靠人事后回忆。
-
-**这类跨仓库 issue 独立于当前项目**——它是在 claude-code-global 仓库里发起的云端 issue（那里的 open 项由其自己的 saved query 速览），与当前项目无索引耦合。
+本步价值：开发轮里冒出的「值得复用的重复流程」常散落对话里靠人捡、易错过抽象时机。这里主动反思，对**跨项目资产**类候选直接向 claude-code-global 跨仓库提 issue（独立于当前项目、无索引耦合），不靠事后回忆。
 
 ### 3.1 反思候选 + 判定标准
 
@@ -80,15 +75,13 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
    `$GLOBAL_DIR` 不存在 / `URL` 取不到 / `PLAT` 空 → 跳过 file，提示「无法定位 claude-code-global，候选已记在 SUMMARY 可沉淀项段，可手动提 issue」，不阻塞 finish。
 
-2. **选并校验三轴 label**：`type:*`（按性质取 feat/refactor/docs）+ `priority:P2`（默认排队，沉淀项少有紧急）+ `area:*`——读 `$GLOBAL_DIR/.github/labels.yml` 在 install/skill/hook/template/doc 里选最贴的一个。
-
-   **三轴 label 是硬要求**（helper 已对跨仓库零-label 创建强制拦截）。选完务必对**目标仓库**校验三个 label 都真实存在（labels.yml 是真源、未必已同步到远端，二者可能脱节）：
+2. **选并校验三轴 label**：`type:*`（feat/refactor/docs）+ `priority:P2`（沉淀项默认排队）+ `area:*`——读 `$GLOBAL_DIR/.github/labels.yml` 在 install/skill/hook/template/doc 里选最贴的一个。**三轴是硬要求**。选完对**目标仓库**校验三个 label 都真实存在（labels.yml 未必已同步到远端，二者可能脱节）：
 
    ```bash
    python3 "$HOME/.claude/scripts/platform_issue.py" --platform "$PLAT" label-list --repo "$SLUG"
    ```
 
-   只从该列表里挑 label。若选中的 label 不在列表中 → 不要硬塞（会让下一步 `issue-create` 整条失败），改选已存在的同轴 label，或先 `label-sync-from-file "$GLOBAL_DIR/.github/labels.yml"` 把 labels.yml 同步到远端后再校验。
+   只从该列表挑；不在列表的不要硬塞（会让 `issue-create` 整条失败），改选已存在的同轴 label，或先 `label-sync-from-file` 同步后再校验。
 
 3. **写临时 body**（`/tmp/distill-<n>.md`）：来源项目名 + 轮次 + 为什么值得沉淀（重复性/通用性）+ 具体落点建议 + 末尾标注「跨项目自动沉淀 issue」。当前项目有 remote 就给回链 URL，否则写项目目录名。
 
@@ -145,37 +138,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 ## Step 6：README review & update
 
-仅当本轮变更命中下述触发清单才进入此步；否则打印一行「README review skipped: 本轮变更不在触发清单」并跳过。
-
-放在 commit 之前是为了让 README 改动跟本轮代码进同一 commit。
-
-### 触发条件清单
-
-满足任一即触发：
-
-1. **skill 增减**：`skills/<name>/` 子目录新增或删除
-2. **hook 增减**：`hooks/*` 文件新增或删除
-3. **顶层目录结构变化**：仓库根目录、`skills/` / `templates/` / `hooks/` 这几层出现新增 / 删除子目录
-4. **面向用户的工作流改动**：本轮 PROMPT.md 或 SUMMARY.md 中明示「面向用户的入口/约定改了」（例：需求管理 / issue 驱动、安装方式、模板使用方式、命令行接口）
-
-明示**不触发**：
-
-- 纯内部重构（重命名变量、抽函数、调整文件分割）
-- bug fix
-- 仅改 `docs/` 下的开发记录
-- 依赖升级
-
-### 判定数据源
-
-- `git status --porcelain` + `git diff --cached --name-status` 的并集（本步在 commit 前跑，未提交变更也要算）
-- **明示忽略**前面几步刚改的 `SUMMARY.md` / `DEVTREE.md` 自身 —— 它们不应触发 README review
-
-### 触发后子步
-
-1. 读 `README.md` + 本轮 `PROMPT.md` / `SUMMARY.md`
-2. 列出 README 中需要新增 / 修改的具体段落（**只动相关段落，不重写整篇**）
-3. 直接 Edit `README.md`
-4. 一句话告知用户改了什么（例：「README 已更新：在 Skills 段新增 `/foo` 一节」）
+放在 commit 之前，让 README 改动跟本轮代码进同一 commit。命中触发清单则按 `references/readme-review.md` 执行（触发条件 / 不触发 / 判定数据源 / 子步全在那里）；否则打印一行「README review skipped: 本轮变更不在触发清单」并跳过。
 
 ## Step 7：调用 `/commit`
 
@@ -183,7 +146,7 @@ SUMMARY 末尾（「后续 TODO」之后）额外加一段 **「## 可沉淀项�
 
 `/commit` 会**按当前执行的 Agent 选择 `Co-authored-by` 身份**（CC → Claude、Codex → OpenAI Codex，详见 `/commit` 第 8 步与全局 CLAUDE.md「git 规则」）—— **Codex 执行 `/finish` 收尾时同样不写 Claude 身份**，不要在 finish 语境下被默认成 Claude。
 
-**关键**：如果 Step 4 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N`（不要嵌入 title）。GitHub / GitLab 均原生识别此关键字，无需平台分支。**关多个 issue 时务必每个 issue 各一行、各带关键字**（`Closes #13` / `Closes #20` / …），**不能**一行写 `Closes #13 #20`（只会关第一个，见 Step 4 的硬规则）。
+**关键**：如果 Step 4 识别到 issue 关联，把 `Closes #N` 作为额外上下文传给 commit skill —— 让生成的 commit message body 自然包含 `Closes #N`（不嵌 title）。**多 issue 按 Step 4 硬规则各占一行、各带关键字**，不能一行写 `Closes #13 #20`。
 
 ## Step 8：worktree 收尾
 

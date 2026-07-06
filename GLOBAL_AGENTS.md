@@ -15,20 +15,17 @@
 
 ## 领域规则文档（rules/）
 
-为避免本宪法臃肿，"领域专属"规则（语言、栈、流程）下沉到 `rules/<topic>.md`：
+为避免本宪法臃肿，"领域专属"规则（语言、栈、流程）下沉到 `rules/<topic>.md`（CC 端实际路径 `~/.claude/rules/<topic>.md`、Codex 端 `~/.codex/rules/<topic>.md`——同一份文档被两端共读，按自己所在端取路径）。
 
-- CC 端实际路径：`~/.claude/rules/<topic>.md`
-- Codex 端实际路径：`~/.codex/rules/<topic>.md`
+**约定**：本宪法只保留下表「触发条件 → 读哪个文件」，不复述各规则内容；Agent **命中触发条件时必须主动 Read 对应文件**，不依赖 `@mention` 自动展开（两端解析行为不一致，显式 Read 才是稳的契约）。
 
-**约定**：本宪法相应章节只保留"指针 + 触发条件"两句话；Agent 命中触发条件时**必须主动 Read 对应文件**，不依赖 `@mention` 自动展开（两端解析行为不一致，显式 Read 才是稳的契约）。
+当前已沉淀的领域规则（命中触发条件即 Read）：
 
-当前已沉淀的领域规则：
-
-- `rules/python.md` — Python 项目（pyproject.toml / uv / ruff / 包内代码风格 / 测试）
-- `rules/frontend.md` — 前端项目（npm / npmmirror / Biome / Vite / tailwind v4 / shadcn / React，落 `frontend/` 子目录）
-- `rules/ros2.md` — ROS 2 工程（colcon 工作空间 / ament_cmake + ament_python / package.xml / CMakeLists ament-first 约定，包落 `src/`）
-- `rules/lark.md` — lark-cli 创作飞书云文档（署名约定 + docx 实操技巧）
-- `rules/shell.md` — Shell 脚本（中文 / 全角字符 × 引号与变量名的两个固定坑）
+- **`rules/python.md`** — 触发：涉及 Python 代码、`pyproject.toml`、依赖管理或 Python 风格判断。（uv / ruff / src 布局 / 包内代码风格 / 测试 / 打包发布）
+- **`rules/frontend.md`** — 触发：涉及前端代码 / web UI、React / Vite / TypeScript，或 Biome / tailwind / shadcn 栈判断。（落 `frontend/` 子目录）
+- **`rules/ros2.md`** — 触发：涉及 ROS 2 工程、colcon 工作空间、ament、`package.xml`、ROS 包 `CMakeLists.txt`、launch 或 ROS 包构建/依赖判断。（包落 `src/`）
+- **`rules/lark.md`** — 触发：用 lark-cli 创作 / 编辑飞书云文档。（署名约定 + docx 实操技巧）
+- **`rules/shell.md`** — 触发：生成 / 编辑含中文注释或中文输出的 bash / shell 脚本。（中文 / 全角字符 × 引号与变量名两个固定坑）
 
 ## 核心开发模式
 
@@ -114,48 +111,3 @@
   DEEPSEEK_API_KEY=your_deepseek_api_key
   DEEPSEEK_BASEURL=https://api.deepseek.com
   ```
-
-## Python 开发规则
-
-Python 项目（`pyproject.toml` / uv / ruff / 包内代码 / 测试）相关规范集中维护在领域规则文档 **`rules/python.md`**：
-
-- CC 端：`~/.claude/rules/python.md`
-- Codex 端：`~/.codex/rules/python.md`
-
-**触发条件**：本轮任务一旦涉及 Python 代码、`pyproject.toml`、依赖管理或 Python 风格判断，**必须先把 `rules/python.md` 读入上下文**，再开始动手。
-
-## 前端开发规则
-
-前端工程（npm / npmmirror、Biome、Vite、TypeScript、tailwind v4、shadcn-ui、React，落 `frontend/` 子目录）相关规范集中维护在领域规则文档 **`rules/frontend.md`**：
-
-- CC 端：`~/.claude/rules/frontend.md`
-- Codex 端：`~/.codex/rules/frontend.md`
-
-**触发条件**：本轮任务一旦涉及前端代码 / web UI、React / Vite / TypeScript 前端工程，或 Biome / tailwind / shadcn 等前端栈判断，**必须先把 `rules/frontend.md` 读入上下文**，再开始动手。
-
-## ROS 2 开发规则
-
-ROS 2 工程（colcon 工作空间、ament_cmake + ament_python、package.xml、CMakeLists ament-first 约定、launch、依赖消费/导出、新增包检查清单，包落 `src/`）相关规范集中维护在领域规则文档 **`rules/ros2.md`**：
-
-- CC 端：`~/.claude/rules/ros2.md`
-- Codex 端：`~/.codex/rules/ros2.md`
-
-**触发条件**：本轮任务一旦涉及 ROS 2 工程、colcon 工作空间、ament（`ament_cmake` / `ament_python`）、`package.xml`、ROS 包的 `CMakeLists.txt`、launch 文件或 ROS 包构建/依赖判断，**必须先把 `rules/ros2.md` 读入上下文**，再开始动手。
-
-## lark-cli 文档创作规则
-
-用 lark-cli（lark-doc）创作 / 编辑飞书云文档相关规范（署名约定 + docx 实操技巧）集中维护在领域规则文档 **`rules/lark.md`**：
-
-- CC 端：`~/.claude/rules/lark.md`
-- Codex 端：`~/.codex/rules/lark.md`
-
-**触发条件**：本轮任务一旦涉及用 lark-cli 创作或编辑飞书云文档，**必须先把 `rules/lark.md` 读入上下文**，再开始动手。
-
-## Shell 脚本开发规则
-
-写含中文注释 / 中文输出的 bash / shell 脚本相关规范（「中文 / 全角字符 × shell 引号与变量名」的两个固定坑）集中维护在领域规则文档 **`rules/shell.md`**：
-
-- CC 端：`~/.claude/rules/shell.md`
-- Codex 端：`~/.codex/rules/shell.md`
-
-**触发条件**：本轮任务一旦涉及生成 / 编辑含中文注释或中文输出的 bash / shell 脚本，**必须先把 `rules/shell.md` 读入上下文**，再开始动手。

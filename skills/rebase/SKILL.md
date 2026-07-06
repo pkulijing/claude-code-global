@@ -67,7 +67,7 @@ disable-model-invocation: false
 - **带 `<base>` 参数**：采用该 base 作为目标。
 - **无参数**：默认以 `master` 作为 base。**若当前分支就是 `master`，立刻停下告知人类**，不要试图去找"另一条该 rebase 的分支"。
 
-诊断报告中明确写出"将把 `<current>` rebase 到 `<base>`"。**若方向明确且未命中必停清单（核心原则 #6），直接进入阶段 1，无需等确认**；若方向不明 / 当前分支就是 base / 目标是公共分支等命中必停项，停下说明原因、等人类决策。
+诊断报告明确写出"将把 `<current>` rebase 到 `<base>`"。方向明确且未命中必停清单（原则 #6）→ 直接进阶段 1，无需等确认；命中必停项 → 停下说明原因、等人类决策。
 
 ## 阶段 1：前置检查与备份
 
@@ -78,7 +78,7 @@ disable-model-invocation: false
    - 明确告诉人类："如果 rebase 搞砸了，用 `git reset --hard <备份 tag>` 回到此刻。"
 3. 切到要被 rebase 的分支（如果 rebase 发生在 worktree 里，提醒人类 `cd` 到对应 worktree 目录）。
 
-工作区干净时，打完备份 tag **直接进入阶段 2，无需等确认**；**工作区不干净则停下**，要求人类先 `git commit` / `git stash` 再继续（命中必停清单）。
+工作区干净 → 打完备份 tag 直接进阶段 2，无需等确认；工作区不干净 → 停下（命中必停清单），要求人类先 `git commit` / `git stash`。
 
 ## 阶段 2：执行 rebase 与冲突处理
 
@@ -96,9 +96,7 @@ disable-model-invocation: false
 4. 若后续 commit 继续冲突，重复 1–3。
 5. 随时可用 `git rebase --abort` 撤销整个 rebase。备份 tag 作为二重保险。
 
-rebase 完成后，展示 `git log --graph --oneline -10` 让人类肉眼验证。
-
-**冲突属必停项**：解决过程与解决完都停下让人类过目，确认历史正确后再进入阶段 3。
+rebase 完成后展示 `git log --graph --oneline -10` 让人类肉眼验证。**冲突属必停项**（原则 #6）：解决过程与解决完都停下过目，确认历史正确再进阶段 3。
 
 ## 阶段 3：FF 合并 / 推送 / 验证
 
@@ -114,11 +112,11 @@ FF 成功则**直接继续**，不停顿。
 
 ### 推送（如需要）
 
-**推送属必停项**：无论 `--force-with-lease` 还是推主干，都是高影响操作，**即便前面全程无冲突、静默直行，推送前也必停一次、明确告知要推什么、等人类点头**，绝不静默 force push。
+**推送属必停项**（原则 #6）：无论 `--force-with-lease` 还是推主干都高影响，推送前必停一次、告知推什么、等人类点头，绝不静默 force push。
 
-- 被 rebase 过的分支若已推送过远程：`git push --force-with-lease origin <branch>`，**禁用 `git push --force`**。
-- FF 推上去的主干分支（如 `master`）：正常 `git push` 即可。
-- 若本次 rebase 纯本地、无需推送 → 跳过本节。
+- 被 rebase 过、已推过远程的分支：`git push --force-with-lease origin <branch>`，**禁用 `git push --force`**。
+- FF 推上去的主干（如 `master`）：正常 `git push`。
+- 纯本地无需推送 → 跳过本节。
 
 ### 验证
 
@@ -126,16 +124,14 @@ FF 成功则**直接继续**，不停顿。
 - 提醒人类跑测试或启动服务，确认功能未坏。
 - 确认无误后，可删除阶段 1 的备份 tag：`git tag -d backup/...`。
 
-### round 编号一致性检查（仅涉及 docs 轮次的仓库）
+### round 编号一致性检查（仅用 `docs/<N>-...` 轮次目录的仓库）
 
-rebase 或历史整理后，目标分支可能已占用本地开发轮的 round 编号，导致三处编号脱节。**若本仓库用 `docs/<N>-...` 轮次目录**，rebase 完成后逐条核对，命中冲突则给出**顺延计划、要求用户确认**，绝不静默继续：
+rebase / 历史整理后目标分支可能已占用本地 round 编号，导致三处脱节。**触发**：目标分支已占用当前 round 编号，或 docs round 与 commit round 不一致时，逐条核对、命中给**顺延计划并要求确认**、绝不静默：
 
-**触发条件**：目标分支已占用当前开发轮的本地 round 编号，或 rebase 后发现 docs round 与 commit round 不一致。
+1. `docs/<N>-...` 目录编号顺延到下一个空位。
+2. `docs/DEVTREE.md`（Epic 结构 / 可视化 / 节点索引）随之同步顺延。
+3. commit message `[round N]` 前缀与目录编号一致。
+4. **顺延如需改写已提交历史**（rename docs + amend/rebase）→ 明确提示「这会改写历史」、等确认再动手。
+5. 顺延后重跑 `git log --oneline` / `git status` 确认三者一致。
 
-1. `docs/<N>-...` 目录编号是否需要顺延到下一个空位。
-2. `docs/DEVTREE.md` 的 Epic 结构、可视化与节点索引是否随之同步顺延。
-3. commit message 的 `[round N]` 前缀是否与文档目录编号一致。
-4. **顺延如需改写已提交的历史**（rename docs 目录 + amend/rebase commit）→ 明确提示「这会改写历史」，等用户确认后才动手。
-5. 顺延后重新跑 `git log --oneline`、`git status` 与必要的文档检查，确认 docs 目录、`DEVTREE.md`、commit 前缀三者编号一致。
-
-无 `docs/<N>-...` 轮次目录的仓库（如纯代码仓）→ 本节不适用，跳过。
+纯代码仓（无 `docs/<N>-...`）→ 跳过本节。

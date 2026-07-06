@@ -106,7 +106,9 @@ graph TD
     direction TB
     N24["🏗️ 24 · 精简宪法与会话标题约定排查"]:::refactor
     N25["🏗️ 25 · python 模板与子 CLAUDE 机制"]:::refactor
+    N44["🏗️ 44 · skill 措辞 review"]:::refactor
     N24 ~~~ N25
+    N25 ~~~ N44
   end
 
   subgraph e_rules["🔄 领域规则沉淀"]
@@ -183,7 +185,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-04 | 共 43 轮
+> 最后更新：2026-07-06 | 共 44 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -230,6 +232,7 @@ graph TD
 | 41 | 新增 /quick 轻量开发流 | ✨ 功能 | 轻量开发流 | 新增单个 skill /quick 补齐「三档开发流」最轻一档：不落 docs / 不开 worktree / 不进计划模式，直接改代码 → 自动 /commit 收尾（复用其 lint 门禁与署名）；默认当前分支直接改，`--branch` 切轻量分支、`#<issue>` 可选带 Closes；GLOBAL_AGENTS.md 第 37 行做成三档流程权威指针 |
 | 42 | DEVTREE 表格免 prettier 对齐 | 📦 工程 | 代码格式化 | 给 DEVTREE.md 加 .prettierignore 豁免 prettier 表格对齐（内容一变整列重排致 diff 爆炸），/devtree skill 改为生成紧凑单空格表格；模板 _common 同步一份给下游 |
 | 43 | gitlab-ci 按 runner 选变体 | ✨ 功能 | 项目模板机制 | 引入通用「变体组」模板机制（文件名约定 `<target>.variant.<key>`，选择前移到 bootstrap/sync 交互、只落一份、记进 marker `variants`），把 python-uv 的 `.gitlab-ci.yml` 拆为 docker/shell 两变体（shell 版去 image + 脚本装 uv + 禁 !reference 用 YAML 锚点）；改 bootstrap/sync 两 skill + SCHEMA + 根 CLAUDE，含老项目「普通文件→变体组」迁移去重防误删 |
+| 44 | skill 措辞 review | 🏗️ 重构 | 全局宪法治理 | 借 skill-creator 判据固化 6 条精简 rubric，对 8 份进 context 文档（5 skill + python/ros2 rules + GLOBAL_AGENTS）去冗余、零行为回归（净减 147 行，实删字数更多）；GLOBAL_AGENTS 孪生化 rules 指针折叠进汇总表（-48），labels helper 契约从三处下沉 scripts/platform_issue.md 单一真源，finish Step 6 下沉 references/readme-review.md |
 
 ---
 
@@ -267,7 +270,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25
+- 轮次：24, 25, 44
 
 #### 领域规则沉淀
 

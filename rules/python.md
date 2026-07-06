@@ -8,7 +8,7 @@
 
 - 使用 **uv** 管理项目依赖：用 `uv add <pkg>` 添加，依赖记录在 `pyproject.toml`（uv 天然支持）。**禁止使用 `pip install` 或 `uv pip install`**。
 - 使用 **`uv run`** 运行 Python 脚本，如 `uv run some_script.py`、`uv run python -m ruff check .`。**禁止直接调用 `python` / `python3`**。
-- **让 uv 全权管 python**：在 `pyproject.toml` 设 `[tool.uv] python-preference = "only-managed"`，强制 uv 只用自己托管的 standalone python、忽略系统 python。uv 默认 `python-preference=managed` 只在**已装**解释器间排序、会优先复用满足版本要求的系统 python；而系统 python 常缺 dev 头文件（无 `Python.h`），导致含 C 扩展的依赖（如 `evdev`）编译失败、且容易误判为编译器问题。托管 standalone python 永远自带头文件，配合默认 `python-downloads=automatic`，缺托管版时会自动下载。python-uv 模板已默认带此设置，手工建项目请照抄；机器级一劳永逸可在 `~/.config/uv/uv.toml` 设同名键（`claude-code-global` 的 `install.sh` 在该文件缺失时会自动 seed）。
+- **让 uv 全权管 python**：`pyproject.toml` 设 `[tool.uv] python-preference = "only-managed"`，强制 uv 只用托管 standalone python、忽略系统 python。默认 `managed` 会复用系统 python，而系统 python 常缺 dev 头文件（无 `Python.h`）→ 含 C 扩展的依赖（如 `evdev`）编译失败、且易误判为编译器问题；托管 standalone python 永远自带头文件、缺版自动下载。python-uv 模板已默认带此设置；机器级一劳永逸可在 `~/.config/uv/uv.toml` 设同名键（`install.sh` 缺失时会 seed）。
 - 使用 **ruff** 做代码格式化与语法检查（`uv run ruff check` / `uv run ruff format`）。
 - **pypi index 指南**（为提高国内下载速度，固定两个源）：
   - 普通库走[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)
@@ -70,7 +70,7 @@ src 布局下，顶层 `<pkg>/`（装 `pyproject.toml` / `package.xml`、**无 `
 
 **误导点**：顶包 import 成功、只子模块挂，报错像"子模块没装"，完全不会让人联想到"顶层同名目录遮蔽了 src 真包"。**判据**：`<pkg>.__file__` 为 `None`（真包会是具体路径）+ `<pkg>.__path__` 同时含顶层项目目录与 install/editable 真包**两个 portion**。
 
-**两场景两命运**：测试期（pytest 在仓根跑）触发；生产运行期（正规安装后从 site-packages import、CWD 不在仓根）**天然不触发**——故这是开发 / 测试期问题，非部署问题。
+**两场景两命运**：测试期（pytest 在仓根跑）触发；生产运行期（site-packages import、CWD 不在仓根）**天然不触发**——是开发 / 测试期问题、非部署问题。
 
 **解法**：仓根 `conftest.py` 把仓根从 `sys.path` 剔除，配合 `--import-mode=prepend`：
 
@@ -81,7 +81,7 @@ _ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path[:] = [p for p in sys.path if p and os.path.abspath(p) != _ROOT]
 ```
 
-与 §2.2 的「多成员同名 `tests` 包碰撞」并列成「src 布局命名撞车」两个**不同**的坑、**不同**的解：那条治「同名 `tests` 包」（靠 `--import-mode=importlib` + `tests/` 不放 `__init__.py`），这条治「顶层目录遮蔽 src 真包」（靠剔仓根出 `sys.path`）；别把两者的解混用。
+与 §2.2「多成员同名 `tests` 包碰撞」是「src 布局命名撞车」的两个**不同**坑、**不同**解：那条靠 `--import-mode=importlib` + `tests/` 不放 `__init__.py`，这条靠剔仓根出 `sys.path`；别混用。
 
 ## 3. 开发风格
 
@@ -99,15 +99,7 @@ sys.path[:] = [p for p in sys.path if p and os.path.abspath(p) != _ROOT]
 
 **rule**：包内文件互相 import 用绝对路径（`from mypackage.X import Y`），而不是相对路径（`from .X import Y`）。
 
-**为什么**：
-
-- PEP 8 默认推荐；
-- 大型项目（numpy / pandas / Django / SQLAlchemy / Requests / FastAPI）一致用绝对；
-- 读：路径完整，一眼看出"来自哪个包"；
-- 写：错误消息带完整路径，定位快；
-- 重构：grep / sed 全局一致字符串。
-
-**反驳"相对让改包名更简单"**：现实里频繁改的是**文件名**而非**包名**，相对 import 在我们的工作流里不省事。
+**为什么**：PEP 8 默认推荐、大型项目（numpy / pandas / Django / FastAPI）一致；路径完整一眼看出来源、错误消息带完整路径好定位、重构时 grep/sed 是一致字符串。反驳「相对让改包名更简单」：现实里频繁改的是**文件名**而非包名，相对 import 不省事。
 
 **硬规则**：单个文件内绝不混用两种风格 —— 一致性比选哪种更重要。
 
@@ -194,7 +186,7 @@ class XxxStream:
 - 模块级 helper / 纯函数 / 算法类：测得很全（容易测、好覆盖）；
 - 编排器 / facade-level 类（拼装多个组件做端到端流程的）：**0 单测**或仅 smoke test。
 
-**真实事故案例**：曾经一次 session 中 formatter 误判删了 `from mcap2lerobot.mcap_bag import McapBag`，但 `pytest tests/ -q` 全 86 项过。原因：`tests/test_converter.py` 只测 `_effective_profile` / `align_frames` 两个模块级 free function，**没有任何测试**真正 `Converter(...).run()`。missing import 直到真实 CLI 跑数据才会暴露。
+**真实事故案例**：formatter 误判删了 `from mcap2lerobot.mcap_bag import McapBag`，但 `pytest -q` 全 86 项过——因为测试只覆盖模块级 free function，**没有任何测试**真正跑 `Converter(...).run()`，missing import 直到真实 CLI 跑数据才暴露。
 
 **rule**：每个**编排器 / facade-level 类**至少有 **1 条 happy-path integration test**：
 
@@ -221,7 +213,7 @@ class XxxStream:
 
 ### 5.1 含前端（npm）产物的成员 wheel 化
 
-monorepo 里「可独立发布、且自带 npm 前端构建产物」的 Python 成员（典型：FastAPI daemon 静态托管 SPA），wheel 化时前端 `dist/` 在 Python 包外、由 npm 构建、默认不进 wheel，且包内按仓库布局解析的路径装机后失效。这与 §2.1 hatchling escape hatch 互补，构成「按成员形态选打包路径」决策的第二格（第一格：纯 Python 成员 `uv build` 即得 `py3-none-any`）：
+monorepo 里「可独立发布、自带 npm 前端产物」的 Python 成员（典型：FastAPI daemon 静态托管 SPA），wheel 化时前端 `dist/` 在包外、默认不进 wheel，且包内按仓库布局解析的路径装机后失效。与 §2.1 hatchling 互补，是「按成员形态选打包路径」决策的第二格（第一格：纯 Python 成员 `uv build` 即得 `py3-none-any`）：
 
 1. **构建后端切 hatchling**（§2.1 已覆盖「自定义 build / 非标布局」触发）。
 2. **用 `artifacts` glob bundle 前端产物，而非 `force-include`**：
@@ -249,7 +241,7 @@ monorepo 里「可独立发布、且自带 npm 前端构建产物」的 Python �
 
 项目级上传 URL：`${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/pypi`，user `gitlab-ci-token` + 密码 `$CI_JOB_TOKEN`。
 
-**补充 · 程序化查询该 registry 的最新版本**：GitLab 的项目级 PyPI **simple 索引**（`.../packages/pypi/simple/<pkg>/`）不是 JSON API——它返回 PEP 503 的锚点 HTML，列出该包所有 wheel / sdist 文件名（`Content-Type` 随 GitLab 版本为 `text/html` 或上面 `--check-url` 撞到的 `text/plain`，**要点一致：不是 JSON**）。故要在程序里查"有没有新版本"，一律**拉这个页面、正则从 wheel 文件名（`<pkg>-<version>-*.whl`）提版本号、按 `packaging.version.Version` 取最高 stable（过滤 prerelease）**，别指望 JSON 解析。整套「应用内更新自检」骨架见 §5.4。
+**补充 · 程序化查询该 registry 最新版本**：GitLab 项目级 PyPI **simple 索引**（`.../packages/pypi/simple/<pkg>/`）返回 PEP 503 锚点 HTML、**非 JSON**。查「有没有新版本」一律拉该页、正则从 wheel 文件名（`<pkg>-<version>-*.whl`）提版本、按 `packaging.version.Version` 取最高 stable（过滤 prerelease），别指望 JSON。整套骨架见 §5.4。
 
 ### 5.3 `pip install --target` 装本地开发 wheel：同版本号不覆盖
 
@@ -259,15 +251,13 @@ monorepo 里「可独立发布、且自带 npm 前端构建产物」的 Python �
 
 ### 5.4 应用内更新自检的标准骨架
 
-凡用 `uv tool install` 分发的应用（CLI / 带 UI 的 daemon）都可能要「运行时查有没有新版本 + 一键升级」。这套骨架已在多个项目独立重造，不变部分固化成可抄清单，差异点（版本源 / 凭证 / UI 框架）按项目填：
+凡用 `uv tool install` 分发的应用（CLI / 带 UI 的 daemon）都可能要「运行时查新版本 + 一键升级」。骨架不变部分（差异点：版本源 / 凭证 / UI 框架按项目填）：
 
-1. **查最新版本**，按 registry 类型两分支：
-   - **PyPI（公共）**：GET `https://pypi.org/pypi/<pkg>/json`，读 `info.version`。
-   - **GitLab（自托管私有）**：拉项目级 PyPI **simple 索引** HTML（PEP 503 锚点、非 JSON，见 §5.2），正则从 wheel 文件名提所有版本号。
-2. **`packaging.version.Version` 比较** + **过滤 prerelease**（`Version(v).is_prerelease`，否则 `rc` / `dev` 会被误当最新）。
-3. **拼 `uv tool upgrade <pkg>` 命令**：`shutil.which("uv")` 定位 uv；私有 registry 还要带 `--extra-index-url <含只读 token 的 URL>` + `--allow-insecure-host <host>`（内部 CA，呼应 §5.2 的 TLS 坑）。
-4. **后台线程 + TTL（stale-while-revalidate）+ 失败静默**：查询放后台线程、结果带 TTL 缓存，**不拖慢启动**；网络 / 解析失败一律返 `None`、**不抛异常**、不打断主流程。
-5. **不自动重启**：`uv tool upgrade` 覆盖 venv 里的 `.py`，但**不影响已在跑的进程**；只提示用户「已升级，请手动重启」，别自作主张重启。
+1. **查最新版本**（PyPI 走 JSON `info.version`；GitLab 走 simple 索引 HTML 提 wheel 文件名，见 §5.2）——下方代码。
+2. **`Version` 比较 + 过滤 prerelease**（`is_prerelease`，否则 `rc`/`dev` 被误当最新）。
+3. **拼 `uv tool upgrade <pkg>`**：`shutil.which("uv")` 定位 uv；私有 registry 追加 `--extra-index-url <含只读 token>` + `--allow-insecure-host <host>`（内部 CA，呼应 §5.2 TLS 坑）。
+4. **后台线程 + TTL + 失败静默**：查询放后台、TTL 缓存不拖慢启动；网络 / 解析失败返 `None`、不抛异常、不打断主流程。
+5. **不自动重启**：`uv tool upgrade` 覆盖 venv 的 `.py` 但不影响已在跑的进程；只提示用户手动重启，别自作主张。
 
 两个版本源的最小解析片段：
 
@@ -292,4 +282,4 @@ def latest_gitlab(simple_url: str, pkg: str) -> str | None:
     return max(stable, key=Version) if stable else None
 ```
 
-拿到 latest 后与当前版本 `Version(latest) > Version(current)` 比较即得「是否有更新」；升级命令拼 `[uv, "tool", "upgrade", pkg]`（私有源追加 `--extra-index-url` / `--allow-insecure-host`），交给用户点击执行、执行完提示重启。
+有无更新 = `Version(latest) > Version(current)`；升级交给用户点击执行、执行完提示重启。

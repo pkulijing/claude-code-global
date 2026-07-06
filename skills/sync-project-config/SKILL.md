@@ -9,16 +9,17 @@ disable-model-invocation: false
 - **Normal sync**：项目根已有 `.agent-template.yml` marker → 计算 diff → AI 智能 merge 提议 → 用户批量决策 → 执行
 - **Adopt**：无 marker → 让用户选 stack（或选"无 stack 只 \_common"） → 当作"全是新增"完整套用一次（含冲突询问）→ 写 marker
 
-**三种项目形态**（本轮均支持）：
+**三种项目形态**（本轮均支持），差异只在生效模板源：
 
-- **多 stack 项目（`len(stacks) >= 2`）**：前端 / 后端正交叠加（如 `python-uv` 落根 + `react-vite` 落 `frontend/`），各 stack 按各自 `path` 落点 + `_common` 一并参与
-- **单 stack 项目（`len(stacks) == 1`）**：选定某个 stack（如 `python-uv`），`<stack>` + `_common` 两个模板源都参与
-- **无 stack 项目（`len(stacks) == 0`）**：仅 `_common` 一个源参与，适用于模板源仓库本身（`claude-code-global`）或所有现成 stack 都不合身、但仍想复用 `_common` stack-无关资源（issue templates、`labels.yml`、`.prettierrc` 等）的项目
+- **多 stack（`len >= 2`）**：前端 / 后端正交叠加（如 `python-uv` 落根 + `react-vite` 落 `frontend/`），各 stack 按各自 `path` 落点 + `_common` 一并参与
+- **单 stack（`len == 1`）**：`<stack>` + `_common` 两源参与
+- **无 stack（`len == 0`）**：仅 `_common`，适用于模板源仓库本身（`claude-code-global`）或所有 stack 都不合身、但仍想复用 `_common` stack-无关资源（issue templates、`labels.yml`、`.prettierrc` 等）的项目
 
-各 stack 的 `path` 来自 marker（由 bootstrap / adopt 按 stack 的 `stack.yml` `default_path` 写入：`python-uv`→`.`、`react-vite`→`frontend`）。下文凡「遍历 stacks」在 `len == 1` 时退化为单条、**行为与旧单 stack 完全一致**；`len == 0` 走「仅 `_common`」分支。
+各 stack 的 `path` 来自 marker（bootstrap / adopt 按 `stack.yml` `default_path` 写入：`python-uv`→`.`、`react-vite`→`frontend`）。
 
-详细 schema：`~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/SCHEMA.md`
-设计与决策：`~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/PROMPT.md` / `PLAN.md`
+**三态收敛约定（下文统一遵循、不再逐处复述）**：凡「遍历 stacks」对每条 stack 各跑一遍；`len == 1` 退化为单条、**行为与旧单 stack 完全一致**；`len == 0` 走「仅 `_common`」分支。skipped 读写位置随形态而定——`len >= 1` 用 `stacks[].skipped`（`_common` 归 `stacks[0]`），`len == 0` 用 marker 顶层 `skipped`（不为 `_common` 造虚拟 stack 条目，以免破坏「`_common` 不进 stacks 列表」约定）。
+
+详细 schema / 设计决策：`~/.claude/global-repo/docs/11-跨项目共享模板与sync-skill/`（SCHEMA.md / PROMPT.md / PLAN.md）
 
 ## 前置检查
 
@@ -53,10 +54,7 @@ marker 文件名在 round 22 由 `.cc-template.yml` 改为 `.agent-template.yml`
      - **open 项**（`## P0/P1/P2` 段里的行，每行本就带一个云端 issue 链接）；
      - **「刻意不做」项**（`## 已完成 / 不再追踪` 段里的行，每条带原因）。
   2. **open 项 → 确认云端已有对应 issue**：逐条核对该行的 issue 链接指向的 issue 仍 open（`python3 $HOME/.claude/scripts/platform_issue.py issue-view <N>`）。都在 → 无需动作（云端已是真源，删文件不丢信息）；若某行**没有** issue 链接（极老的裸文本条目）→ 提示用户先 `/backlog` 把它补成云端 issue，再继续。
-  3. **「刻意不做」项 → 归档为带 `wontfix` 的 closed issue**：逐条建 issue 并随即 close（与 `/finish` Step 2 同一手法）：
-     - 先确保目标仓库有 `wontfix` label：`label-list` 校验，缺则先补进 `.github/labels.yml` 并 `label-sync-from-file` 同步；
-     - `issue-create --title "刻意不做：<一句话>" --body-file <tmp> --label wontfix --label type:docs --label area:<Y> --label priority:P2`，body 保留原条目的原因文字；
-     - 建完 `gh issue close <N> -r "not planned"`（GitLab 用 `glab issue close <N>`）。
+  3. **「刻意不做」项 → 归档为带 `wontfix` 的 closed issue**（与 `/finish` Step 2 同一手法）：逐条 `issue-create --title "刻意不做：<一句话>" --body-file <tmp> --label wontfix --label type:docs --label area:<Y> --label priority:P2`（body 保留原因文字），建完 `gh issue close <N> -r "not planned"`（GitLab 用 `glab issue close <N>`）。`wontfix` label 缺失先补进 `.github/labels.yml` 并 sync。label 契约见 `~/.claude/scripts/platform_issue.md`。
   4. **删文件**：两类条目都迁移确认后 `git rm docs/BACKLOG.md`，告知用户「已废弃本地 BACKLOG.md，open 项速览改用 saved query（按 priority 过滤 open issues），刻意不做项已归档为 wontfix closed issue」。
   5. 迁移完成后**继续**下面的模式判断，把本轮 sync 正常跑完（BACKLOG.md 的删除会一并进本轮 sync 的收尾 diff）。
 
@@ -82,7 +80,7 @@ marker 文件名在 round 22 由 `.cc-template.yml` 改为 `.agent-template.yml`
 - `stacks` 各条的 `path` 用其声明值（如 `python-uv`→`.`、`react-vite`→`frontend`），不再强制 `path == .`
 - 同一 marker 内不应出现重复 `stack` 名或重复 `path`，若有 → 报错并请用户手动修
 
-后续 2.x / 6.x 凡「遍历 stacks」「`<stack>`」描述对每条 stack 各跑一遍；`len == 1` 退化为单条（等价旧行为），`len == 0` 按"仅 `_common`"分支走（每节会显式说明）。
+（后续 2.x / 6.x 的「遍历 stacks」「`<stack>`」按顶部「三态收敛约定」处理。）
 
 ### 2.2 拿当前模板 HEAD
 
@@ -172,8 +170,7 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 
 - 目标**不存在** → 用 fragment 内容创建（含父目录）。
 - 目标**已存在** → 按目标语义合并：`extensions.json` 的 `recommendations` 数组做**有序去重 union**；`settings.json` 对象做**顶层键 union**（键只一侧→并入；两侧都为对象→递归深合并；标量冲突→询问）。
-- 多个 stack 的同名 `.vscode/<name>.json.fragment` 依次合并进**同一个**项目根目标，得各 stack 推荐 / 设置的并集（前后端语言作用域键天然不相交，纯 union）。
-- 背景：各 stack 的编辑器配置以 fragment 汇聚到**项目根** `.vscode/`（VS Code 单根工作区只读仓库根的 `.vscode/`，子目录 stack 如 `react-vite` 也借此落根、与 `python-uv` 共存）。
+- 多个 stack 的同名 `.vscode/<name>.json.fragment` 依次合并进**同一个**项目根目标，得各 stack 推荐 / 设置的并集（前后端语言作用域键天然不相交，纯 union）。之所以汇聚到项目根：VS Code 单根工作区只读仓库根的 `.vscode/`，子目录 stack 也须借此落根。
 
 **fragment 迁移去重（重要）**：当模板把某资源从「`__subpath__` 普通文件」改为「`__root__/*.fragment`」时，diff 会同时出现「`D __subpath__/X`」与「`A __root__/X.fragment`」。判断二者**目标项目路径是否相同**：
 
@@ -188,12 +185,7 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 
 ### 2.5 处理 skipped 持久化语义
 
-**skipped 列表按来源归属分别维护**：
-
-- `len >= 1`：某 stack 自己（`templates/<stack>/...`）的 skip 项放进该 `stacks[i].skipped`；`_common`（共享源）的 skip 项统一放进 `stacks[0].skipped`（第一条 stack，`len == 1` 时即旧行为）
-- `len == 0`：读 marker **顶层** `skipped`（与 `stacks[].skipped` schema 完全一致，仅位置不同；该字段可缺省，视作空数组）。这样避免在 `len == 0` 时引入"虚拟 stack 条目"破坏「`_common` 不显式记录在 `stacks` 列表」约定
-
-把所有 stack 条的 skipped（+ `len == 0` 顶层 skipped）汇总后，对每条：
+skipped 读写位置按顶部「三态收敛约定」（`len >= 1` 归 `stacks[].skipped`、`len == 0` 归顶层 `skipped`）。汇总所有来源的 skipped 后，对每条做「是否又变过」重检：
 
 - 取 `file`（含来源 source 段，如 `__root__/.github/labels.yml`） 与 `skipped_at_commit`
 - 该文件实际来源（stack 或 \_common）由 skill 在分析阶段记录到 file 字段或动态确定
@@ -203,23 +195,11 @@ git -C ~/.claude/global-repo diff --name-status <old>..<new> -- \
 
 ### 2.6 输出 TODO 清单
 
-格式（每文件一项）：
+每文件一项，含：序号 + 文件（来源段）、模板侧动作（M/A/D）、模板变化摘要、项目侧状态（是否已自定义 / 是否存在）、建议动作。示例：
 
 ```
-TODO 同步清单（共 N 项）：
-
-[1] .gitignore （root）
-    模板侧动作：M（modified）
-    模板变化摘要：新增 .ruff_cache/
-    项目侧状态：用户已自定义（手动加过 *.bak）
-    建议：智能 merge — 保留 *.bak、追加 .ruff_cache/
-
-[2] .github/workflows/lint.yml （root）
-    模板侧动作：A（added）
-    项目侧状态：不存在
-    建议：创建
-
-...
+[1] .gitignore （root）  M  新增 .ruff_cache/  | 项目侧已自定义(*.bak) → 智能 merge：保留 *.bak + 追加 .ruff_cache/
+[2] .github/workflows/lint.yml （root）  A  | 项目侧不存在 → 创建
 ```
 
 跳到第 5 节「用户批量决策」。
@@ -257,7 +237,7 @@ TODO 同步清单（共 N 项）：
   - 不一致 → 默认建议「智能 merge」或询问 take / 保留 / merge
 - **变体组文件**（`<target>.variant.<key>`）：与 bootstrap Step 3.3.7 对称——同一 `<target>` 的多个变体**当作一条 TODO**「选一个变体落地」，第 5 节问用户选 key（展示人话说明），只把选中那份落地为 `<target>`、其余不落地；选择在 6.1 写进 marker 该 stack 的 `variants[<target>]`。项目侧已有 `<target>` → 冲突询问 take / 保留 / merge。
 - `*.fragment`（`pyproject.toml.*.fragment` 与 `.vscode/*.json.fragment`）同 2.4 特殊处理
-- 含 `.github/labels.yml` 时：**额外把"调 helper `label-sync-from-file` 同步 labels 到远端"作为单独一条 TODO**。helper 自动按 `git remote` 判定走 `gh` / `glab`（详见第 6 节执行步骤）。`.github/labels.yml` schema 跨平台一致，GitLab 项目下也读 `.github/` 路径同一份（不新建 `.gitlab/labels.yml` 副本）。
+- 含 `.github/labels.yml` 时：**额外把"调 helper `label-sync-from-file` 同步 labels 到远端"作为单独一条 TODO**（helper 契约见 `~/.claude/scripts/platform_issue.md`）。
 
 跳到第 5 节。
 
@@ -275,7 +255,7 @@ TODO 同步清单（共 N 项）：
 [ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
 ```
 
-`--package` 让 uv 直接落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件 + 含 `[build-system] uv_build` 的 `pyproject.toml`），由领域规则 `~/.claude/rules/python.md` §2 固化。adopt 模式下 `pyproject.toml` 多半已存在，本步是 no-op；空目录走 `uv init --package` 分支。
+`--package` 落标准 src 布局（`src/<pkg>/__init__.py` 空文件 + `[build-system] uv_build` 的 `pyproject.toml`），见 `rules/python.md` §2。adopt 下 `pyproject.toml` 多半已存在、本步 no-op。
 
 **多包 `python-uv-workspace`**：**绝不 `uv init --package`**（会在虚拟根写 `[project]` + `src/` 破坏 workspace 形态）。虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments 合并而成、成员包随模板 `packages/*` 复制就位；本步只确保上述 fragments 已合（2.4 的 TOML 段合并对「目标不存在」会用 fragment 内容创建根 `pyproject.toml`）。
 
@@ -336,23 +316,16 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - **accept (删除)**：删文件
 - **accept (pyproject 段合并)**：把 `pyproject.toml.<section>.fragment` 合并进 `pyproject.toml` 的对应段（按 2.4 命名约定与合并语义）
 - **accept (.vscode JSON 合并)**：把 `.vscode/<name>.json.fragment` 合并进项目根 `.vscode/<name>.json`（按 2.4 (b) 合并语义：`recommendations` 数组 union / `settings.json` 顶层键 union）
-- **accept (label sync)**：调 helper 自动按平台 dispatch：
+- **accept (label sync)**：调 helper 自动按平台 dispatch，exit 2/3/4 按契约降级、不阻塞其他 accept 项：
 
   ```bash
   python3 $HOME/.claude/scripts/platform_issue.py label-sync-from-file .github/labels.yml
   ```
 
-  - GitHub → 内部对每条 yml 调 `gh label create --force ...`（`--force` 在已存在时覆盖更新）
-  - GitLab → 内部先 `glab label list --output json` 拿现存 name→id 映射，存在则 `glab label edit -l <id> -c #<hex> -d <desc>`，否则 `glab label create -n <name> -c #<hex> -d <desc>`；color 自动加 `#` 前缀
-  - helper exit 2（unknown 平台 / 无 origin / 自托管 URL 不含 `gitlab` 字样）→ 降级为提示「labels 同步跳过；如确为 GitHub 请补 origin remote，如确为自托管 GitLab 加 `--platform gitlab` override 重跑」
-  - helper exit 3（auth 失败）→ 降级为提示「跑 `gh auth login` 或 `glab auth login` 后重试」，不阻塞其他 accept 项
-  - helper exit 4（CLI 缺失）→ 降级为提示「先 `brew install gh` / `brew install glab`」
-  - stdout 输出每条 label 的 TSV 同步结果与 summary，原样展示给用户
+  helper 完整行为（gh/glab dispatch、color 转换、exit code 降级、stdout TSV）见 `~/.claude/scripts/platform_issue.md`。
 
 - **accept (变体落地 / 补选)**：把选中 key 的 `<target>.variant.<key>` 内容落地为 `<target>`（或按四象限 merge 进已存在的 `<target>`），其余变体不落地；把「`<target>` → 选中 key」写进对应 stack 的 `variants` map（6.1 持久化）。补选场景（老项目 marker 无记录）同理，落地 + 写 marker 一并完成。
-- **skip**：在 marker 的 skipped 列表中追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选，让用户填或留空>`
-  - `len >= 1` 项目：写该文件来源 stack 的 `stacks[i].skipped[]`；`_common` 来源统一写 `stacks[0].skipped[]`（与 2.5 对称，`len == 1` 即旧行为）
-  - `len == 0` 项目：写 marker 顶层 `skipped[]`（与 2.5 读取位置对称）
+- **skip**：在 marker 的 skipped 列表（位置按「三态收敛约定」）追加 / 更新条目，字段：`file`、`skipped_at_commit: <NEW_COMMIT>`、`reason: <可选>`
 
 注意：skipped[] 的更新策略：
 
@@ -367,9 +340,7 @@ AI 解析指令、产出最终执行计划，再次回显（per-file 写出每�
 - `template_commit` 更新为 `NEW_COMMIT`
 - `bootstrap_time` 不动（这是首次 bootstrap 时间）
 - `source` 不动
-- skipped 按 6 节策略更新：
-  - `len >= 1`：各 stack 写各自 `stacks[i].skipped`（`_common` 归 `stacks[0]`）
-  - `len == 0`：marker 顶层 `skipped`
+- skipped 按 6 节策略 + 「三态收敛约定」的位置更新
 - `variants` 按 6 节「accept (变体落地 / 补选)」更新：**保留 marker 已有的变体选择**（本次未触及的不动）；本次落地 / 补选 / 改选的变体写 / 更新对应 stack 的 `variants[<target>]`。无任何变体组的 stack 不写该字段。
 
 Adopt 模式额外：
