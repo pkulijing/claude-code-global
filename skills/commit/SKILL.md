@@ -9,7 +9,7 @@ disable-model-invocation: false
 1. 运行 `git status` 查看当前变更状态
 2. 运行 `git diff` 查看具体变更内容（包括已暂存和未暂存的）
 3. 运行 `git log --oneline -5` 了解近期 commit 风格
-4. **提交前 review loop**（防止同一个脑子的盲区随 commit 沉淀，尤其并发 / 复杂逻辑）：调 `/review-loop` 对当前工作树跑自动 review 迭代，**迭代到 clean 才继续往下**。细节以 `/review-loop` 为单一真源，简言之：**本次 diff 全由 CC 编写** + codex 可用→codex 独立 review（审的模型≠写 diff 的 CC）、发现正确性问题自动修复+复审、迭代至干净；**diff 含 codex 写的内容 / 来源不明**（codex 审 codex 非独立）或 codex 不可用→停下告知用户后降级本会话自审；琐碎改动自动跳过（配置 / 指令文件不跳）；自动修复迭代最多 3 轮。`/review-loop` 自动修复不停下逐条等用户确认，并把迭代留痕到 `docs/<N>-*/REVIEW.md`（如有）。放在 lint 之前，是因为 review-loop 会自动改代码——须让下一步 lint 覆盖到这些修复。
+4. **提交前 review loop**（防止同一个脑子的盲区随 commit 沉淀，尤其并发 / 复杂逻辑）：调 `/review-loop` 对当前工作树跑自动 review 迭代，**迭代到 clean 才继续往下**。细节以 `/review-loop` 为单一真源，简言之：**本次 diff 全由 CC 编写** + codex 可用→codex 独立 review（审的模型≠写 diff 的 CC）、发现正确性问题自动修复+复审、迭代至干净；**diff 含 codex 写的内容 / 来源不明**（codex 审 codex 非独立）或 codex 不可用→停下告知用户后降级本会话自审；琐碎改动自动跳过（配置 / 指令文件不跳）；自动修复每满 3 轮强制停下交回用户（人工闸口，授权后再来至多 3 轮）。`/review-loop` 自动修复不停下逐条等用户确认，并把迭代留痕到 `docs/<N>-*/REVIEW.md`（如有）。放在 lint 之前，是因为 review-loop 会自动改代码——须让下一步 lint 覆盖到这些修复。
 5. **commit 前 lint 检查**（防止把 lint 错误推上 CI 才发现；**放在 review-loop 之后**，好让 review-loop 的自动修复也被 lint 把关，不留绕过口子）：
    - 探测项目类型并跑对应的 lint 命令：
      - Python + uv: 见到 `pyproject.toml` + `[tool.ruff]` 配置 → `uv run ruff check .`
