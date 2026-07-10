@@ -33,7 +33,7 @@
 
 每轮开发默认在一个独立的 git worktree 内进行（`/start` 开轮时自动创建，`/finish` 收尾时自动 rebase、FF 合并并清理），使多轮开发可并行、互不污染主工作树；不值得单开 worktree 的轻量改动可用 `/start --no-worktree` 在当前分支直接干；连 docs 三件套都不需要的小改（如改个小函数、说清楚即可）用 `/quick` 直接改 → 自动 `/commit` 收尾，不落 docs、不进计划模式、不做总结/沉淀/devtree。
 
-**执行阶段的 commit 由 Agent 自主把控**：判断一个开发单元完成即主动 `/commit` 收口，不停下干等用户发话。**每次 commit 前自动经 review 循环**（`/review-loop`：默认走 CC `/code-review`、复杂/并发/难复现 diff 才升级引 codex；发现高置信正确性问题就修、跑测试+happy-path 验证、复审，迭代到「运行验证通过 + 无高置信 correctness 问题」才放行；琐碎改动自动跳过）。这样人类的 review 前移到 `/finish`——面对的是一个**每个 commit 都已过 review 的干净分支**，而非开发中间态。缘由与分层 / 降级规则见下文「独立模型 review」小节及 `/review-loop` skill。
+**执行阶段的 commit 由 Agent 自主把控**：判断一个开发单元完成即主动 `/commit` 收口，不停下干等用户发话。**每次 commit 前自动经 review 循环**（`/review-loop`：委派子 agent 跑 CC `/code-review`，默认 sonnet × medium、并发/难复现等硬 diff 升 opus × high；发现高置信正确性问题就修、跑测试+happy-path 验证、复审，迭代到「运行验证通过 + 无高置信 correctness 问题」才放行；琐碎改动自动跳过）。这样人类的 review 前移到 `/finish`——面对的是一个**每个 commit 都已过 review 的干净分支**，而非开发中间态。缘由与选档 / 降级规则见下文「提交前 review」小节及 `/review-loop` skill。
 
 ### 需求管理
 
@@ -48,7 +48,7 @@
 
 - 需求：结合当前现状，针对一个待解决的问题，给出明确详细的开发需求。人类主导，提供需求内容
 - 计划：结合项目现状，分析需求，给出可行的详细计划。Agent 主导，人类 Review。**先撰写 `PLAN.md`、待人类确认后再写代码**（CC 用 Plan 模式；Codex 用户可配 `--sandbox read-only --ask-for-approval on-request` 增加 harness 保障，但本规则本身已足够约束两端）。
-- 执行：按照计划，完成开发。Agent 主导，人类适当干预辅助。**执行前必须先完成 PROMPT.md 和 PLAN.md 的撰写并确认，再开始写代码。** 执行中 Agent 自主判断开发单元完成即 `/commit` 收口，**每次 commit 前自动走 review 循环**（`/review-loop`：默认 CC `/code-review`、复杂改动升级 codex、再不可用降级本端自审并标注、琐碎可跳过）迭代到「运行验证通过 + 无高置信 correctness 问题」——见「核心开发模式」。
+- 执行：按照计划，完成开发。Agent 主导，人类适当干预辅助。**执行前必须先完成 PROMPT.md 和 PLAN.md 的撰写并确认，再开始写代码。** 执行中 Agent 自主判断开发单元完成即 `/commit` 收口，**每次 commit 前自动走 review 循环**（`/review-loop`：委派子 agent 跑 CC `/code-review`、硬 diff 升重档、不可用则降级本端自审并标注、琐碎可跳过）迭代到「运行验证通过 + 无高置信 correctness 问题」——见「核心开发模式」。
 - 总结：开发完成后，总结开发项，输出总结文档，Agent 主导。包含以下内容：
   - 开发项背景
     - 针对BUG：BUG的表现和影响
@@ -75,16 +75,15 @@
 - **例外**：探索性原型、UI/视觉效果、与外部系统的集成（数据库 schema、第三方 API 对接）可以先跑通再补测试，因为这类代码"对的形状"往往要先实现出来才看得清。但**实现稳定后必须补齐单测**，不允许长期裸奔。
 - **判断原则**：如果一段逻辑你能在 `PLAN.md` 里清楚写出"输入 X 应得到输出 Y"，就应当先写测试。
 
-### 独立模型 review（commit 前自动跑）
+### 提交前 review（自动跑）
 
-**同一个模型自审自写的代码，盲区一致、极难发现问题**——尤其多线程 / 并发 / 复杂逻辑这类难复现改动。硬实证：一处 grpc.aio 消费迁专用线程的重构，CC 自审只发现 2 个并发隐患，换独立模型（codex）review 又补出 3 个 P1，其中「优雅停不可达」CC 完全漏判。`/code-review`（自审自己 diff）单独解决不了，因为是同一个脑子。
+**执行阶段每次 commit 前自动跑 review 循环**，迭代到干净。三条实战教训定死了怎么跑：**收敛靠「运行验证 + 高置信过滤」，不是靠 reviewer 挑不出为止**（round 47）；**review 成本必须跟 diff 规模挂钩**，否则一次 review 就烧光一个 session 的预算（round 48）；且**人不该为了等 loop 收敛干坐着**。
 
-因此**执行阶段每次 commit 前自动跑 review 循环**，迭代到干净。但两条实战教训（round 47）定死了怎么跑：**收敛靠「运行验证 + 高置信过滤」，不是靠 reviewer 挑不出为止**；且**不是每个 commit 都值得上跨模型 codex**——否则 review 又慢又在犄角旮旯挑刺，甚至把基础功能审废还没人发现。
-
-- **机制**：`/commit` 提交前自动调 `/review-loop`——**默认走 CC 自带 `/code-review`**（多 agent 并行 + verification step 过滤误报，快且低噪）；**只有 diff 命中并发 / 多线程 / 跨进程重试 / 状态机 / 难复现 / 跨 3+ 模块编排等复杂特征时才升级引 codex** 做独立第二意见。发现问题就修 → **跑受影响测试 + happy-path 主流程验证** → 复审 → 迭代到「**运行验证通过 + 无高置信 correctness 问题**」（clean）才放行。**收敛判据 = 运行验证 + 置信过滤**：① 运行验证（测试全绿 + 编排器 happy-path 跑通，reviewer 只读不跑、发现不了「基础功能被上一轮修废」，故此闸排在 reviewer 意见之前）；② 只认「附 `file:line` 证据 + 高置信真会在生产触发」的 correctness finding（含被标 P2 的）阻断，pre-existing / pedantic / linter 域 / 推测式 corner case 一律不阻断。**修复代码类 bug 遵循 TDD 正序**（先写能复现的红测试、确认它在旧实现上真红、再改实现变绿——旧实现上就绿的测试是假绿），不许「先改实现再补一份恰好能过的测试」；纯机械修复或改的就是指令 / 文档本身则无红测试可写、直接改。
-- **每 3 轮强制人工闸口（硬规则）**：自动修复每满 3 轮必须停下交回用户、绝不自动跑第 4 轮；用户授权后再来至多 3 轮，如此每 3 轮一闸、永不自动突破。尤其 review「策略 / 规则类文档」（skill、宪法）时问题空间近乎无穷、易无限烧 token——**是否值得继续只有人能判断**。
-- **「独立」= 审的模型 ≠ 写这段 diff 的模型**（**仅升级到 codex 档时才涉及**；默认 CC `/code-review` 档不做跨模型独立性判定）：看 diff 的**作者**，不是**执行 commit 的 Agent**——二者可能不同，如 Codex 写、CC 提交。只有**确定 diff 全由 CC 编写**时 codex 审才算独立（CC 端直接调 codex CLI 原生子命令 `codex exec review`，**不走** `disable-model-invocation` 的 `/codex:*` slash command——那种只能人手敲、Agent 无法自动调起；细节见 `/review-loop` skill）；diff 含 codex 写的内容 / 来源不明时，codex 审就是同模型自审、**不算独立**，回退默认档 CC `/code-review`、不得用 codex 冒充独立 review。补齐「codex 写的代码调起 CC 做独立 review」的入口属后续 TODO。
-- **降级不跳过**：升级档 codex 不可用时**回退默认档 CC `/code-review`**；连 CC `/code-review` 都不可用才**停下告知用户「本次降级为本会话自审、未经把关」**再继续，绝不静默跳过。优先级：**codex 独立 review > CC `/code-review` > 本会话自审 > 不 review**。
+- **机制**：`/commit` 提交前自动调 `/review-loop`——**委派一个子 agent 跑 CC 自带 `/code-review`**，默认 **sonnet × medium**；只有 diff 命中并发 / 多线程 / 跨进程重试 / 状态机 / 难复现 / 跨 3+ 模块编排等复杂特征时才升 **opus × high**。发现问题就修 → **跑受影响测试 + happy-path 主流程验证** → 复审 → 迭代到「**运行验证通过 + 无高置信 correctness 问题**」（clean）才放行。**收敛判据 = 运行验证 + 置信过滤**：① 运行验证（测试全绿 + 编排器 happy-path 跑通，reviewer 只读不跑、发现不了「基础功能被上一轮修废」，故此闸排在 reviewer 意见之前）；② 只认「附 `file:line` 证据 + 高置信真会在生产触发」的 correctness finding（含被标 P2 的）阻断，pre-existing / pedantic / linter 域 / 推测式 corner case 一律不阻断。**修复代码类 bug 遵循 TDD 正序**（先写能复现的红测试、确认它在旧实现上真红、再改实现变绿——旧实现上就绿的测试是假绿），不许「先改实现再补一份恰好能过的测试」；纯机械修复或改的就是指令 / 文档本身则无红测试可写、直接改。
+- **每 2 轮强制人工闸口（硬规则）**：自动修复每满 2 轮必须停下交回用户、绝不自动跑第 3 轮；用户授权后再来至多 2 轮，如此每 2 轮一闸、永不自动突破。尤其 review「策略 / 规则类文档」（skill、宪法）时问题空间近乎无穷、易无限烧 token——**是否值得继续只有人能判断**。
+- **三条成本硬规则**（细节与实证见 `/review-loop` skill）：① **永远显式传档位**——裸调 `/code-review` 会继承 session 的 effort，xhigh session 下一个 5 行 diff 也按最重规格审；② **永远委派子 agent 跑 review**——它的 review angle 是 inline 的，主会话直调会把整轮文件阅读永久写进主对话历史、之后每轮重发；③ **只用 `sonnet × medium` 与 `opus × high` 两个组合**——`sonnet × high` 会触发 finder 扇出反比 Opus 贵，`opus × medium` 被 `opus × high` 严格支配。
+- **已知局限**：`/code-review` 与写这段 diff 的是同一个模型家族，属**同模型自审**，对并发 / 难复现改动有已知盲区。硬实证：一处 grpc.aio 消费迁专用线程的重构，CC 自审只发现 2 个并发隐患，换独立模型（codex）review 又补出 3 个 P1，其中「优雅停不可达」CC 完全漏判。曾自动引入 codex 做跨模型第二意见，因判定链长、触发率近零、维护面外溢而**撤除**；**需要跨模型 review 时由人工手动引入**，本流程不自动做。升重档只是缓解，不等于消除这层盲区。
+- **降级不跳过**：委派失败时回退主会话直跑同档位 `/code-review`（并告知用户主 context 会因此增大）；连 `/code-review` 都不可用才**停下告知用户「本次降级为本会话自审、未经把关」**再继续，绝不静默跳过。优先级：**委派 `/code-review` > 主会话 `/code-review` > 本会话自审 > 不 review**。
 - **琐碎可跳过（配置、指令文件除外）**：纯用户文档（`docs/`）/ 代码注释 / 单行机械 fix 自动跳过；**配置变更、以及 `skills/*.md` / `GLOBAL_AGENTS.md` / `rules/*.md` 这类指令规则文件绝不自动跳过**——前者一行就可能改变安全态或线上行为，后者改的是门禁 / 流程自身的规则，跳过等于让门禁在改自身时失效。
 
 ### 文档记录规范
