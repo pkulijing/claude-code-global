@@ -110,11 +110,13 @@ graph TD
     N45["✨ 45 · commit 前独立 review 循环"]:::feature
     N46["🐛 46 · review-loop 修两处实战缺口"]:::bugfix
     N47["🏗️ 47 · review-loop 收敛闸重构"]:::refactor
+    N48["🏗️ 48 · review-loop 去 codex 简化"]:::refactor
     N24 ~~~ N25
     N25 ~~~ N44
     N44 ~~~ N45
     N45 ~~~ N46
     N46 ~~~ N47
+    N47 ~~~ N48
   end
 
   subgraph e_rules["🔄 领域规则沉淀"]
@@ -191,7 +193,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-08 | 共 47 轮
+> 最后更新：2026-07-10 | 共 48 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -242,6 +244,7 @@ graph TD
 | 45 | commit 前独立 review 循环 | ✨ 功能 | 全局宪法治理 | 新增 /review-loop skill + 宪法约定：commit 由 Agent 自主收口，提交前自动引入独立模型（审的模型≠写 diff 的模型才算独立，CC 写→codex 审）review 整树、迭代至 clean 才放行；含每 3 轮强制人工闸口、传已定前提给 codex、配置/指令文件不跳过、修复后重跑测试。用 review-loop 自举 review 自身实现约 20 轮，沉淀「纯策略文档 review 趋于无限、需人工闸口」等元经验 |
 | 46 | review-loop 修两处实战缺口 | 🐛 修复 | 全局宪法治理 | 修 /review-loop 首次实战两缺口：调用改用 codex CLI 原生 `codex exec review`（绕开 `disable-model-invocation` 的 slash command）+ PROMPT 经临时文件 stdin 传入防注入；Step 6 自动修复按问题性质分流走 TDD 正序 + 假绿硬提醒；卸载 codex plugin 保留 CLI 本体。自举 review 3 轮抵人工闸口，暴露 codex 纠缠 corner case、信任边界待重新设计 |
 | 47 | review-loop 收敛闸重构 | 🏗️ 重构 | 全局宪法治理 | 修 /review-loop 上线两病根（慢+审废基础功能）：收敛闸从「reviewer 说 clean」改为三要素并闸——(A) 运行验证（测试全绿+happy-path，排在 reviewer 意见之前，治「基础功能审废无人知」）+(B) 高置信过滤（对齐官方 ≥80，只报 file:line 证据+真会触发，治「无限挑 corner case」）+(C) 已定前提；reviewer 分层：默认走快而低噪的 CC `/code-review`、仅并发/难复现/跨模块 diff 才升级 codex（`--codex`/`--cc` 覆盖）。据 Karpathy/Osmani/anthropic 官方 plugin 三方调研，同步宪法+`/commit` |
+| 48 | review-loop 去 codex 简化 | 🏗️ 重构 | 全局宪法治理 | 彻底拆除 codex-as-reviewer（判定链长、触发率近零、维护面外溢四文件），分层轴改为三条成本硬规则 + 两档：永远显式传档位（裸调会继承 session effort）、永远委派子 agent（review angle 是 inline 的，主会话直调会把整轮文件阅读永久写进主对话历史逐轮重发）、只用 `sonnet × medium`（默认，自带 1-vote verify）与 `opus × high`（并发/难复现硬 diff）两组合。读 CLI 二进制定位根因，顺带证伪三处旧断言（orchestrator/worker 扇出、Opus 有 verify、软链即刻生效）；人工闸口 3 轮收紧为 2 轮；grpc.aio 跨模型实证降格为「已知局限」保留。SKILL.md 194→137 行，畸形编号拉平；用新规则手动审自己，逮到委派模板漏必填 `description` 的真 bug |
 
 ---
 
@@ -279,7 +282,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25, 44, 45, 46, 47
+- 轮次：24, 25, 44, 45, 46, 47, 48
 
 #### 领域规则沉淀
 
