@@ -15,9 +15,12 @@ on:
   issue_comment:
     types: [created]
 
+# permissions 块一旦显式声明，**未列出的 scope 一律是 none**（不是「继承默认」）。
+# 三条都是必需品，少一条就静默失能一个环节，别删：
 permissions:
   contents: write # 仓库默认 token 权限是 read，推默认分支必须在此提权
   pull-requests: write # 回执评论 / 摘 label
+  issues: write # 合入后关闭关联 issue；缺它 gh issue close 吃 403（沙盘测试的 gh 是桩，抓不到这类权限缺失）
 
 # 按 PR 分组，不做全局串行：同 group 里排队中的 run 会被后来者**取消**（cancel-in-progress
 # 只保护 in-progress、不保护 pending），而一次 routine 最多产出 3 个 PR、连着批是常规路径——
