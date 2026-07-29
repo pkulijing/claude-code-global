@@ -199,7 +199,7 @@ bash ~/Developer/claude-code-global/install.sh
 | 环境复现 | routine prompt 里 `git clone` + `bash install.sh`——skills / hooks 对当前会话**动态生效**，云端与本机跑同一套流程         |
 | 逻辑落点 | **全在仓库**（[`skills/routine-docs/SKILL.md`](skills/routine-docs/SKILL.md)），claude.ai 上只留一句「读它并执行」的指针 |
 | 平台交互 | 云端**没有 `gh`**、直连 `api.github.com` 被 403 → issue 与 PR 一律走**内置 GitHub MCP**；本机才走 `platform_issue.py`    |
-| 合批     | 按**落点文件 + 主题**聚类，单批 ≤ 5 条 issue、单次 ≤ 3 个 PR，排不上的自然留到下次                                       |
+| 合批     | 按**落点文件 + 主题**聚类，一批放几条**不设上限**（吞吐闸是 PR 数），单次 ≤ `--max-prs`（默认 5）个 PR                   |
 | 汇报回路 | 云端**无编程可读的运行输出** → **PR 即唯一汇报出口**（含改动摘要、review 是否降级、本次跳过清单）                        |
 | 审批     | PR 就是审批闸：手机收到推送 → review → 打 `ff-merge` label 或评论 `/ff` 合入                                             |
 
