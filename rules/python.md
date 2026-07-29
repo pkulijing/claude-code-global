@@ -223,6 +223,22 @@ class XxxStream:
 
   第二条尤其要紧：**prompt 里但凡写死了数量（「下面 8 个工具」），就等于埋了一个必然过期的常量**——要么别写数量，要么用测试钉死它。
 
+- **测试涉及环境变量时必须在 fixture 里显式清场，别依赖「我这儿没设」**（与上面两条同族：测试环境不独立于被测对象的假设）：`CliRunner(env=...)` 与 `subprocess(env=...)` 的语义都是在**父进程环境之上追加 / 覆盖**，不是替换成一个干净环境。于是测试里「不设置某变量」= 什么都不做，开发者本地 `export` 过的值原样漏进被测代码，让「未设置该变量时应报错」这类用例**假绿**。最坏的是它的暴露时机——**写测试的人本地必然设过该变量**（否则没法联调），所以作者永远看不到它变红，等别人机器上或 CI 里改动这条逻辑时才发现测试根本没在守护它。
+
+  ```python
+  @pytest.fixture(autouse=True)
+  def _clean_env(monkeypatch):
+      monkeypatch.delenv("MY_APP_APIKEY", raising=False)   # 显式清场
+
+
+  def run(*args, key=None):
+      # 要表达「没有」时喂空串，而不是「不传」
+      env = {"COLUMNS": "200", "MY_APP_APIKEY": key or ""}
+      return runner.invoke(app, [*args], env=env)
+  ```
+
+  这类测试值得**在带变量、不带变量两种环境下各跑一遍全量**，两次都绿才算数。
+
 - **测试目录结构**：`tests/` 与 `src/` 同级（不嵌进 `src/<pkg>/`），由 `pyproject.toml [tool.pytest.ini_options] pythonpath = ["src"]` 解决 import；测试文件命名 `test_<被测对象>.py`。
 - **运行**：`uv run pytest`（带覆盖率：`uv run pytest --cov=src/<pkg>`）。
 
