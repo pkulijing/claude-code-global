@@ -55,6 +55,13 @@ disable-model-invocation: false
 - **进入**：`cd` 进新 worktree 目录，其后所有文件操作、git 操作都在该 worktree 内进行。
 - **告知**：打印一行 worktree 路径与分支名，提示用户可在 IDE 中打开该目录并行开发。
 
+**新 worktree 里 gitignored 的运行时依赖一概不存在**——`git worktree add` 只 checkout **tracked 文件**，于是 `node_modules/`、`.env.local` / 本地凭证、build 产物、本地缓存等在新 worktree 里全部缺失。凡在 worktree 内跑门禁 / 起服务 / 跑真机脚本都会撞上，且**与栈无关**（实测两例：前端门禁缺 `node_modules`，`tsc` / `biome` / `vite build` 因找不到 devDependency 直接炸；一次性核对脚本缺 `.env.local`，读不到云厂商 AK/SK）。两种通用应对，按依赖性质二选一：
+
+1. **软链主 checkout**（重依赖、目录级，如 `node_modules/`）：`ln -s <主checkout>/<path> <worktree>/<path>`，**跑完即删、切勿 commit**——`node_modules/` 这类带尾斜杠的 gitignore 模式只匹配目录、**不匹配软链**，软链会以 untracked 身份冒进 `git status`。（也可选择在 worktree 内重新准备一份，如 `npm install`，代价是磁盘与时间。）
+2. **回退主 checkout 路径**（只读小文件，如 `.env.local` / 凭证）：在脚本 / 工具里显式「优先 worktree 根的该文件、缺则回退主 checkout 同名文件」，比软链更轻、无残留风险。
+
+前端场景的具体解法见 `rules/frontend.md` §1。
+
 带 `--no-worktree` → 跳过本小节，在当前分支直接开发，docs 目录落在当前工作树。`/finish` 收尾时检测到非 worktree 会跳过 worktree 收尾，对称无悬空分支。
 
 ### issue 驱动分支
