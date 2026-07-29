@@ -1,6 +1,6 @@
 ---
 name: review-loop
-description: 提交前的自动 review 迭代环：委派子 agent 跑 CC 自带 /code-review（默认 sonnet × medium，并发/难复现等硬 diff 升 opus × high），发现高置信正确性问题就修、跑测试+happy-path 验证、复审，迭代到「运行验证通过 + 无高置信 correctness 问题」才放行。收敛靠运行验证+置信过滤，非 reviewer 挑不出为止。三条硬规则：永远显式传档位、永远委派子 agent、只用两个合法的模型×档位组合。由 /commit 在生成 commit 前自动调用，也可手动跑
+description: 提交前的自动 review 迭代环：委派独立 context 的 review orchestrator 子 agent，按 diff 复杂度并行扇出 3 个（默认，全 sonnet）或 5 个（并发/难复现等硬 diff，深审角度 opus）独立 reviewer 角度，去重 + 置信打分（<80 过滤）+ 探针验证后返回单一 finding 列表；发现高置信正确性问题就修（TDD 正序）、跑测试+happy-path 验证、复审，迭代到「运行验证通过 + 无高置信 correctness 问题」才放行；2 轮不收敛自动留痕放行（人工兜底在 /finish），全程无人在环。不依赖 CC 内置 /code-review（其 disable-model-invocation 随版本漂移）。由 /commit 在生成 commit 前自动调用，也可手动跑
 disable-model-invocation: false
 ---
 
@@ -8,17 +8,19 @@ disable-model-invocation: false
 
 ## 为什么存在
 
-`/code-review` 只出一次 finding，且要人记得跑。本 skill 把「review → 修 → 验证 → 复审 → 迭代到干净」固化成 commit 前的自动环，让每个提交都经过 review 把关。
+写代码的 context 自带先入之见：同一个对话里自审，reviewer「知道」代码想干什么，最容易漏掉的恰是「实际写的和想的不一样」。本 skill 把「**独立 context** review → 修 → 验证 → 复审 → 迭代到干净」固化成 commit 前的自动环，让每个提交都经过一个不复用开发 context 的独立视角把关，且全程无人在环。
 
 它要同时治三个实战病根：
 
-- **无运行验证 → 基础功能审废无人知**：reviewer **只读代码、不跑代码**。若收敛只看「reviewer 说没问题」，那每轮修 corner case 时基础功能被某次「外科手术式修复」改废也没人发现。故收敛闸把**「受影响测试全绿 + happy-path 主流程跑通」列为硬前置**（呼应 `/verify`、`rules/python.md` §3.7、宪法 TDD 章），且**排在 reviewer 意见之前**：先确认基础功能没被上一轮修废，再谈还有没有新问题。
-- **无置信过滤 → 无限挑刺、开发变慢**：reviewer（尤其对规则类文档）问题空间近乎无穷，任何编得出的 corner case 都能算「可能出错」。故对齐 anthropic 官方 code-review plugin 的做法——**只认「附 `file:line` 源码证据 + 高置信真会在生产触发」的 correctness finding**，pre-existing / pedantic / linter 能抓的 / 推测式 corner case 一律不阻断。收敛看「有没有高置信 correctness finding」，不是「reviewer 还能不能再挑一个」。
-- **成本与 diff 规模脱钩 → 一次 review 烧光 session 预算**：`/code-review` 的 review angle 是 **inline** 的（跑在调用方 context 里），且**不传档位就继承 session 的 effort**。于是在 xhigh session 下，一个 5 行的 diff 也按 10 个 angle + sweep 审，那十轮文件阅读还全部沉进主对话历史、之后每轮重发。故有 Step 3 的三条硬规则。
+- **无运行验证 → 基础功能审废无人知**：reviewer **只读代码、不跑代码**。若收敛只看「reviewer 说没问题」，那每轮修 corner case 时基础功能被某次「外科手术式修复」改废也没人发现。故收敛闸把**「受影响测试全绿 + happy-path 主流程跑通」列为硬前置**（呼应 `rules/python.md` §3.7、宪法 TDD 章），且**排在 reviewer 意见之前**：先确认基础功能没被上一轮修废，再谈还有没有新问题。
+- **无置信过滤 → 无限挑刺、开发变慢**：reviewer（尤其对规则类文档）问题空间近乎无穷，任何编得出的 corner case 都能算「可能出错」。故对齐 anthropic 官方 code-review plugin 的 rubric——**只认「附 `file:line` 源码证据 + 高置信真会在生产触发」的 correctness finding**，pre-existing / pedantic / linter 能抓的 / 推测式 corner case 一律不阻断。收敛看「有没有高置信 correctness finding」，不是「reviewer 还能不能再挑一个」。
+- **成本与 diff 规模脱钩 → 一次 review 烧光 session 预算**：review 若在主会话跑，整轮文件阅读会永久写进主对话历史、之后每轮重发；reviewer 规格若不与 diff 复杂度挂钩，5 行的 diff 也按最重规格审。故 Step 3 的两档编队 + 三条成本硬规则。
 
 **收敛靠「运行验证 + 高置信过滤」，不是靠 reviewer 挑不出为止。**
 
-**已知局限（诚实声明）**：本 skill 用的 `/code-review` 与写这段 diff 的是**同一个模型家族**，属同模型自审，对**并发 / 多线程 / 难复现**改动存在已知盲区。硬实证：一处 grpc.aio 消费迁专用线程的重构，CC 自审只发现 2 个并发隐患，换独立模型（codex）review 又补出 3 个 P1，其中「优雅停不可达」CC 完全漏判。**本 skill 不再自动引入跨模型第二意见**（判定链长、触发率近零、维护面外溢）；需要时由人工手动引入。重档改用 `opus × high` 加深思考，只是缓解、不等于消除这层盲区。
+**为什么不依赖 CC 内置 `/code-review`**：本 skill 曾以「委派子 agent 跑 `/code-review`」为主路径，但新版 CC 给这个内置命令加了 `disable-model-invocation`——任何模型上下文（子 agent、主会话）都无法经 Skill 工具调用，仅用户手输可用；且该 flag 随 CC 版本漂移、不可观测（同一台机器数周内从可用变为不可用）。主路径不能押在不可控的外部假设上，故 review 方法论改由本 skill 自持——多角度并行 reviewer + 置信 rubric 正是 `/code-review` 方法论的移植，rubric 与伪报清单对齐其官方实现。人工需要时仍可自己手输 `/code-review`，本 skill 不再尝试调它。
+
+**已知局限（诚实声明）**：reviewer 与写这段 diff 的同为 Claude 模型家族，属**同模型自审**，对**并发 / 多线程 / 难复现**改动存在已知盲区。硬实证：一处 grpc.aio 消费迁专用线程的重构，CC 自审只发现 2 个并发隐患，换独立模型（codex）review 又补出 3 个 P1，其中「优雅停不可达」CC 完全漏判。**本 skill 不自动引入跨模型第二意见**（判定链长、触发率近零、维护面外溢）；需要时由人工手动引入。独立的是 **context** 而非模型——盲区被独立视角与重档深审缓解，但不等于消除。
 
 ## loop 是什么
 
@@ -53,26 +55,20 @@ review 的对象就是**整个工作树的全部改动**——`/commit` 提交�
 
 **有疑则不跳**——涉及业务逻辑 / 并发 / 算法 / 接口契约 / 配置 / 指令规则 / 多文件改动，一律走 review。
 
-## Step 3：选档
+## Step 3：选档——reviewer 编队规格
 
-### 三条硬规则
+### 三条成本硬规则
 
-**一、调 `/code-review` 必须显式带档位。** 裸调会让它继承当前 session 的 effort——ultracode / xhigh session 下，一个 5 行的 diff 也按 xhigh（10 个 angle + sweep）审，成本与 diff 规模完全脱钩。显式传档把 review 成本钉死在本 skill 手里。
+**一、范围钉死。** 委派 prompt 必须限定「只审本次 diff 及其接壤代码（调用点、被调方、紧邻上下文），禁止全库扫描」。子 agent 没有 effort 入参可传，review 成本靠 **reviewer 数量 × 模型 × 任务范围** 三者钉死在本 skill 手里。
 
-**二、review 永远在子 agent 里跑，主会话不直接跑——重档也不例外**（唯一例外是 Step 5 的降级链：委派本身失败时才退回主会话直跑）。`/code-review` 的各个 review angle 是 **inline** 的，跑在调用方的 context 里：主会话直调会把 8–10 轮文件阅读永久写进主对话历史，之后每一轮都要重发。委派后主会话只收一份 finding 列表。代价是子 agent 一份固定的 standing context（约 5 万 token 量级，绝大部分是可缓存 input），远小于主 context 被撑大的复利。
+**二、review 永远在独立 context 的子 agent 里跑，主会话不直接跑**（唯一例外是 Step 5 的降级链：委派本身失败时才退回主会话）。理由有二：独立 context 是本机制的首要属性——不复用开发 context，不带开发对话的先入之见；且主会话直跑会把整轮文件阅读永久写进主对话历史、之后每一轮都要重发。实测（round 48）：两轮 review 在子 agent 内烧 ~32 万 token，主会话 context 只增加了两份 finding 列表。
 
-**三、只有两个合法的「模型 × 档位」组合。**
+**三、编队只有两档，不自行加码。** 不多起 reviewer、不擅自升模型、不追加角度——升档条件只看下面的复杂特征清单。
 
-| 档       | 委派模型 | 命令                  | 触发                   |
-| -------- | -------- | --------------------- | ---------------------- |
-| **默认** | `sonnet` | `/code-review medium` | 一切需要 review 的改动 |
-| **重**   | `opus`   | `/code-review high`   | 命中下列任一复杂特征   |
-
-### 禁止组合（别顺手「升档」踩进去）
-
-- **`sonnet` + `high` / `max`** → 打开 finder 扇出（按 diff 行数扇 2–8 个 finder 子 agent），**比 Opus 还贵**。finder 扇出只在 Sonnet 的 high 及以上开启，Opus 全档位关闭。
-- **`opus` + `medium`** → 与 `opus` + `high` 同为 8 个 angle、成本几乎相同，findings 上限却更低，被严格支配，没有使用理由。
-- **任何档位 + `xhigh`** → 10 个 angle + sweep，正是「一次 review 烧光 session」的规格；且它根本不是 `/code-review` 的合法入参，只能靠继承 session effort 拿到——硬规则一已封死这条路。
+| 档       | 编队                                                | 触发                   |
+| -------- | --------------------------------------------------- | ---------------------- |
+| **默认** | 3 个并行 reviewer，全 `sonnet`                      | 一切需要 review 的改动 |
+| **重**   | 5 个并行 reviewer，深审角度用 `opus`、其余 `sonnet` | 命中下列任一复杂特征   |
 
 ### 升重档的复杂特征
 
@@ -83,54 +79,54 @@ review 的对象就是**整个工作树的全部改动**——`/commit` 提交�
 - **状态机 / 竞态**：排序假设 / 陈旧状态 / 重入 / 资源生命周期（文件 / socket / channel 的开关配对）；
 - **难以用测试复现**，或改动**横跨 3+ 模块**的编排装配。
 
-拿不准时**偏向升重档**——漏判一个并发 diff 的代价，大于多花一次 `opus × high`。
+拿不准时**偏向升重档**——漏判一个并发 diff 的代价，大于多花两个 reviewer。
 
-### 没有第三档
+### 没有更轻档
 
-不设 `low` 档：它只省「与 diff 规模成正比」的那部分推理（小 diff 上本就小），却丢掉 Sonnet `medium` 自带的 1-vote verify 步骤。而本 loop 真正的成本大头是**误报引发的无效修复轮**（写测试 → 改代码 → 跑验证 → 复审），不是 review 本身。真正琐碎的改动已在 Step 2 跳过；没跳过的（配置、指令规则文件）每行都重，不该降规格。
+不设「单 reviewer」轻档：真正琐碎的改动已在 Step 2 跳过；没跳过的（配置、指令规则文件）每行都重，不该降规格。且本 loop 真正的成本大头是**误报引发的无效修复轮**（写测试 → 改代码 → 跑验证 → 复审），压误报靠置信闸与探针验证，不靠减 reviewer。
 
-> 顺带澄清一个常见误解：`/code-review` 的 verification step **只有 Sonnet 档有**（3+5 angles × 6 candidates → 1-vote verify），Opus 各档是 8–10 个 inline angle 去重后直接出、**无 verify**。这也是默认档选 Sonnet 的理由之一——不只是便宜，误报还更少。
+## Step 4：委派独立 review orchestrator
 
-## Step 4：委派子 agent 跑 review
+主会话起 **1 个 orchestrator 子 agent**，同步等它返回一份 finding 列表：
 
 ```
 Agent(
   subagent_type: "general-purpose",
-  model: "sonnet" | "opus",     // 按 Step 3 选档
-  description: "Review working tree diff",   // 必填字段，别漏
-  run_in_background: false,     // 必须同步：拿到 finding 才能往下走
-  prompt: """
-    对当前工作树的 diff 跑 `/code-review medium`（重档写 high），不带 --fix / --comment。
-    原样返回它输出的 finding 列表（含每条的 file:line 与严重度），不要自行修改任何文件。
-
-    本轮已定的设计前提，不要把对这些的质疑当作 finding：
-    - <逐条列出人类已拍板的决策>
-  """
+  model: "sonnet",
+  description: "Orchestrate independent review of working tree diff",
+  prompt: <orchestrator 任务书，要点如下，逐条写进 prompt>
 )
 ```
+
+> 以上是要点示意，**按你环境里 Agent 工具的实际 schema 填参**——该 schema 随 CC 版本漂移（曾有 `run_in_background` 参数、后被移除），别逐字照抄模板里的字段清单。
+
+**orchestrator 任务书**（六条缺一不可）：
+
+1. **对象与范围**：自己跑 `git status` / `git diff` 获取当前工作树全部改动；只审 diff 及其接壤代码（调用点、被调方、紧邻上下文），禁止全库扫描。
+2. **编队**：按档位用 Agent 工具**并行**起 3 / 5 个 reviewer 子 agent（模型按 Step 3 规格传），各自独立审、互不通信，各返回 finding 列表（file:line + 严重度 + 理由 + 证据）。**若你的环境起不了子 agent**：自己按同一角度清单逐一顺序审，并在返回结果顶部注明「reviewer 未并行、为 orchestrator 顺序执行」。
+3. **角度分工**：
+   - 默认档 3 角度：① **浅层 bug 扫描**（只看 diff 本身，抓大 bug、忽略 nit）；② **契约与装配**（调用点、跨文件一致性、接壤代码是否被 diff 破坏）；③ **项目规范合规**（CLAUDE.md / `rules/*`——注意写码指引不全适用于 review）。
+   - 重档追加 2 角度：④ **git 历史上下文**（blame / 近期相关改动，识别回归风险）；⑤ **并发 / 状态机 / 资源生命周期专项深审**（用 `opus`）。
+4. **汇总**：跨 reviewer 去重；逐条按 0–100 置信打分——0 = 伪报 / pre-existing；25 = 可能真但未能验证；50 = 真但属 nit / 低频；75 = 双查过、很可能实际触发、直接影响功能；100 = 确证且高频。**< 80 直接丢弃**。对 75 分上下的存疑项，能用可执行探针（边界值、调用点核对、最小复现）验证的先验证再定分。
+5. **返回**：单一结构化 finding 列表（file:line、置信分、证据、来源角度）；无 finding 则明确说 clean。**不修改任何文件。**
+6. **已定设计前提**：把清单转传各 reviewer；对这些前提的质疑不算 finding。
 
 四条要点：
 
 - **`description` 与 `prompt` 都是 Agent 工具的必填字段**，漏掉 `description` 会直接校验失败。
-- **`run_in_background: false`**：Agent 默认后台跑，而本 loop 要拿到 finding 才能继续，必须同步。
-- **不带 `--fix`**：本 skill 要自己走 Step 6 的分诊 + TDD 正序修复 + 运行验证闸；`--fix` 会绕过验证闸直接改代码。只取它的 finding 列表。
-- **不带 `--comment`**：本地迭代，不发 PR 评论。
-
-**「已定设计前提」摘要怎么来**：子 agent 没有本轮对话的上下文，不告诉它哪些是人类已拍板的决策，它就会去质疑，产出一堆假 finding、白烧闸口额度。故：
-
-- **首轮委派前**先收集一份清单——来源是本轮对话里人类明确拍板过的决策，以及 `docs/<N>-*/PLAN.md` 的「关键设计决策」段与 `PROMPT.md` 的「已决」段（`/start` 轮通常已写好，直接摘）。清单为空就省略 prompt 里那一段。
-- **迭代中追加**：reviewer 若又质疑了某个已定决策，**先跟用户确认这条确属已定**（除非本轮对话里人类已拍板过），确认后追加进下轮的 prompt。**不要自己替用户否决 reviewer 的意见。**
+- **必须拿到 finding 才往下走**：环境若提供同步/后台开关则选同步；默认后台异步的环境（如后台 job 会话）就等 orchestrator 的完成通知再继续，不要在结果返回前推进 loop。
+- **orchestrator 只报不修**：修复权在主会话的 6.2（TDD 正序 + 运行验证闸），reviewer 意见须先经 6.1 分诊。
+- **「已定设计前提」摘要怎么来**：子 agent 没有本轮对话的上下文，不告诉它哪些是人类已拍板的决策，它就会去质疑，产出一堆假 finding。故**首轮委派前**先收集一份清单——来源是本轮对话里人类明确拍板过的决策，以及 `docs/<N>-*/PLAN.md` 的「关键设计决策」段与 `PROMPT.md` 的「已决」段（`/start` 轮通常已写好，直接摘）；清单为空就省略那一段。**迭代中追加**：reviewer 若又质疑了某个已定决策，先核对它确属本轮对话 / PLAN / PROMPT 里已拍板的（拿不准的问用户），确认后追加进下轮 prompt。**不要自己替用户否决 reviewer 的意见。**
 
 拿到 finding 后进 Step 6 分诊。
 
 ## Step 5：降级链
 
-优先级：**委派子 agent 跑 `/code-review` > 主会话直跑 `/code-review <档位>` > 本会话自审 > 不 review（禁止）**。
+优先级：**委派 orchestrator > 主会话结构化自审 > 不 review（禁止）**。
 
-- **委派失败**（子 agent 起不来 / 跑不起 `/code-review` / 返回的不是 finding 列表）→ 退回主会话直跑**同档位** `/code-review`，并告知用户「本次 review 未走委派，主 context 会因此增大」。硬规则一（显式传档位）在任何降级下都不放松。
-- **`/code-review` 本身不可用**（命令缺失 / 报错）→ **停下告知用户一声**「`/code-review` 不可用，本次降级为本会话自审（未经把关，盲区大）」，然后在当前会话内对整树 diff 做一遍自审——逐处改动核对正确性 / 逻辑 / 边界 / 并发 / 资源管理，需要时翻阅相关未改文件，列出问题。结果**顶部显著标注**：
+- **委派失败**（Agent 工具不可用——如 Codex 端 / 受限环境；或子 agent 起不来 / 返回的不是 finding 列表）→ 主会话按 Step 4 的角度清单做**结构化自审**：逐角度过一遍 diff + 同一置信 rubric 过滤，并告知用户「本次未走独立 context，主 context 会因此增大」。结果**顶部显著标注**：
 
-  > ⚠ 本次为**本会话自审**（未经任何 review 把关），盲区大——同一个脑子审自己写的代码，难复现问题极易漏判。
+  > ⚠ 本次为**主会话结构化自审**（未经独立 context 把关）——开发对话的先入之见在场，难复现问题极易漏判。
 
 - **绝不静默跳过。**
 
@@ -142,13 +138,13 @@ Agent(
 
 ### 6.1 分诊 reviewer finding（闸 B / 闸 C）
 
-按**置信 + 是否真会出错**分诊，**不看 P 级数字**。三条出口：
+orchestrator 已按置信 rubric 过滤过一层，主会话分诊仍复核证据，按**置信 + 是否真会出错**走三条出口，**不看 P 级数字**：
 
 - **高置信 correctness finding**（附 `file:line` 证据 + 高置信真会在生产触发的正确性 / 逻辑 / 安全问题，含被标 P2 的）→ **未收敛，进 6.2 修复**。
 - **命中「已定设计前提」**（实质在质疑一个人类已拍板的决策）→ **不算 bug、不阻断、不计入迭代轮数**（闸 C）。把该前提补进下轮委派 prompt。如前所述，拿不准是否真属「已定」时问用户，不要自己替用户否决 reviewer。
 - **低置信 / 无证据 / pre-existing / pedantic / 纯风格 / 可选优化** → **闸 B 通过**，不阻断（顺手能改的轻量项可改，不强制、不计入迭代）。
 
-> 这一层是防「无限挑刺」的最后一道闸：reviewer 若报了无 `file:line` 证据、或明显推测式的项，本 skill 直接判为「不阻断」丢弃，不修、不因它继续迭代。
+> 这一层是防「无限挑刺」的最后一道闸：finding 若无 `file:line` 证据、或明显属推测式，本 skill 直接判为「不阻断」丢弃，不修、不因它继续迭代。
 
 ### 6.2 自动修复（不停下逐条等用户确认——人工把关前移到 `/finish`）
 
@@ -172,19 +168,20 @@ Agent(
 
 修复 + 运行验证通过后**回到 Step 1 重跑**（以修复后最新工作树复审，档位沿用本轮 Step 3 的选择，不降档；只把委派 prompt 的任务收窄为「核对这几处 finding 是否已消除、修复是否引入新问题」）——抓出修复引入的新问题、确认旧问题已消。迭代直到**三要素并闸全过**：(A) 运行验证通过 + (B) 无高置信 correctness finding + (C) 无新的已定前提被质疑。**全过 → 打印「review clean ✅」放行**。
 
-**终止保护 —— 每 2 轮一个强制人工闸口（硬规则，防无限迭代烧 token）**：自动修复**每跑满 2 轮就必须停下、交回用户**，绝不自作主张跑第 3 轮。停下时把「已迭代 2 轮、每轮修了什么、当前剩余问题、当前 diff」摆给用户，由用户拍板下一步：
+**终止保护——2 轮自动上限 + 留痕放行（硬规则，防无限迭代烧 token，全程无人在环）**：自动修复每跑满 2 轮仍未收敛，或提前出现**振荡**（同类问题反复）/ **发散**（每轮全返新问题）→ **停环、留痕、放行**，不停下等用户：
 
-- **继续** → 再获授权跑**至多 2 轮**，满 2 轮再次强制停下问（如此每 2 轮一闸，永不自动突破）；
-- **就此放行** → 带标注提交（剩余项归 TODO）；
-- **降级自审后放行** / **人工接手** / **放弃本次 review** → 按用户选择。
+- 剩余未修 finding 全量写入 `docs/<N>-*/REVIEW.md` 的「**未收敛遗留**」段（每条：finding 内容、为什么没修完 / 怎么权衡的）；无 docs 目录的轮（如 `/quick`）写进对话输出；
+- 告知 `/commit` 在 commit message body 追加一行标注：`Review: 2 轮未收敛，遗留 N 条 finding，见 docs/<N>-*/REVIEW.md`（无 docs 目录则只写遗留条数）；
+- 照常放行 commit。**人工兜底前移到 `/finish`**——分支合并前人本来就要过一遍，留痕 + 标注保证遗留问题可见、不静默消失。
 
-**为什么是硬闸而非软提示**：review 对象若是「策略 / 规则类文档」（如 skill、宪法），问题空间近乎无穷、reviewer 总能再挖一个更极端的边缘场景，**极易在边际收益递减处无限迭代烧光预算**（本 skill 自举时就踩过——纯文档跑了近 20 轮）。**置信闸（6.1）已大幅压低这类噪音**——无 `file:line` 证据的推测式 corner case 直接判「不阻断」丢弃、不触发迭代；但硬闸仍不可省，因为「哪些边际问题值得修」终究是人的判断，而且人不该为了等 loop 收敛干坐着。故「每 2 轮必停问人」是不可绕过的硬规则：**是否值得继续，只有人能判断**。此外，reviewer 反复质疑**已定前提**的不算未收敛、不计入轮数；同类问题反复出现（振荡）或每轮全返新问题（发散）时应提前停、不必等满 2 轮。
+**为什么留痕放行而非停下问人**：「哪些边际问题值得修」终究是人的判断（规则类文档的问题空间近乎无穷，reviewer 总能再挖一个更极端的边缘场景——置信闸已压掉大半，但边际取舍仍在）；而「停下问人」会让后台 / 云端会话永久挂起、也让人为等 loop 干坐。把这个判断连同证据留痕前移到 `/finish`，与「人工 review 前移」的总架构一致。token 上限保护不变：**自动修复至多 2 轮**。
 
-**留痕**：每轮结论追加到 `docs/<N>-*/REVIEW.md`（报了什么 → 怎么修 → 复审结果）。非 `/start` 轮（无 docs 目录，如 `/quick`）跳过留痕。供 `/finish` 时用户追溯本分支的 review 迭代。
+**留痕**：每轮结论追加到 `docs/<N>-*/REVIEW.md`（报了什么 → 怎么修 → 复审结果；未收敛时含「未收敛遗留」段）。非 `/start` 轮（无 docs 目录，如 `/quick`）跳过留痕。供 `/finish` 时用户追溯本分支的 review 迭代。
 
 ## 明确不做
 
 - **不做提交动作**：本 skill 只把 diff review 到 clean，`git commit` 由 `/commit` 完成。
-- **不自动引入跨模型第二意见**：判定链长、触发率近零、维护面外溢到四个文件。需要时人工手动引入（见「已知局限」）。
+- **不调 CC 内置 `/code-review`**：其 `disable-model-invocation` 使模型上下文一律调不动，且随 CC 版本漂移（缘由见「为什么存在」）。人工手输 `/code-review` 仍可自行使用，本 skill 不替它做这件事。
+- **不自动引入跨模型第二意见**：判定链长、触发率近零、维护面外溢。需要时人工手动引入（见「已知局限」）。
 - **不做敏感文件隔离**：委派的子 agent 与主会话处在**同一信任边界**——同为本机 CC 进程、能读的文件完全一样、受同一套权限设置约束，故不额外加「禁读 `.env*`」之类的指令（那只在把 diff 交给**外部**模型进程时才有意义）。真正的保证仍是「绝密内容不落工作树明文」。
 - **不做「每次 stop 都触发」**：loop 由「commit 前触发」界定边界，收敛即停。
