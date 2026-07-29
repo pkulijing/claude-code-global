@@ -170,3 +170,46 @@ ROS 2 + Python 混合仓里，一个纯 Python 包可能既要走 uv / PyPI 链�
 
 - 通用：`colcon build --symlink-install`；按包构建 `--packages-select <pkg>`；测试 `colcon test`。
 - 团队监仓若提供统一构建入口（如 `script/build.sh`），优先走它（便于 ccache / clang / 交叉编译 / 产品化打包等下游优化）——具体参数以该仓库文档为准，本规则不复刻。
+
+## 10. launch 可选参数覆盖（命令行传了用传的，没传用 yaml 的）
+
+想让某个节点参数「命令行传了就用传的、没传就用 params_file 里的 yaml 值」时，惯用写法是 `Node(parameters=[params_file, overrides])` 配一个 `OpaqueFunction`，在运行时读 `LaunchConfiguration(...).perform(context)` 拼出 `overrides`。这里有**两个必踩点**，实战中同一个坑按参数类型踩过不止一次。
+
+### 10.1 `perform()` 返回的是字符串，bool / float 必须转成 Python 类型
+
+节点侧 `declare_parameter(name, default)` 会**按 default 的类型定型**。把 `perform()` 的字符串原样塞进 `overrides`，与已定型的 bool / float 不符 → rclpy 报参数类型不匹配、**节点直接起不来**。
+
+- **bool**：`value.strip().lower() in {"1", "true", "yes", "on"}` 转成 Python `bool` 再塞；
+- **float**：`float(value)` 转成 Python `float` 再塞；
+- **string**：本来就是字符串，可直接塞。
+
+### 10.2 空串哨兵：只有非空才写进 `overrides`
+
+`DeclareLaunchArgument(name, default_value="")` 用**空串代表「命令行没传」**，`perform()` 拿到空串就**不要**写进 `overrides`，让 params_file 的 yaml 值原样生效。
+
+**不能**像 string 参数那样无脑塞——`overrides` 是**无条件覆盖同名键**的，塞空串会把 yaml 里的值冲成空 / 冲成默认，等于「没传参数反而把配置弄没了」。
+
+### 10.3 骨架
+
+```python
+def make_node(context, *, condition=None):
+    overrides = {}
+
+    s = LaunchConfiguration("my_str").perform(context)
+    if s:  # string：直接塞
+        overrides["my_str"] = s
+
+    b = LaunchConfiguration("my_bool").perform(context)
+    if b:  # bool：必须转 Python bool，塞字符串会被 rclpy 拒
+        overrides["my_bool"] = b.strip().lower() in ("1", "true", "yes", "on")
+
+    f = LaunchConfiguration("my_float").perform(context)
+    if f:  # float：必须转 Python float
+        overrides["my_float"] = float(f)
+
+    return [Node(..., parameters=[params_file, overrides], condition=condition)]
+
+# 各 DeclareLaunchArgument 均取 default_value=""，作「未传」哨兵
+```
+
+**镜像多个参数时尤其容易漏掉类型转换**——照抄上一个 string 参数的分支、忘了新参数是 bool / float，就又踩回 10.1。
