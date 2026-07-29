@@ -25,6 +25,7 @@
 - **`rules/frontend.md`** — 触发：涉及前端代码 / web UI、React / Vite / TypeScript，或 Biome / tailwind / shadcn 栈判断。（落 `frontend/` 子目录）
 - **`rules/ros2.md`** — 触发：涉及 ROS 2 工程、colcon 工作空间、ament、`package.xml`、ROS 包 `CMakeLists.txt`、launch 或 ROS 包构建/依赖判断。（包落 `src/`）
 - **`rules/lark.md`** — 触发：用 lark-cli 创作 / 编辑飞书云文档。（署名约定 + docx 实操技巧）
+- **`rules/feishu-bot.md`** — 触发：开发飞书 bot 后端（lark-oapi 长连接、事件回调、`im.message.receive` / `card.action.trigger`）。（消息幂等去重必备 + 卡片回调需后台订阅；文档创作看 `lark.md`）
 - **`rules/shell.md`** — 触发：生成 / 编辑含中文注释或中文输出的 bash / shell 脚本。（中文 / 全角字符 × 引号与变量名两个固定坑）
 - **`rules/cloud-routine.md`** — 触发：涉及 claude.ai Routines、云端定时 agent、`RemoteTrigger` / `/schedule`，或云端 sandbox 能力判断。（实测能力矩阵 + 指令 / 工具链 / 平台能力三层组合）
 
