@@ -26,6 +26,7 @@
 - **`rules/ros2.md`** — 触发：涉及 ROS 2 工程、colcon 工作空间、ament、`package.xml`、ROS 包 `CMakeLists.txt`、launch 或 ROS 包构建/依赖判断。（包落 `src/`）
 - **`rules/lark.md`** — 触发：用 lark-cli 创作 / 编辑飞书云文档。（署名约定 + docx 实操技巧）
 - **`rules/shell.md`** — 触发：生成 / 编辑含中文注释或中文输出的 bash / shell 脚本。（中文 / 全角字符 × 引号与变量名两个固定坑）
+- **`rules/cloud-routine.md`** — 触发：涉及 claude.ai Routines、云端定时 agent、`RemoteTrigger` / `/schedule`，或云端 sandbox 能力判断。（实测能力矩阵 + 指令 / 工具链 / 平台能力三层组合）
 
 ## 核心开发模式
 

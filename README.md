@@ -77,6 +77,7 @@ bash ~/Developer/claude-code-global/install.sh
 | **ROS 2 开发规则**        | 指针到 [`rules/ros2.md`](rules/ros2.md)：colcon 工作空间（包落 `src/`）/ ament_cmake + ament_python / package.xml format 3 / CMakeLists ament-first（依赖消费三步法 + 导出 + install 路径）/ 纯逻辑 / ROS 薄壳分层 / 新增包检查清单 |
 | **lark-cli 文档创作规则** | 指针到 [`rules/lark.md`](rules/lark.md)：lark-cli 创作飞书云文档默认加署名行（`⚡ Crafted with lark-cli · <YYYY-MM-DD>`）+ docx 实操技巧（署名落位 / 媒体置顶 / 内容文件相对路径）                                                  |
 | **Shell 脚本开发规则**    | 指针到 [`rules/shell.md`](rules/shell.md)：写含中文 / 全角字符的 bash 脚本两个固定坑（双引号串内中文注释禁字面 `"`、`$var` 紧贴 CJK 一律 `${var}`）                                                                                 |
+| **云端 Routine 环境规则** | 指针到 [`rules/cloud-routine.md`](rules/cloud-routine.md)：claude.ai Routines 云端 sandbox 实测能力矩阵（gh 未装 / REST 403 / 仓库 CLAUDE.md 才进系统提示 / 无输出回路）+ 指令 / 工具链 / 平台能力三层组合推荐                      |
 | **开发项管理**            | issue 为**单一真源**（GitHub / GitLab 自动双轨），三轴 label（`type:*` / `area:*` / `priority:*`），三件套 skill：`/backlog` `/start` `/finish`；无本地索引，open 项速览走按 priority 过滤的 saved query                            |
 | **跨项目共享配置**        | `templates/_common/` + stack 模板（如 `python-uv`）由 `/bootstrap`（新项目）和 `/sync-project-config`（老项目 adopt / 拉新）统一管理                                                                                                |
 
