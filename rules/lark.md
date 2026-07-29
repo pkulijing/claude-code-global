@@ -32,6 +32,20 @@
 
 `docs +create --content @file` 只接受 **CWD 内的相对路径**。内容文件宜写在 gitignore 的 `output/` 目录，再用 `@output/xxx.md` 形式传入，规避 shell 转义问题。
 
+### 2.4 带图的文档：markdown 里直接留 mermaid 围栏，导入器自动转原生画板
+
+推送**含 ` ```mermaid ` 代码块**的 markdown 时：
+
+```sh
+lark-cli docs +update --command append --doc-format markdown --content @file.md
+```
+
+飞书的 markdown 导入器会**自动**把每个 mermaid 围栏渲染成**原生画板块**——返回的 `new_blocks` 里即是 `block_type: whiteboard`。实测 `stateDiagram-v2` 与 `flowchart` 均正确渲染、中文标签正常；产物是**原生可编辑画板**（不是图片、也不是代码块），团队成员可在飞书里继续拖拽调整。
+
+**所以向飞书推带图的架构 / 流程文档时，最省事的高保真路径就是「markdown 里原样留 mermaid 围栏 + append」**：既**不需要**先建空白画板再走 lark-whiteboard 那条填充路径，也**不需要**把 mermaid 预渲染成 PNG 再插图。
+
+**已知瑕疵**：mermaid 自动布局下个别标签会轻微重叠或长文本折行。画板可编辑，人工微调即可，不影响这条路径的选择。
+
 ## 3. 授权与 scope 管理
 
 任何用 lark-cli 的项目都要过授权这一关，而 scope 申请策略直接决定**会不会惊动租户管理员**。下面六条是实测出的最小 scope 授权工作流。
