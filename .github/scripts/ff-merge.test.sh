@@ -15,12 +15,17 @@ mk_gh_stub() {
   mkdir -p "$1"
   cat >"$1/gh" <<'STUB'
 #!/usr/bin/env bash
-# gh 桩：pr view 返回预置 JSON，其余子命令记录后成功返回
+# gh 桩：pr view / issue view 返回预置数据，其余子命令记录后成功返回
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
   case "$*" in
     *"--json state --jq"*) printf 'MERGED\n'; exit 0 ;;
+    *"--json body"*) cat "${GH_PR_BODY_FILE}"; exit 0 ;;
     *) cat "${GH_META_FILE}"; exit 0 ;;
   esac
+fi
+if [ "$1" = "issue" ] && [ "$2" = "view" ]; then
+  echo "gh $*" >>"${GH_LOG}"
+  printf '%s\n' "${GH_ISSUE_STATE:-OPEN}"; exit 0
 fi
 echo "gh $*" >>"${GH_LOG}"
 exit 0
@@ -44,6 +49,7 @@ setup_repo() {
   echo two >>a.txt; git commit --quiet -am "feat 2"
   git push --quiet -u origin feature
   git switch --quiet master
+  : >"${d}/pr_body.txt" # 默认空 PR body，用例可覆写
 }
 
 # run_script <沙盘目录> [触发事件] [评论正文]
@@ -61,6 +67,7 @@ EOF
   mk_gh_stub "${d}/bin"
   PATH="${d}/bin:${PATH}" \
     GH_META_FILE="${d}/meta.json" GH_LOG="${d}/gh.log" \
+    GH_PR_BODY_FILE="${d}/pr_body.txt" GH_ISSUE_STATE="${GH_ISSUE_STATE:-OPEN}" \
     PR_NUMBER=1 BASE_BRANCH=master TRIGGER="${trigger}" COMMENT_BODY="${body}" \
     bash "${SCRIPT}" >"${d}/out.log" 2>&1
   echo $?
@@ -148,6 +155,47 @@ comment_case 1 "单行 /ff" merge "/ff"
 comment_case 2 "多行 CRLF（网页端提交的形态）" merge "$(printf '/ff\r\n合并吧')"
 comment_case 3 "单行带参 /ff 合并吧" merge "/ff 合并吧"
 comment_case 4 "形近词 /ffmpeg 怎么用" skip "/ffmpeg 怎么用"
+
+# ---------- 用例 5：合入后显式关闭关联 issue ----------
+# indirect merge 掉在 GitHub 两套自动关闭机制的缝里，两边都不关（实测：两条 issue 的
+# commit 已在默认分支、PR 也已 merged，issue 却仍是 open）。不显式关的后果不是「少关一条」，
+# 而是定时 routine 明天扫到同一条 issue 会原地重做、重复提 PR。
+echo "用例 5 · 合入后关闭 commit / PR body 里的关联 issue"
+D=${ROOT}/c5; setup_repo "${D}"
+cd "${D}/work"
+git switch --quiet feature
+echo three >>a.txt
+git commit --quiet -am "$(printf 'feat 3\n\nCloses #42')"
+git push --quiet origin feature; git switch --quiet master
+# PR body 里故意也写一条指向 PR 自身号（测试里恒为 1）的关闭关键字：
+# 不写这条，「排除自身号」那行 guard 删掉后测试照样全绿——断言就成了假绿
+printf '## 本批 issue 清单\n\n- Fixes #43 —— 另一条\n\nCloses #1（本 PR 自身，不该被当 issue 关）\n' \
+  >"${D}/pr_body.txt"
+rc=$(run_script "${D}")
+check "退出码 0" "${rc}" "0"
+check "关闭了 commit message 里的 #42" \
+  "$(grep -c 'issue close 42' "${D}/gh.log")" "1"
+check "关闭了 PR body 里的 #43" \
+  "$(grep -c 'issue close 43' "${D}/gh.log")" "1"
+check "不拿 PR 自身号 #1 去调 issue close" \
+  "$(grep -c 'issue close 1 ' "${D}/gh.log")" "0"
+check "回执列出已关闭 issue" \
+  "$(grep -c '已关闭关联 issue' "${D}/gh.log")" "1"
+
+# ---------- 用例 6：关联 issue 已是 closed → 不重复关、也不报警 ----------
+echo "用例 6 · 关联 issue 已关闭（重复触发的幂等性）"
+D=${ROOT}/c6; setup_repo "${D}"
+cd "${D}/work"
+git switch --quiet feature
+echo four >>a.txt
+git commit --quiet -am "$(printf 'feat 4\n\nCloses #44')"
+git push --quiet origin feature; git switch --quiet master
+rc=$(GH_ISSUE_STATE=CLOSED run_script "${D}")
+check "退出码 0" "${rc}" "0"
+check "不重复调用 issue close" \
+  "$(grep -c 'issue close 44' "${D}/gh.log")" "0"
+check "回执不报「未能自动关闭」" \
+  "$(grep -c '未能自动关闭' "${D}/gh.log")" "0"
 
 echo
 printf '合计：%s 通过 / %s 失败\n' "${PASS}" "${FAIL}"

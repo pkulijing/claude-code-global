@@ -129,6 +129,51 @@ for _ in $(seq 1 10); do
   sleep 3
 done
 
+# indirect merge 掉在 GitHub 两套自动关闭机制的缝里，**关联 issue 不会被自动关**：
+# commit message 里的关闭关键字只在「该提交首次被推、且推的就是默认分支」时生效，
+# 而 PR 分支已先推过一遍，于是这些提交抵达默认分支时只被记成 referenced；
+# PR body 里的关键字则要靠「PR 被合并」这个事件触发，而 indirect merge 只改 PR 状态、
+# 不走那条链路。实测两条 issue 的提交已在默认分支、PR 也已 merged，issue 仍是 open。
+# 后果不是「少关一条」——定时 routine 明天扫到同一条 issue 会原地重做、重复提 PR。
+# 关不掉一律不阻断（FF 已经成功了），写进回执让人接手。
+closing_refs() {
+  # 不用 \b：BSD grep（本地跑测试的 macOS）不认，用「非单词字符或行首」代替，两端一致
+  grep -oiE '(^|[^[:alnum:]_])(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' \
+    | grep -oE '#[0-9]+' | tr -d '#'
+}
+issue_numbers=$(
+  {
+    git log --format=%B "${merged_from}..${work_head}"
+    gh pr view "${PR_NUMBER}" --json body --jq '.body'
+  } 2>/dev/null | closing_refs | sort -un || true
+)
+
+closed_list=""
+failed_list=""
+for n in ${issue_numbers}; do
+  # PR 自己的号可能出现在正文里，拿它调 issue close 只会报错
+  [ "${n}" != "${PR_NUMBER}" ] || continue
+  case "$(gh issue view "${n}" --json state --jq '.state' 2>/dev/null || true)" in
+    OPEN)
+      if gh issue close "${n}" --reason completed \
+        --comment "$(printf '已随 PR #%s 以 fast-forward 合入 `%s`（`%s`）。' \
+          "${PR_NUMBER}" "${BASE_BRANCH}" "${work_head:0:7}")" >/dev/null 2>&1; then
+        closed_list="${closed_list} #${n}"
+      else
+        failed_list="${failed_list} #${n}"
+      fi
+      ;;
+    CLOSED) ;;                               # 已关，重复触发时不再动它
+    *) failed_list="${failed_list} #${n}" ;; # 查不到（跨仓引用 / 已删）→ 报出来，别装没事
+  esac
+done
+
+issue_note=""
+[ -z "${closed_list}" ] \
+  || issue_note=$(printf '\n- 已关闭关联 issue：%s' "${closed_list# }")
+[ -z "${failed_list}" ] \
+  || issue_note="${issue_note}$(printf '\n- ⚠️ 以下 issue 未能自动关闭，请手动处理：%s' "${failed_list# }")"
+
 if [ "${merged}" = "yes" ]; then
   git push origin --delete "${head_ref}" || true
   branch_note=$(printf '\n- 已删除分支 `%s`' "${head_ref}")
@@ -138,5 +183,6 @@ else
 fi
 
 drop_label
-comment "$(printf '✅ 已 fast-forward 合入 `%s`（无 merge commit，历史保持直线）\n\n- `%s`：`%s` → `%s`\n- 触发：%s%s%s' \
-  "${BASE_BRANCH}" "${BASE_BRANCH}" "${merged_from:0:7}" "${work_head:0:7}" "${TRIGGER}" "${rebase_note}" "${branch_note}")"
+comment "$(printf '✅ 已 fast-forward 合入 `%s`（无 merge commit，历史保持直线）\n\n- `%s`：`%s` → `%s`\n- 触发：%s%s%s%s' \
+  "${BASE_BRANCH}" "${BASE_BRANCH}" "${merged_from:0:7}" "${work_head:0:7}" "${TRIGGER}" \
+  "${rebase_note}" "${issue_note}" "${branch_note}")"
