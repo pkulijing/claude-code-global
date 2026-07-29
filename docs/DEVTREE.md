@@ -112,12 +112,14 @@ graph TD
     N46["🐛 46 · review-loop 修两处实战缺口"]:::bugfix
     N47["🏗️ 47 · review-loop 收敛闸重构"]:::refactor
     N48["🏗️ 48 · review-loop 去 codex 简化"]:::refactor
+    N50["🏗️ 50 · review 机制独立 agent 重构"]:::refactor
     N24 ~~~ N25
     N25 ~~~ N44
     N44 ~~~ N45
     N45 ~~~ N46
     N46 ~~~ N47
     N47 ~~~ N48
+    N48 ~~~ N50
   end
 
   subgraph e_rules["🔄 领域规则沉淀"]
@@ -199,7 +201,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-29 | 共 49 轮
+> 最后更新：2026-07-29 | 共 50 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -252,6 +254,7 @@ graph TD
 | 47 | review-loop 收敛闸重构 | 🏗️ 重构 | 全局宪法治理 | 修 /review-loop 上线两病根（慢+审废基础功能）：收敛闸从「reviewer 说 clean」改为三要素并闸——(A) 运行验证（测试全绿+happy-path，排在 reviewer 意见之前，治「基础功能审废无人知」）+(B) 高置信过滤（对齐官方 ≥80，只报 file:line 证据+真会触发，治「无限挑 corner case」）+(C) 已定前提；reviewer 分层：默认走快而低噪的 CC `/code-review`、仅并发/难复现/跨模块 diff 才升级 codex（`--codex`/`--cc` 覆盖）。据 Karpathy/Osmani/anthropic 官方 plugin 三方调研，同步宪法+`/commit` |
 | 48 | review-loop 去 codex 简化 | 🏗️ 重构 | 全局宪法治理 | 彻底拆除 codex-as-reviewer（判定链长、触发率近零、维护面外溢四文件），分层轴改为三条成本硬规则 + 两档：永远显式传档位（裸调会继承 session effort）、永远委派子 agent（review angle 是 inline 的，主会话直调会把整轮文件阅读永久写进主对话历史逐轮重发）、只用 `sonnet × medium`（默认，自带 1-vote verify）与 `opus × high`（并发/难复现硬 diff）两组合。读 CLI 二进制定位根因，顺带证伪三处旧断言（orchestrator/worker 扇出、Opus 有 verify、软链即刻生效）；人工闸口 3 轮收紧为 2 轮；grpc.aio 跨模型实证降格为「已知局限」保留。SKILL.md 194→137 行，畸形编号拉平；用新规则手动审自己，逮到委派模板漏必填 `description` 的真 bug |
 | 49 | 文档类 issue 云端 routine 自动化 | 🌱 初建 | 云端自动化 routine | 落地 the-foundation round 0 的选型结论：新增 /routine-docs skill 作为 claude.ai Routines 的版本化剧本（云端 clone+install 复现环境、两层分诊出纯文档类 issue、按落点与主题合批、逐条走 /quick 形态出 PR），并逐条定死无人值守下各「停下问用户」分岔的契约；配套 .github/workflows/ff-merge.yml —— 打 ff-merge label 或评论 /ff 即把 PR 直推默认分支（GitHub 的 indirect merge 使其自动标记 merged），拿到真 FF 直线历史，含 owner 硬校验、rebase 重试、workflow 文件边界。dry-run 实跑 27 条真实 issue 反过来改写剧本两条规则；沙盘测试 17 断言覆盖四类路径 |
+| 50 | review 机制独立 agent 重构 | 🏗️ 重构 | 全局宪法治理 | 根治 #60（P0）：`/code-review` 被新版 CC 标 `disable-model-invocation`（round 48 委派成功→数周后同机不可用，flag 随版本漂移不可观测），主路径与降级第一档同废。按「独立 context / CC 原生 / 无人在环」三 intent 重构——主路径改为委派独立 context 的 review orchestrator 子 agent，按档位并行扇出 3（默认全 sonnet）/ 5（并发等硬 diff，深审 opus）个 reviewer 角度 + 0–100 置信打分（<80 过滤）+ 探针验证；降级链按独立 context 优先重排（orchestrator > 主会话结构化自审）；人工闸口改「2 轮自动上限 + 留痕放行」（REVIEW.md + commit 标注，人工兜底前移 /finish）；对上游内部实现的逆向描述全删。自举实测：嵌套扇出 3 reviewer 成功、首轮 0 条 ≥80 finding、~12 万 token 收敛，顺带逮到 `run_in_background` 参数被 Agent 工具 schema 移除的漂移坑 |
 
 ---
 
@@ -289,7 +292,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25, 44, 45, 46, 47, 48
+- 轮次：24, 25, 44, 45, 46, 47, 48, 50
 
 #### 领域规则沉淀
 
