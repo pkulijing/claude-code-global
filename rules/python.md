@@ -204,6 +204,25 @@ class XxxStream:
 - **例外**：探索性原型、UI / 视觉效果、与外部系统的集成（数据库 schema、第三方 API 对接）可以先跑通再补测试。**但实现稳定后必须补齐单测，不允许长期裸奔**。
 - **编排器 / facade 必有 ≥ 1 条 integration test**（见 §3.7），即使其他业务规则都按 TDD 走过，编排层也不能省略 happy-path smoke。
 - **测试 fixture 不要复用被测代码的同一套约定假设**（呼应 §3.4「注释写当前真相」——§3.4 管注释，这条管 fixture）：当测试输入由「与生产代码相同的约定」生成（坐标系、单位、字节序、编码…），测试只验证「代码自洽于该约定」、**无法证伪「约定本身对不对」**——生产代码与 fixture 一起错时单测照样全绿、真机才炸。对这类「外部约定 / 物理映射」逻辑，fixture 应来自**独立来源**：真实采集数据、手算的地面真值、或不同推导路径的等价构造，让「假设错了」也能被测出。
+- **「声明式 schema + 自然语言 prompt」双写处必须加结构性防漂移测试**（上一条在 LLM 场景下的具体化）：凡代码里存在一份「能力 / 工具清单」的数据结构，同时又有一段散文在向模型描述这份清单（最典型是 LLM function calling 的 `TOOLS_SCHEMA` + `_SYSTEM_PROMPT`），两处**必然漂移**——schema 是数据、prompt 是散文，没有任何机械约束把它们绑在一起，改 schema 的 diff 里也看不到 prompt。而用 `FakeLlm` 直接返回决策的单测**跳过了 prompt 这一环**，两边一起错也照样全绿，只有真机才炸（漏改 prompt 的后果是：模型被系统提示引导为「不能选这个新工具」，该能力在生产上直接失效）。把「两处必须一致」变成机械约束：
+
+  ```python
+  def test_system_prompt_mentions_every_tool_in_schema() -> None:
+      missing = [
+          t["function"]["name"]
+          for t in TOOLS_SCHEMA
+          if t["function"]["name"] not in llm_client._SYSTEM_PROMPT
+      ]
+      assert missing == [], f"这些 tool 没写进 system prompt：{missing}"
+
+
+  def test_system_prompt_tool_count_matches_schema() -> None:
+      """prompt 里写死的「N 个工具」必须与 TOOLS_SCHEMA 实际长度一致。"""
+      assert f"{len(TOOLS_SCHEMA)} 个工具" in llm_client._SYSTEM_PROMPT
+  ```
+
+  第二条尤其要紧：**prompt 里但凡写死了数量（「下面 8 个工具」），就等于埋了一个必然过期的常量**——要么别写数量，要么用测试钉死它。
+
 - **测试目录结构**：`tests/` 与 `src/` 同级（不嵌进 `src/<pkg>/`），由 `pyproject.toml [tool.pytest.ini_options] pythonpath = ["src"]` 解决 import；测试文件命名 `test_<被测对象>.py`。
 - **运行**：`uv run pytest`（带覆盖率：`uv run pytest --cov=src/<pkg>`）。
 
