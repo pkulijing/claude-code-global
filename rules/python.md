@@ -196,6 +196,23 @@ class XxxStream:
 
 **判断"是否是编排器"的启发**：类的 `__init__` 接受外部资源（文件路径、URL、profile…）+ 有一个主入口方法（`run` / `execute` / `process`）+ 调用 3+ 个其他模块 —— 基本就是编排器。
 
+### 3.8 用 rich 打印外部文本：一律 `escape()` + `highlight=False`
+
+凡把**外部程序的输出、用户输入、透传参数**喂给 `rich` 打印，都要当作不可信文本处理：
+
+```python
+from rich.markup import escape
+
+console.print(escape(text), highlight=False)
+```
+
+两个坑各对应一个开关，缺一不可：
+
+- **`escape()` 防 `MarkupError` 与标记注入**：rich 把 `[...]` 当标记语法解析，外部文本里只要出现 `[/x]` 这种形状的子串就直接抛 `rich.errors.MarkupError`，把整个报告打崩。
+- **`highlight=False` 防自动高亮器污染逐字输出**：转发别的程序的逐字输出（如 `xxx -h` 的帮助文本）时，rich 的 `ReprHighlighter` 会往 `[OPTIONS]` 的方括号与内容之间插 ANSI，「逐字转发」就不再逐字了。
+
+只有**自己写的、可信的** markup 才享受解析与高亮。
+
 ## 4. 测试
 
 呼应全局宪法的 TDD 章节，落到 Python 的具体姿势：
