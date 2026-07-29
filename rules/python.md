@@ -301,6 +301,8 @@ monorepo 里「可独立发布、自带 npm 前端产物」的 Python 成员（�
 
 **可靠解**：装前 `rm -rf <dir>/<pkg>*` 删旧目录再装。
 
+> 同族问题的另一个形态见 §5.5——`uv tool install` 见同版本同样跳过不装，解是恒带 `--reinstall`。
+
 ### 5.4 应用内更新自检的标准骨架
 
 凡用 `uv tool install` 分发的应用（CLI / 带 UI 的 daemon）都可能要「运行时查新版本 + 一键升级」。骨架不变部分（差异点：版本源 / 凭证 / UI 框架按项目填）：
@@ -335,3 +337,23 @@ def latest_gitlab(simple_url: str, pkg: str) -> str | None:
 ```
 
 有无更新 = `Version(latest) > Version(current)`；升级交给用户点击执行、执行完提示重启。
+
+### 5.5 把工具装进隔离目录（调试版与正式版并存）
+
+场景：**把一个自家 CLI / daemon 装到某台机器上，但不能顶掉那台机器上已装好的正式版**——典型是联调 / 试装，想在采集 PC 上跑一版带调试改动的 daemon，而同事正用着 registry 发出来的正式版。`uv tool install` 默认把 entry point 写进 `~/.local/bin`、环境写进 `~/.local/share/uv/tools`，装上去就是**顶替**，没有并存一说。
+
+配方（uv 0.11.29 实测跑通）：
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"; cd <部署目录> && \
+  UV_TOOL_DIR="$PWD/tools" UV_TOOL_BIN_DIR="$PWD/bin" \
+  uv tool install --reinstall --find-links "$PWD/wheels" --default-index <index> <包名>
+```
+
+五个要点：
+
+1. **`UV_TOOL_DIR` + `UV_TOOL_BIN_DIR` 成对设**，把 tool 环境与 entry point 整体搬进目标目录。只设前者不够——可执行文件仍会落进 `~/.local/bin` 把正式版顶掉。可用 `uv tool dir` / `uv tool dir --bin` 回显确认路径已被改写。
+2. **先 `cd` 再用 `$PWD` 派生绝对路径**，而不是在本机拼 `$HOME`。落点用相对路径（相对目标机 `$HOME`）才能跨 user 自适应，而 uv 要绝对路径——`cd` 后取 `$PWD` 一步到位。
+3. **`--reinstall` 恒带**。开发期版本号常长期不变（一直是 `0.3.0`），`uv tool install` 见同版本会**跳过不装**：命令全绿、日志漂亮、跑的还是旧代码，是联调里最阴的一种失败。这与 §5.3「`pip install --target` 同版本不覆盖」是**同一族问题的另一个解**，踩到其中一个时另一个大概率也在附近。
+4. **uv 会 warn「bin 目录不在 PATH」——那正是预期行为**。这套装法的语义就是「只有跑那条绝对路径才是这一版」；别为了消 warning 把它加进 PATH（加了就等于又顶替了）。
+5. **不需要动用 `uv pip install`**（§1 已禁用），全程仍在 `uv tool` 语义内。
