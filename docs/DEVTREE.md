@@ -39,6 +39,7 @@ graph TD
   toolchain --> e_bootstrap
   toolchain --> e_finish
   toolchain --> e_quick
+  toolchain --> e_routine
   toolchain --> devmgmt["开发项管理"]:::epic
   toolchain --> codemgmt["代码管理"]:::epic
   devmgmt --> e_devtree
@@ -151,6 +152,11 @@ graph TD
     N41["✨ 41 · 新增 /quick 轻量开发流"]:::feature
   end
 
+  subgraph e_routine["🔄 云端自动化 routine"]
+    direction TB
+    N49["🌱 49 · 文档类 issue 云端 routine 自动化"]:::genesis
+  end
+
   subgraph e_devtree["✅ DEVTREE 管理"]
     direction TB
     N4["✨ 4 · 创建 devtree-skill"]:::feature
@@ -193,7 +199,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-10 | 共 48 轮
+> 最后更新：2026-07-29 | 共 49 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -245,6 +251,7 @@ graph TD
 | 46 | review-loop 修两处实战缺口 | 🐛 修复 | 全局宪法治理 | 修 /review-loop 首次实战两缺口：调用改用 codex CLI 原生 `codex exec review`（绕开 `disable-model-invocation` 的 slash command）+ PROMPT 经临时文件 stdin 传入防注入；Step 6 自动修复按问题性质分流走 TDD 正序 + 假绿硬提醒；卸载 codex plugin 保留 CLI 本体。自举 review 3 轮抵人工闸口，暴露 codex 纠缠 corner case、信任边界待重新设计 |
 | 47 | review-loop 收敛闸重构 | 🏗️ 重构 | 全局宪法治理 | 修 /review-loop 上线两病根（慢+审废基础功能）：收敛闸从「reviewer 说 clean」改为三要素并闸——(A) 运行验证（测试全绿+happy-path，排在 reviewer 意见之前，治「基础功能审废无人知」）+(B) 高置信过滤（对齐官方 ≥80，只报 file:line 证据+真会触发，治「无限挑 corner case」）+(C) 已定前提；reviewer 分层：默认走快而低噪的 CC `/code-review`、仅并发/难复现/跨模块 diff 才升级 codex（`--codex`/`--cc` 覆盖）。据 Karpathy/Osmani/anthropic 官方 plugin 三方调研，同步宪法+`/commit` |
 | 48 | review-loop 去 codex 简化 | 🏗️ 重构 | 全局宪法治理 | 彻底拆除 codex-as-reviewer（判定链长、触发率近零、维护面外溢四文件），分层轴改为三条成本硬规则 + 两档：永远显式传档位（裸调会继承 session effort）、永远委派子 agent（review angle 是 inline 的，主会话直调会把整轮文件阅读永久写进主对话历史逐轮重发）、只用 `sonnet × medium`（默认，自带 1-vote verify）与 `opus × high`（并发/难复现硬 diff）两组合。读 CLI 二进制定位根因，顺带证伪三处旧断言（orchestrator/worker 扇出、Opus 有 verify、软链即刻生效）；人工闸口 3 轮收紧为 2 轮；grpc.aio 跨模型实证降格为「已知局限」保留。SKILL.md 194→137 行，畸形编号拉平；用新规则手动审自己，逮到委派模板漏必填 `description` 的真 bug |
+| 49 | 文档类 issue 云端 routine 自动化 | 🌱 初建 | 云端自动化 routine | 落地 the-foundation round 0 的选型结论：新增 /routine-docs skill 作为 claude.ai Routines 的版本化剧本（云端 clone+install 复现环境、两层分诊出纯文档类 issue、按落点与主题合批、逐条走 /quick 形态出 PR），并逐条定死无人值守下各「停下问用户」分岔的契约；配套 .github/workflows/ff-merge.yml —— 打 ff-merge label 或评论 /ff 即把 PR 直推默认分支（GitHub 的 indirect merge 使其自动标记 merged），拿到真 FF 直线历史，含 owner 硬校验、rebase 重试、workflow 文件边界。dry-run 实跑 27 条真实 issue 反过来改写剧本两条规则；沙盘测试 17 断言覆盖四类路径 |
 
 ---
 
@@ -305,6 +312,11 @@ graph TD
 
 - 状态：已完成
 - 轮次：41
+
+#### 云端自动化 routine
+
+- 状态：进行中
+- 轮次：49
 
 #### 开发项管理
 

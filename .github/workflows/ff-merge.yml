@@ -1,0 +1,55 @@
+# 批准即 FF 合入：在 PR 上打 `ff-merge` label 或评论 `/ff`，把该 PR 以 fast-forward 方式合进默认分支。
+# GitHub 原生的三种合并方式都做不到真 FF（merge 留 merge commit，squash / rebase 会新造提交），
+# 而直接把 PR head 推到默认分支时 GitHub 会把该 PR 自动标记为 merged（官方称 indirect merge），
+# 于是「PR 当审批闸 + master 保持直线历史」两者可以兼得。
+#
+# 两个事件都属于「workflow 文件恒取自默认分支」的那一档（pull_request_target / issue_comment），
+# 使 PR 内容无法改写将要合并它的这段逻辑。注意：rebase 路径会 checkout PR 内容到工作区，
+# 但本 job 全程**不执行工作区里的任何文件**——往这个 job 里加「跑一下仓库脚本 / 装依赖」
+# 这类步骤，就会变成 pull_request_target 下执行 PR 代码的经典漏洞。
+name: FF merge on approval
+
+on:
+  pull_request_target:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write # 仓库默认 token 权限是 read，推默认分支必须在此提权
+  pull-requests: write # 回执评论 / 摘 label
+
+# 按 PR 分组，不做全局串行：同 group 里排队中的 run 会被后来者**取消**（cancel-in-progress
+# 只保护 in-progress、不保护 pending），而一次 routine 最多产出 3 个 PR、连着批是常规路径——
+# 全局串行会让中间那个 PR 被静默丢弃。并发安全改由「非 FF 推送被远端拒绝 + 脚本内重试」保证。
+concurrency:
+  group: ff-merge-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  ff-merge:
+    # 准入闸：事件形态匹配，且发起人必须是仓库 owner。
+    # 本仓是公开仓、任何人都能评论 /ff，owner 校验是硬安全边界而非锦上添花。
+    if: >-
+      github.event.sender.login == github.repository_owner
+      && (
+        (github.event_name == 'pull_request_target' && github.event.label.name == 'ff-merge')
+        || (github.event_name == 'issue_comment'
+            && github.event.issue.pull_request != null
+            && startsWith(github.event.comment.body, '/ff'))
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: FF merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event_name == 'issue_comment' && github.event.issue.number || github.event.pull_request.number }}
+          BASE_BRANCH: ${{ github.event.repository.default_branch }}
+          TRIGGER: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: bash .github/scripts/ff-merge.sh

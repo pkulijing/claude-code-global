@@ -55,3 +55,8 @@
 - name: "wontfix"
   color: "FFFFFF"
   description: "刻意决定不做的项（decided-no），带原因归档为 closed issue"
+
+# ---------- 运维（三轴之外，打在 PR 上）----------
+- name: "ff-merge"
+  color: "0E8A16"
+  description: "打在 PR 上即触发 CI 把它 fast-forward 合入 master（等价于评论 /ff）"
