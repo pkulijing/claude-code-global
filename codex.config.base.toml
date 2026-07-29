@@ -17,12 +17,6 @@ sandbox_mode = "workspace-write"
 # 增删 hook 请改仓库根的 codex.config.base.toml 后重跑 bash install.sh。
 # 注意：Codex hooks 首次需进入 Codex 跑一次 /hooks 命令 review 后才会生效。
 
-# SessionStart：新会话启动时静默同步 claude-code-global 仓库。
-# AGENT_HOME 指到 ~/.codex，使同步日志 / 节流戳落到 Codex 侧。
-[[hooks.SessionStart]]
-command = "AGENT_HOME=$HOME/.codex bash $HOME/.codex/scripts/auto-update.sh --session"
-timeout = 60
-
 # PostToolUse：编辑文件后自动跑项目本地工具链（ruff / prettier 等）。
 # matcher 沿用 CC 端 settings.base.json 的写法；Codex 端精确工具名待 issue #8 实测校正。
 [[hooks.PostToolUse]]

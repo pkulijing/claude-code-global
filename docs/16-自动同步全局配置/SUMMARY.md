@@ -77,3 +77,11 @@
 - 考虑日志旋转:超过某 size 自动 truncate 或按周分文件(P2,日志膨胀实际触发后再做)
 - `scheduler/install.sh` 加 `--dry-run` flag,方便排查时看会写啥不实际改系统(P2)
 - 如果将来想支持「不在 master 也能自动 pull」(比如长期工作分支自动 rebase remote),需要更精细的策略,本轮明确不做
+
+## 后记:SessionStart 触发方已移除(issue #82)
+
+本轮设计的「双保险」中,**Claude SessionStart hook 一路已删除**,自动同步现在只由 OS 调度器承担。
+原因:两条触发方共用同一个 30min 节流戳,意味着绝大多数会话启动时 hook 调用什么都不做就退出,
+却仍要付出进程拉起 + `git fetch` 判断的启动延迟 —— 边际价值不抵启动开销。
+随之删除的还有 `auto-update.sh` 的 `--session` 模式与版本摘要 stdout 输出(脚本回归单一 background 形态)。
+故本文与 PROMPT.md / PLAN.md 中一切关于 `--session` / SessionStart / 版本摘要三态输出的描述,均为历史设计记录,不再是当前真相。
