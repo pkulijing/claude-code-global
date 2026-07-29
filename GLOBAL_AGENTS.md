@@ -43,7 +43,7 @@
 - **三件套 skill**：`/backlog` 建 issue、`/start <issue#>` 拉详情开轮、`/finish` 收尾并在 commit 写 `Closes #N`。
 - **Closes #N**：commit/PR 描述写 `Closes #N`，合并到 default branch 自动关 issue（GitHub / GitLab 原生支持），issue 永久保留、与 commit/MR 双向可查 —— 这是跨轮上下文可追溯的关键保证。
 - **刻意决定不做**的项归档为带 `wontfix` label 的 **closed issue**（可检索、可按 label 过滤），不维护任何本地文件段。已完成项看平台 closed issues。
-- issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。跨仓库沉淀 issue（如向 claude-code-global 提改进，无论是否经 `/finish`）**必须带三轴 label** —— helper 已对「`--repo` 跨仓库 + 零 label」创建强制拦截（确需裸提才加 `--allow-no-label`）。
+- issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。跨仓库沉淀 issue（如向 claude-code-global 提改进，无论是否经 `/finish`）**必须带三轴 label** —— helper 已对「`--repo` 跨仓库 + 零 label」创建强制拦截（确需裸提才加 `--allow-no-label`）。**本机 / 云端分野**：该 helper 包装的是本机安装的 `gh` / `glab`——claude.ai Routines 等云端 sandbox 中二者均未安装（helper 脚本经软链可见、但因此跑不起来），issue / PR 交互改走环境内置的 GitHub MCP；云端能力边界详见 `rules/cloud-routine.md`。
 
 ### 需求生命周期
 
