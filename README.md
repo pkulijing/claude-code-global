@@ -210,7 +210,8 @@ bash ~/Developer/claude-code-global/install.sh
 GitHub 原生的三种合并方式都拿不到真 FF——merge 留 merge commit，squash / rebase 会新造提交。而**把 PR head 直接推到默认分支时，GitHub 会自动把该 PR 标记为 merged**（官方称 indirect merge）。[`.github/workflows/ff-merge.yml`](.github/workflows/ff-merge.yml) 就建在这条性质上：
 
 - **触发**：在 PR 上打 `ff-merge` label，或评论 `/ff`（两条路等价，评论取首行第一个词，故 `/ff 合并吧` 也认）；
-- **动作**：先试纯 FF；默认分支在 review 期间前进了就先 rebase 再 FF，**冲突一律停手**（绝不 fallback 成普通 merge）；推送被拒会重取最新 base 重试至多 3 次；成功后删分支、回一条带新旧 SHA 的回执评论。**任何一步失败都会在 PR 上留评论并摘掉 label**，不会出现「label 挂着、其实什么都没发生」；
+- **动作**：先试纯 FF；默认分支在 review 期间前进了就先 rebase 再 FF，**冲突一律停手**（绝不 fallback 成普通 merge）；推送被拒会重取最新 base 重试至多 3 次；成功后关闭关联 issue、删分支、回一条带新旧 SHA 的回执评论。**任何一步失败都会在 PR 上留评论并摘掉 label**，不会出现「label 挂着、其实什么都没发生」；
+- **关联 issue 由脚本显式关闭，不靠 GitHub**：indirect merge 恰好掉在 GitHub 两套自动关闭机制的缝里——commit message 的关键字只在「该提交**首次被推**、且推的就是默认分支」时生效（PR 分支已先推过一遍，于是只被记成 `referenced`），PR body 的关键字又要靠「PR 被合并」事件触发（indirect merge 只改 PR 状态、不走那条链路）。故 [`ff-merge.sh`](.github/scripts/ff-merge.sh) 从「本次合入的提交集合 + PR body」解析关闭关键字后自行 `gh issue close`。**这条对 `/routine-docs` 是必需品而非锦上添花**：它的幂等靠「排除已被 open PR 覆盖的 issue」，PR 合并后覆盖消失而 issue 还开着的话，第二天就会把同一条原地重做；
 - **安全**：本仓是公开仓、也是云端 agent 的信任根，故硬校验**发起人 == 仓库 owner**；两个事件都用「workflow 文件恒取自默认分支」的那一档（`pull_request_target` / `issue_comment`），PR 内容改不了将要合并它的这段逻辑；rebase 路径会把 PR 内容落进工作区，但该 job **全程不执行工作区里的任何文件**。
 
 于是 `master` 上既没有 merge commit、也不会被改写 SHA，与 `/rebase`、`/finish` 的 worktree 收尾保持同一套 FF 直线历史纪律。
