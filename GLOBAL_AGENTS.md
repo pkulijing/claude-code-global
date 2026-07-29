@@ -27,6 +27,7 @@
 - **`rules/lark.md`** — 触发：用 lark-cli 创作 / 编辑飞书云文档。（署名约定 + docx 实操技巧）
 - **`rules/shell.md`** — 触发：生成 / 编辑含中文注释或中文输出的 bash / shell 脚本。（中文 / 全角字符 × 引号与变量名两个固定坑）
 - **`rules/cloud-routine.md`** — 触发：涉及 claude.ai Routines、云端定时 agent、`RemoteTrigger` / `/schedule`，或云端 sandbox 能力判断。（实测能力矩阵 + 指令 / 工具链 / 平台能力三层组合）
+- **`rules/scheduled-agent.md`** — 触发：设计 / 部署「定时唤起无头 Agent」的**本机**任务（launchd / systemd timer + `claude -p`）。（四层架构 + macOS·Linux 差异速查 + 实战坑清单；跑在云端的那种看 `cloud-routine.md`）
 
 ## 核心开发模式
 
