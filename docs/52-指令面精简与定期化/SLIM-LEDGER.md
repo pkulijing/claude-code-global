@@ -45,3 +45,26 @@
 - bootstrap 的**不调用内置 `/init`** 及其理由
 - bootstrap Step 4 的**不要复制一份 DEVTREE 骨架模板，单一真源在 `/devtree``**
 - 三处**不自动 commit** 的约定
+
+## 阶段 2 · review 链路收敛（-3,874 字符）
+
+`skills/review-loop/SKILL.md` 10,731 → 7,415；`skills/commit/SKILL.md` 2,869 → 2,311。
+
+同一套判据（三要素并闸 / 置信过滤 / 2 轮留痕放行）原本写在 **6 个地方**：宪法「核心开发模式」段、宪法「提交前 review」段、`review-loop` frontmatter description、`review-loop` 正文「loop 是什么」、`review-loop` Step 6、`commit` 第 4 步。**`commit` 第 4 步甚至一边写着「细节以 `/review-loop` 为单一真源」，一边把整套机制复述了 700 字符。**（宪法那两处在阶段 3 一并处理。）
+
+| 删了什么 | 判据 | 现在从哪读得到 |
+| --- | --- | --- |
+| `commit` 第 4 步整段 700 字符的机制复述（档位规格、扇出数量、置信分阈值、跳过规则、降级链） | A1 | `/review-loop`（本就是真源）；`commit` 只留两点它**确实需要知道**的：留痕标注行要写进 message body、以及为什么排在 lint 之前 |
+| `review-loop` frontmatter description 380 → 135 字符 | A1 + A5 | 正文。**description 是 skill listing 的常驻成本**，每会话都在上下文里；它只需回答「什么时候该调我」，不必复述实现 |
+| `review-loop` 正文「loop 是什么」与 Step 6 里三要素并闸的两次完整重述 | A1 | 提到「收敛判据」一节写一遍（表格），Step 6 只留「先跑闸 A 再看闸 B」的执行顺序 |
+| 「四条要点」里「`description` 与 `prompt` 都是 Agent 工具的必填字段，漏掉会校验失败」 | A5 | 工具 schema 自身。同一节还写着「按你环境里 Agent 工具的实际 schema 填参，别照抄记忆里的字段清单」—— 这条硬编码的字段知识与那句自相矛盾 |
+| 三个病根各自的展开叙事（每条从现象讲到推论约 150 字符） | A3 | 压成一句结论 + 一句后果，三条并列。**结论全部保留** |
+| Step 4「orchestrator 只报不修」独立成条 | A1 | 任务书第 5 条本就写着「**不修改任何文件**」 |
+
+**保留未动**（禁止删除清单，逐条确认还在）：
+
+- **安全 / 硬边界**：不调 CC 内置 `/code-review` 及其完整理由（`disable-model-invocation` 随版本漂移）、绝不静默跳过 review、指令规则文件与配置变更绝不自动跳过、2 轮上限 + 留痕放行、「不做敏感文件隔离」的信任边界论证
+- **事故 WHY 的结论**：grpc.aio 迁线程那次「CC 自审只发现 2 个、独立模型又补出 3 个 P1、优雅停不可达完全漏判」的硬实证；「两轮 review 在子 agent 内烧 ~32 万 token」的成本实测
+- **TDD 正序 + 防假绿硬规则**（旧实现上就绿的测试是假绿）
+- **三条成本硬规则**、两档编队与升重档特征清单、「没有更轻档」的理由
+- **「已定设计前提」清单怎么来**，以及「不要自己替用户否决 reviewer」
