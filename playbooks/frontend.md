@@ -1,6 +1,6 @@
 # 前端开发规则
 
-> 本文档由 `claude-code-global` 仓库的 `rules/frontend.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/rules/frontend.md`（CC 端）与 `~/.codex/rules/frontend.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
+> 本文档由 `claude-code-global` 仓库的 `playbooks/frontend.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/playbooks/frontend.md`（CC 端）与 `~/.codex/playbooks/frontend.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
 >
 > **触发条件**：Coding Agent 在本轮任务涉及前端代码 / web UI、React / Vite / TypeScript 前端工程，或 Biome / tailwind / shadcn 等前端栈选型判断时，**必须先把本文件读入上下文**，再开始动手。
 

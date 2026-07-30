@@ -1,6 +1,6 @@
 # Coding Agent 全局配置（Claude Code + Codex）
 
-通过 GitHub 仓库**单一真源**地管理 Claude Code 与 OpenAI Codex 两个 coding agent 的全局配置（`GLOBAL_AGENTS.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json` / `codex.config.base.toml` / `user.config.example.env` / `uv.config.base.toml`）、「跨项目共享开发配置模板」（`templates/`）和「领域规则文档」（`rules/`，按 `<topic>.md` 拆分语言 / 栈 / 流程细则，由 GLOBAL_AGENTS.md 顶层指针引用），支持多设备同步与跨项目复用。`install.sh` 双轨部署到 `~/.claude/` 与 `~/.codex/`，缺哪端就只装哪端，详见下文「同时支持 Claude Code 与 Codex」。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
+通过 GitHub 仓库**单一真源**地管理 Claude Code 与 OpenAI Codex 两个 coding agent 的全局配置（`GLOBAL_AGENTS.md` / `skills/` / `hooks/` / `scripts/` / `scheduler/` / `settings.base.json` / `codex.config.base.toml` / `user.config.example.env` / `uv.config.base.toml`）、「跨项目共享开发配置模板」（`templates/`）和「领域规则文档」（`playbooks/`，按 `<topic>.md` 拆分语言 / 栈 / 流程细则，由 GLOBAL_AGENTS.md 顶层指针引用），支持多设备同步与跨项目复用。`install.sh` 双轨部署到 `~/.claude/` 与 `~/.codex/`，缺哪端就只装哪端，详见下文「同时支持 Claude Code 与 Codex」。多设备自动同步（无需手动 `git pull && bash install.sh`）见下文「多设备自动同步」。
 
 开发流程遵循 [`GLOBAL_AGENTS.md`](https://github.com/pkulijing/claude-code-global/blob/master/GLOBAL_AGENTS.md) 中定义的「需求 → 计划 → 执行 → 总结」四步模式，开发项以 issue 为**单一真源**（GitHub / GitLab 双轨自动判定，无本地索引文件，详见下文「开发项管理」）。
 
@@ -15,7 +15,7 @@ Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。
 | `hooks/*`                 | `~/.claude/hooks/*`                                    | 软链接（逐个文件）                  | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用                                                                                     |
 | `scripts/*`               | `~/.claude/scripts/*`                                  | 软链接（逐个文件）                  | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用                                                                                |
 | `templates/`              | `~/.claude/templates/`                                 | 软链接（整目录）                    | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                                                                                                   |
-| `rules/`                  | `~/.claude/rules/`                                     | 软链接（整目录）                    | 领域规则文档（按 `<topic>.md` 拆，如 `python.md` / `frontend.md`），由 GLOBAL_AGENTS 顶层指针引用，Agent 命中触发条件时主动 Read                                                        |
+| `playbooks/`                  | `~/.claude/playbooks/`                                     | 软链接（整目录）                    | 领域规则文档（按 `<topic>.md` 拆，如 `python.md` / `frontend.md`），由 GLOBAL_AGENTS 顶层指针引用，Agent 命中触发条件时主动 Read                                                        |
 | 仓库根目录                | `~/.claude/global-repo/`                               | 软链接                              | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                                                                                                         |
 | `settings.base.json`      | `~/.claude/settings.json`                              | **合并**（非破坏性）                | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                                                                                             |
 | `user.config.example.env` | `~/.claude-code-global/config.env`                     | **seed**（user-wins，非软链非合并） | 仓库内是示例基线；真实配置在仓库外、`git pull`/自动同步不覆盖；只在用户未设时填默认、新增 key 才补缺追加。详见 [docs/27-用户可配置项机制/DESIGN.md](docs/27-用户可配置项机制/DESIGN.md) |
@@ -42,7 +42,7 @@ Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。
 | 仓库产物                                                          | Claude Code（`~/.claude/`）                         | Codex（`~/.codex/`）                                            |
 | ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------- |
 | 主指令文档                                                        | `CLAUDE.md` ← `GLOBAL_AGENTS.md`                    | `AGENTS.md` ← `GLOBAL_AGENTS.md`                                |
-| `skills/` `hooks/` `scripts/` `templates/` `rules/` `global-repo` | 软链                                                | 软链                                                            |
+| `skills/` `hooks/` `scripts/` `templates/` `playbooks/` `global-repo` | 软链                                                | 软链                                                            |
 | 配置基线                                                          | `settings.json` ← 合并 `settings.base.json`（JSON） | `config.toml` ← 合并 `codex.config.base.toml`（TOML marker 块） |
 
 Codex 端配置基线 `codex.config.base.toml` 镜像 `settings.base.json` 的 hook 注册（`PostToolUse` 自动 fix）。合并策略：`config.toml` 不存在则整份复制；已存在则只注入 / 整体替换 `# >>> claude-code-global managed >>>` … `# <<< … <<<` 之间的 marker 块，块外用户内容（`approval_policy` / `[projects]` 等）一律保留。
@@ -71,15 +71,15 @@ bash ~/Developer/claude-code-global/install.sh
 | **核心开发模式**          | 需求 → 计划 → 执行 → 总结的四步协作流程，每个开发项在 `docs/` 下留档（PROMPT.md / PLAN.md / SUMMARY.md）；每轮默认在独立 git worktree 内进行，支持多轮并行                                                                                           |
 | **git 规则**              | 中文 semantic commit message，AI 提交须带 Co-authored-by（按执行 Agent 选身份：CC → `Claude` / Codex → `OpenAI Codex`），`.gitignore` 按目录拆分                                                                                                     |
 | **环境变量管理**          | `.env.local`（真实值，gitignore）+ `.env.example`（占位符，提交），禁止泄露密钥                                                                                                                                                                      |
-| **领域规则文档**          | 语言 / 栈 / 流程的具体细则下沉到 `rules/<topic>.md`（CC 端 `~/.claude/rules/`、Codex 端 `~/.codex/rules/`）；本宪法只保留"指针 + 触发条件"，Agent 命中条件时主动 Read 对应文件                                                                       |
-| **Python 开发规则**       | 指针到 [`rules/python.md`](rules/python.md)：uv 管依赖 / ruff / pypi index（清华 + aliyun pytorch-wheels）/ src 布局 + uv_build / 7 条 Python 风格 / 测试约定 / 打包·发布·安装（含前端产物 wheel 化 + 自托管 GitLab Registry）                       |
-| **前端开发规则**          | 指针到 [`rules/frontend.md`](rules/frontend.md)：npm 走 npmmirror / Biome（前端的 ruff）/ React 19 + Vite 6 + TS strict / tailwind v4 CSS-first / shadcn-ui / 落 `frontend/` 子目录，与后端正交                                                      |
-| **ROS 2 开发规则**        | 指针到 [`rules/ros2.md`](rules/ros2.md)：colcon 工作空间（包落 `src/`）/ ament_cmake + ament_python / package.xml format 3 / CMakeLists ament-first（依赖消费三步法 + 导出 + install 路径）/ 纯逻辑 / ROS 薄壳分层 / 新增包检查清单                  |
-| **lark-cli 文档创作规则** | 指针到 [`rules/lark.md`](rules/lark.md)：lark-cli 创作飞书云文档默认加署名行（`⚡ Crafted with lark-cli · <YYYY-MM-DD>`）+ docx 实操技巧（署名落位 / 媒体置顶 / 内容文件相对路径）                                                                   |
-| **飞书 bot 后端规则**     | 指针到 [`rules/feishu-bot.md`](rules/feishu-bot.md)：lark-oapi 长连接 at-least-once 送达 → 按 `message_id` / `event_id` 幂等去重（线程安全 + 有界，附最小骨架）+ 卡片回调 `card.action.trigger` 需在开发者后台配「接收回调」订阅，否则点击无任何回调 |
-| **Shell 脚本开发规则**    | 指针到 [`rules/shell.md`](rules/shell.md)：写含中文 / 全角字符的 bash 脚本两个固定坑（双引号串内中文注释禁字面 `"`、`$var` 紧贴 CJK 一律 `${var}`）                                                                                                  |
-| **云端 Routine 环境规则** | 指针到 [`rules/cloud-routine.md`](rules/cloud-routine.md)：claude.ai Routines 云端 sandbox 实测能力矩阵（gh 未装 / REST 403 / 仓库 CLAUDE.md 才进系统提示 / 无输出回路）+ 指令 / 工具链 / 平台能力三层组合推荐                                       |
-| **定时无头 Agent 规则**   | 指针到 [`rules/scheduled-agent.md`](rules/scheduled-agent.md)：**本机**定时唤起无头 agent（launchd / systemd timer + `claude -p`）的四层架构（OS 定时器 / wrapper / 无头 agent / 确定性脚本）+ macOS·Linux 差异速查 + 实战坑清单（宿主唯一权威副本 / PATH 显式 export / 最小 allowedTools / 通知回路闭环） |
+| **领域规则文档**          | 语言 / 栈 / 流程的具体细则下沉到 `playbooks/<topic>.md`（CC 端 `~/.claude/playbooks/`、Codex 端 `~/.codex/playbooks/`）；本宪法只保留"指针 + 触发条件"，Agent 命中条件时主动 Read 对应文件                                                                       |
+| **Python 开发规则**       | 指针到 [`playbooks/python.md`](playbooks/python.md)：uv 管依赖 / ruff / pypi index（清华 + aliyun pytorch-wheels）/ src 布局 + uv_build / 7 条 Python 风格 / 测试约定 / 打包·发布·安装（含前端产物 wheel 化 + 自托管 GitLab Registry）                       |
+| **前端开发规则**          | 指针到 [`playbooks/frontend.md`](playbooks/frontend.md)：npm 走 npmmirror / Biome（前端的 ruff）/ React 19 + Vite 6 + TS strict / tailwind v4 CSS-first / shadcn-ui / 落 `frontend/` 子目录，与后端正交                                                      |
+| **ROS 2 开发规则**        | 指针到 [`playbooks/ros2.md`](playbooks/ros2.md)：colcon 工作空间（包落 `src/`）/ ament_cmake + ament_python / package.xml format 3 / CMakeLists ament-first（依赖消费三步法 + 导出 + install 路径）/ 纯逻辑 / ROS 薄壳分层 / 新增包检查清单                  |
+| **lark-cli 文档创作规则** | 指针到 [`playbooks/lark.md`](playbooks/lark.md)：lark-cli 创作飞书云文档默认加署名行（`⚡ Crafted with lark-cli · <YYYY-MM-DD>`）+ docx 实操技巧（署名落位 / 媒体置顶 / 内容文件相对路径）                                                                   |
+| **飞书 bot 后端规则**     | 指针到 [`playbooks/feishu-bot.md`](playbooks/feishu-bot.md)：lark-oapi 长连接 at-least-once 送达 → 按 `message_id` / `event_id` 幂等去重（线程安全 + 有界，附最小骨架）+ 卡片回调 `card.action.trigger` 需在开发者后台配「接收回调」订阅，否则点击无任何回调 |
+| **Shell 脚本开发规则**    | 指针到 [`playbooks/shell.md`](playbooks/shell.md)：写含中文 / 全角字符的 bash 脚本两个固定坑（双引号串内中文注释禁字面 `"`、`$var` 紧贴 CJK 一律 `${var}`）                                                                                                  |
+| **云端 Routine 环境规则** | 指针到 [`playbooks/cloud-routine.md`](playbooks/cloud-routine.md)：claude.ai Routines 云端 sandbox 实测能力矩阵（gh 未装 / REST 403 / 仓库 CLAUDE.md 才进系统提示 / 无输出回路）+ 指令 / 工具链 / 平台能力三层组合推荐                                       |
+| **定时无头 Agent 规则**   | 指针到 [`playbooks/scheduled-agent.md`](playbooks/scheduled-agent.md)：**本机**定时唤起无头 agent（launchd / systemd timer + `claude -p`）的四层架构（OS 定时器 / wrapper / 无头 agent / 确定性脚本）+ macOS·Linux 差异速查 + 实战坑清单（宿主唯一权威副本 / PATH 显式 export / 最小 allowedTools / 通知回路闭环） |
 | **开发项管理**            | issue 为**单一真源**（GitHub / GitLab 自动双轨），三轴 label（`type:*` / `area:*` / `priority:*`），三件套 skill：`/backlog` `/start` `/finish`；无本地索引，open 项速览走按 priority 过滤的 saved query                                             |
 | **跨项目共享配置**        | `templates/_common/` + stack 模板（如 `python-uv`）由 `/bootstrap`（新项目）和 `/sync-project-config`（老项目 adopt / 拉新）统一管理                                                                                                                 |
 
@@ -167,7 +167,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 **python-uv stack 自动 bootstrap**（round 17 引入，round 25 改用 `uv init --package`）：`/bootstrap` 选 `python-uv` 与 `/sync-project-config` 走 adopt 路径时，除了落配置文件，还会自动跑 `uv init --package`（已有 `pyproject.toml` 时跳过）+ `uv add --dev pytest pytest-cov ruff` + 必要时 `uv tool install pre-commit` + `pre-commit install`。`--package` 让 uv 直接落标准 src 布局（`src/<pkg>/__init__.py` + 含 `[build-system] uv_build` 的 `pyproject.toml`）；模板配套 fragment 把 `[tool.pytest.ini_options] pythonpath=["src"] testpaths=["tests"]` 合并进 pyproject。新项目跑完 `/bootstrap` 立即可 `uv run pytest` / `git commit`，不需要再手敲命令。用户可选「只要配置不要装依赖」跳过整段。详见 [docs/17-python-uv模板自动bootstrap/SUMMARY.md](docs/17-python-uv模板自动bootstrap/SUMMARY.md) 与 [docs/25-python模板与子CLAUDE机制/SUMMARY.md](docs/25-python模板与子CLAUDE机制/SUMMARY.md)。
 
-**python-uv-workspace stack 自动 bootstrap**（round 36 引入）：多包单仓（uv workspace）与单包 `python-uv` **互斥**、二选一。`/bootstrap` 选 `python-uv-workspace` 与 `/sync-project-config` 走 adopt 路径时，**不**跑 `uv init --package`（那会在虚拟根写出 `[project]` + `src/` 破坏 workspace 形态）——虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments（`uv-workspace` / `uv` / `uv-index` / `ruff` / `pytest`）合并而成、成员包随模板 `packages/*` 复制就位，随后 `uv add --dev pytest pytest-cov ruff` 在虚拟根写 `[dependency-groups] dev` 并触发 `uv sync`（把各成员 editable 装入、解析跨成员 `workspace=true` 依赖）。跑完即可 `uv run pytest` 跑全树。布局细则见 [`rules/python.md` §2.2](rules/python.md)。
+**python-uv-workspace stack 自动 bootstrap**（round 36 引入）：多包单仓（uv workspace）与单包 `python-uv` **互斥**、二选一。`/bootstrap` 选 `python-uv-workspace` 与 `/sync-project-config` 走 adopt 路径时，**不**跑 `uv init --package`（那会在虚拟根写出 `[project]` + `src/` 破坏 workspace 形态）——虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments（`uv-workspace` / `uv` / `uv-index` / `ruff` / `pytest`）合并而成、成员包随模板 `packages/*` 复制就位，随后 `uv add --dev pytest pytest-cov ruff` 在虚拟根写 `[dependency-groups] dev` 并触发 `uv sync`（把各成员 editable 装入、解析跨成员 `workspace=true` 依赖）。跑完即可 `uv run pytest` 跑全树。布局细则见 [`playbooks/python.md` §2.2](playbooks/python.md)。
 
 **react-vite stack 自动 bootstrap**（round 30 引入）：`/bootstrap` 选 `react-vite` 与 `/sync-project-config` 走 adopt 路径时，整套前端模板复制到 `frontend/` 子目录后，自动在 `frontend/` 跑 `npm install`（`.npmrc` 已固化 npmmirror 源，依赖走国内镜像）。前端 / 后端是正交两维、可同仓叠加（如 `python-uv` 落根 + `react-vite` 落 `frontend/`），marker 各记一条 `stack` + `path`。用户可选「只要文件不装依赖」跳过 `npm install`。详见 [docs/30-前端栈规则与scaffold模板/SUMMARY.md](docs/30-前端栈规则与scaffold模板/SUMMARY.md)。
 
@@ -194,7 +194,7 @@ bash ~/Developer/claude-code-global/install.sh
 
 ## 文档类 issue 的自动开发（云端 routine）
 
-本仓积压的 issue 里有一大类是「把某条实战教训沉淀成 `rules/*.md` 的一节」——**需求已写清、改动只落文档、不需要讨论方案**。这类活由 [claude.ai Routines](https://claude.ai) 每天定时跑一条云端 Claude Code 会话自动做掉，人只在 PR 上做最后一道审批。
+本仓积压的 issue 里有一大类是「把某条实战教训沉淀成 `playbooks/*.md` 的一节」——**需求已写清、改动只落文档、不需要讨论方案**。这类活由 [claude.ai Routines](https://claude.ai) 每天定时跑一条云端 Claude Code 会话自动做掉，人只在 PR 上做最后一道审批。
 
 | 环节     | 做法                                                                                                                     |
 | -------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -205,7 +205,7 @@ bash ~/Developer/claude-code-global/install.sh
 | 汇报回路 | 云端**无编程可读的运行输出** → **PR 即唯一汇报出口**（含改动摘要、review 是否降级、本次跳过清单）                        |
 | 审批     | PR 就是审批闸：手机收到推送 → review → 打 `ff-merge` label 或评论 `/ff` 合入                                             |
 
-**边界**：只碰 `rules/*.md` / `GLOBAL_AGENTS.md` / `README.md` / `docs/`，**不碰任何可执行面**，`skills/*.md`（门禁自身的逻辑）也明确排除；`priority:P0` 一律留给人。选型与云端能力实测的来龙去脉见 `the-foundation` 仓 round 0。
+**边界**：只碰 `playbooks/*.md` / `GLOBAL_AGENTS.md` / `README.md` / `docs/`，**不碰任何可执行面**，`skills/*.md`（门禁自身的逻辑）也明确排除；`priority:P0` 一律留给人。选型与云端能力实测的来龙去脉见 `the-foundation` 仓 round 0。
 
 ### PR 批准即 fast-forward 合入
 

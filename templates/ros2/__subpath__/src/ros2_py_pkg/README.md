@@ -24,4 +24,4 @@ colcon test --packages-select ros2_py_pkg     # 或免 ROS 快测纯逻辑：见
 PYTHONPATH=src/ros2_py_pkg uv run pytest src/ros2_py_pkg/test/pure -q
 ```
 
-> 新增包前对照工作区规则的「新增包检查清单」（`rules/ros2.md`）。
+> 新增包前对照工作区规则的「新增包检查清单」（`playbooks/ros2.md`）。

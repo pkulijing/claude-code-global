@@ -275,6 +275,41 @@ link_item() {
     fi
 }
 
+# 清理本仓早期留下的旧 rules 软链。
+# 用法: unlink_legacy_dir <链接路径>
+#
+# 背景：本仓曾把 rules/ 软链到 <agent_home>/rules，而 rules 是 Claude Code 的**保留目录名**——
+# 放进去的 .md 会被当作用户级 memory 全文注入每一个会话的系统提示（与「按需读」的设计意图正相反）。
+# 改用中性目录名 playbooks/ 后，老机器上的旧软链必须清掉，否则那八份文档继续常驻、收益归零，
+# 而且是静默的：install 全绿、日志漂亮，没人会发现。
+#
+# 认亲方式：软链目标形如 <某目录>/rules，且 <某目录> 带本仓标志文件。**不比对当次 $REPO_DIR
+# 的精确路径**——一台机器上可能有多个 checkout（主工作树 + 若干 worktree），旧软链指向哪一个
+# 都得认得出来；比对精确路径会在「从 worktree 跑 install」时漏删。
+#
+# 安全边界：非软链（用户自建的真实目录）不碰；目标不叫 rules 的不碰；父目录不带本仓标志
+# 文件的不碰。注意用 -L / readlink 而非 -e / readlink -f——目录改名后旧软链已是断链，后者
+# 在断链上不工作，会造成静默漏删。
+unlink_legacy_dir() {
+    local link="$1"
+    [ -L "$link" ] || return 0
+
+    local target parent
+    target="$(readlink "$link")"
+    # 只认绝对路径：相对目标下面的认亲检查会相对 CWD 解析，而本脚本通常正是从某个
+    # checkout 根跑起来的，标志文件就在手边，容易把不相干的相对软链误判成自家的。
+    # 本仓建的软链一律是绝对路径，直接拒掉相对路径即可，不做花哨解析。
+    case "$target" in
+    /*/rules) ;;
+    *) return 0 ;;
+    esac
+    parent="${target%/rules}"
+    [ -f "${parent}/GLOBAL_AGENTS.md" ] && [ -f "${parent}/install.sh" ] || return 0
+
+    rm -f "$link"
+    info "已清理旧的 ${link}（rules 是 CC 保留目录名，改用 playbooks）"
+}
+
 # 部署一个 agent 端：软链 skills/hooks/scripts/templates/global-repo + 主指令文档，
 # 并合并各端的 settings/config 基线。
 # 用法: deploy_agent <agent_home> <主指令文档名> <agent 标签> <config 类型: json|toml>
@@ -341,11 +376,14 @@ deploy_agent() {
         warn "仓库中未找到 templates/ 目录，跳过"
     fi
 
-    # rules 目录（领域规则文档，按 <topic>.md 组织；目录级软链，新增 md 不需要重跑 install）
-    if [ -d "$REPO_DIR/rules" ]; then
-        link_item "$REPO_DIR/rules" "$agent_home/rules"
+    # 旧路径迁移：曾软链到 <agent_home>/rules，而 rules 是 CC 保留目录名（见 unlink_legacy_dir）
+    unlink_legacy_dir "$agent_home/rules"
+
+    # playbooks 目录（领域规则文档，按 <topic>.md 组织；目录级软链，新增 md 不需要重跑 install）
+    if [ -d "$REPO_DIR/playbooks" ]; then
+        link_item "$REPO_DIR/playbooks" "$agent_home/playbooks"
     else
-        warn "仓库中未找到 rules/ 目录，跳过"
+        warn "仓库中未找到 playbooks/ 目录，跳过"
     fi
 
     # 仓库根 → global-repo（供 /sync-project-config 访问模板 git 历史）
@@ -366,6 +404,16 @@ deploy_agent() {
         fi
     fi
 }
+
+# 测试可 source 本脚本只取函数定义、不跑安装主流程（见 docs/51-rules按需加载/test-unlink-legacy.sh）。
+#
+# 只在 source 语境下生效：直接执行时，哪怕环境里意外带了这个变量也照常安装。否则
+# `CCG_INSTALL_LIB_ONLY=1 bash install.sh` 会零输出 + 退出码 0 地静默 no-op，伪装成
+# 一次成功的安装——而定时跑 install.sh 的正是 scripts/auto-update.sh，这种失败不会
+# 有任何人察觉（与本轮 unlink_legacy_dir 漏删是同一类病：全绿、无感、收益归零）。
+if [ "${CCG_INSTALL_LIB_ONLY:-0}" = "1" ] && [ "${BASH_SOURCE[0]}" != "$0" ]; then
+    return 0
+fi
 
 echo "=============================="
 echo " Coding Agent 全局配置安装"

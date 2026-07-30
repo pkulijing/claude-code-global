@@ -1,6 +1,6 @@
 # claude.ai Routines 云端环境规则
 
-> 本文档由 `claude-code-global` 仓库的 `rules/cloud-routine.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/rules/cloud-routine.md`（CC 端）与 `~/.codex/rules/cloud-routine.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
+> 本文档由 `claude-code-global` 仓库的 `playbooks/cloud-routine.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/playbooks/cloud-routine.md`（CC 端）与 `~/.codex/playbooks/cloud-routine.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
 >
 > **触发条件**：Coding Agent 在本轮任务涉及 claude.ai Routines、云端定时 agent、`RemoteTrigger` / `/schedule` 注册，或需要判断云端 sandbox 能力边界（能不能跑某工具、装某配置、取回输出）时，**必须先把本文件读入上下文**，再开始动手。
 
@@ -65,4 +65,4 @@
 
 **且在首次挂定时 / 上线之前必须先跑一次 dry-run 并由人过目**——把它当成上线检查单的一步，不是「有空再跑跑」。
 
-理由是这类 skill 的质量风险**不在代码，而在判断规则是否贴合真实数据的分布**，而这只能实测。实证：`/routine-docs` 挂 cron 前用 dry-run 跑了一遍真实的 27 条 open issue，当场改写了剧本的两条规则——① 有一条 issue 的内容早已写进目标文件，而剧本原本没有「仓库现状已满足」这条排除项，照原样跑会把已经在文件里的内容再写一遍、产出一个纯噪音 PR；② 「落 `GLOBAL_AGENTS.md` **或**新增 `rules/<topic>.md`」这类落点歧义普遍存在，于是补了「默认补进现有文档」的规则。**这两个洞纸上推演推不出来**，没有 dry-run 就要等第一个垃圾 PR 出来才暴露，而那时污染的已经是 issue 列表和 PR 列表。
+理由是这类 skill 的质量风险**不在代码，而在判断规则是否贴合真实数据的分布**，而这只能实测。实证：`/routine-docs` 挂 cron 前用 dry-run 跑了一遍真实的 27 条 open issue，当场改写了剧本的两条规则——① 有一条 issue 的内容早已写进目标文件，而剧本原本没有「仓库现状已满足」这条排除项，照原样跑会把已经在文件里的内容再写一遍、产出一个纯噪音 PR；② 「落 `GLOBAL_AGENTS.md` **或**新增 `playbooks/<topic>.md`」这类落点歧义普遍存在，于是补了「默认补进现有文档」的规则。**这两个洞纸上推演推不出来**，没有 dry-run 就要等第一个垃圾 PR 出来才暴露，而那时污染的已经是 issue 列表和 PR 列表。

@@ -12,7 +12,7 @@ disable-model-invocation: false
 
 它要同时治三个实战病根：
 
-- **无运行验证 → 基础功能审废无人知**：reviewer **只读代码、不跑代码**。若收敛只看「reviewer 说没问题」，那每轮修 corner case 时基础功能被某次「外科手术式修复」改废也没人发现。故收敛闸把**「受影响测试全绿 + happy-path 主流程跑通」列为硬前置**（呼应 `rules/python.md` §3.7、宪法 TDD 章），且**排在 reviewer 意见之前**：先确认基础功能没被上一轮修废，再谈还有没有新问题。
+- **无运行验证 → 基础功能审废无人知**：reviewer **只读代码、不跑代码**。若收敛只看「reviewer 说没问题」，那每轮修 corner case 时基础功能被某次「外科手术式修复」改废也没人发现。故收敛闸把**「受影响测试全绿 + happy-path 主流程跑通」列为硬前置**（呼应 `playbooks/python.md` §3.7、宪法 TDD 章），且**排在 reviewer 意见之前**：先确认基础功能没被上一轮修废，再谈还有没有新问题。
 - **无置信过滤 → 无限挑刺、开发变慢**：reviewer（尤其对规则类文档）问题空间近乎无穷，任何编得出的 corner case 都能算「可能出错」。故对齐 anthropic 官方 code-review plugin 的 rubric——**只认「附 `file:line` 源码证据 + 高置信真会在生产触发」的 correctness finding**，pre-existing / pedantic / linter 能抓的 / 推测式 corner case 一律不阻断。收敛看「有没有高置信 correctness finding」，不是「reviewer 还能不能再挑一个」。
 - **成本与 diff 规模脱钩 → 一次 review 烧光 session 预算**：review 若在主会话跑，整轮文件阅读会永久写进主对话历史、之后每轮重发；reviewer 规格若不与 diff 复杂度挂钩，5 行的 diff 也按最重规格审。故 Step 3 的两档编队 + 三条成本硬规则。
 
@@ -50,7 +50,7 @@ review 的对象就是**整个工作树的全部改动**——`/commit` 提交�
 
 **这些绝不自动跳过**（哪怕它们是 Markdown / 纯文字）：
 
-- **指令 / 规则文件**：`skills/*.md`、`GLOBAL_AGENTS.md`（宪法）、`rules/*.md`、`.claude/` 下的 agent 配置等——它们**就是开发流程与安全边界本身**，改它们等于改门禁自己的规则，跳过 review 会让门禁在「修改自身」时失效。
+- **指令 / 规则文件**：`skills/*.md`、`GLOBAL_AGENTS.md`（宪法）、`playbooks/*.md`、`.claude/` 下的 agent 配置等——它们**就是开发流程与安全边界本身**，改它们等于改门禁自己的规则，跳过 review 会让门禁在「修改自身」时失效。
 - **配置变更**：CI 权限、部署目标、认证 / CORS、依赖版本、构建 / 运行时开关等，一行就可能改变安全态或线上行为。
 
 **有疑则不跳**——涉及业务逻辑 / 并发 / 算法 / 接口契约 / 配置 / 指令规则 / 多文件改动，一律走 review。
@@ -105,7 +105,7 @@ Agent(
 1. **对象与范围**：自己跑 `git status` / `git diff` 获取当前工作树全部改动；只审 diff 及其接壤代码（调用点、被调方、紧邻上下文），禁止全库扫描。
 2. **编队**：按档位用 Agent 工具**并行**起 3 / 5 个 reviewer 子 agent（模型按 Step 3 规格传），各自独立审、互不通信，各返回 finding 列表（file:line + 严重度 + 理由 + 证据）。**若你的环境起不了子 agent**：自己按同一角度清单逐一顺序审，并在返回结果顶部注明「reviewer 未并行、为 orchestrator 顺序执行」。
 3. **角度分工**：
-   - 默认档 3 角度：① **浅层 bug 扫描**（只看 diff 本身，抓大 bug、忽略 nit）；② **契约与装配**（调用点、跨文件一致性、接壤代码是否被 diff 破坏）；③ **项目规范合规**（CLAUDE.md / `rules/*`——注意写码指引不全适用于 review）。
+   - 默认档 3 角度：① **浅层 bug 扫描**（只看 diff 本身，抓大 bug、忽略 nit）；② **契约与装配**（调用点、跨文件一致性、接壤代码是否被 diff 破坏）；③ **项目规范合规**（CLAUDE.md / `playbooks/*`——注意写码指引不全适用于 review）。
    - 重档追加 2 角度：④ **git 历史上下文**（blame / 近期相关改动，识别回归风险）；⑤ **并发 / 状态机 / 资源生命周期专项深审**（用 `opus`）。
 4. **汇总**：跨 reviewer 去重；逐条按 0–100 置信打分——0 = 伪报 / pre-existing；25 = 可能真但未能验证；50 = 真但属 nit / 低频；75 = 双查过、很可能实际触发、直接影响功能；100 = 确证且高频。**< 80 直接丢弃**。对 75 分上下的存疑项，能用可执行探针（边界值、调用点核对、最小复现）验证的先验证再定分。
 5. **返回**：单一结构化 finding 列表（file:line、置信分、证据、来源角度）；无 finding 则明确说 clean。**不修改任何文件。**
@@ -159,8 +159,8 @@ orchestrator 已按置信 rubric 过滤过一层，主会话分诊仍复核证�
 修完后、复审前，必须真正**运行代码**确认基础功能没坏（reviewer 只读不跑、发现不了这层）：
 
 1. **有对应测试 → 必跑、失败阻断**：探测项目类型跑受影响测试（沿用 `/commit` 的探测：Python+uv `uv run pytest`、Node `npm test`、Rust `cargo test`、Go `go test ./...`；跑受影响子集即可，无法精准定位则跑全量）。**失败 → 未收敛**，回 6.2 修（失败本身就是一条高置信 correctness 问题）。
-2. **被改代码是编排器 / facade 却无 happy-path integration test → 先补一条再放行**：判据见 `rules/python.md` §3.7（`__init__` 收外部资源 + 有 `run` / `execute` / `process` 主入口 + 调 3+ 模块）。补一条最小 fixture 端到端跑主入口、**只验「跑通不报错」**（抓 missing import / 参数顺序 / `self.X` 没初始化等装配错误——正是「审废基础功能」的典型形态）。
-3. **无运行时面 → 闸 A 判 N/A 跳过**：纯文档 / 指令规则文件（本 skill、宪法、`rules/*`、README）没有可运行的代码单元，运行验证不适用，跳过本子步（但这类仍走闸 B 的置信 review）。项目无任何测试框架且改动非编排器时同样 N/A，但**若改动含业务逻辑，应按 TDD 章补最小测试**而非直接跳过。
+2. **被改代码是编排器 / facade 却无 happy-path integration test → 先补一条再放行**：判据见 `playbooks/python.md` §3.7（`__init__` 收外部资源 + 有 `run` / `execute` / `process` 主入口 + 调 3+ 模块）。补一条最小 fixture 端到端跑主入口、**只验「跑通不报错」**（抓 missing import / 参数顺序 / `self.X` 没初始化等装配错误——正是「审废基础功能」的典型形态）。
+3. **无运行时面 → 闸 A 判 N/A 跳过**：纯文档 / 指令规则文件（本 skill、宪法、`playbooks/*`、README）没有可运行的代码单元，运行验证不适用，跳过本子步（但这类仍走闸 B 的置信 review）。项目无任何测试框架且改动非编排器时同样 N/A，但**若改动含业务逻辑，应按 TDD 章补最小测试**而非直接跳过。
 
 > **闸 A 与 lint 的分工**：lint（`/commit` 第 5 步）只证明静态无错、证明不了行为未回归；闸 A 真正跑起来验证基础功能。二者不可互替，尤其复杂 / 并发改动。
 

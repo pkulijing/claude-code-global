@@ -60,7 +60,7 @@ disable-model-invocation: false
 1. **软链主 checkout**（重依赖、目录级，如 `node_modules/`）：`ln -s <主checkout>/<path> <worktree>/<path>`，**跑完即删、切勿 commit**——`node_modules/` 这类带尾斜杠的 gitignore 模式只匹配目录、**不匹配软链**，软链会以 untracked 身份冒进 `git status`。（也可选择在 worktree 内重新准备一份，如 `npm install`，代价是磁盘与时间。）
 2. **回退主 checkout 路径**（只读小文件，如 `.env.local` / 凭证）：在脚本 / 工具里显式「优先 worktree 根的该文件、缺则回退主 checkout 同名文件」，比软链更轻、无残留风险。
 
-前端场景的具体解法见 `rules/frontend.md` §1。
+前端场景的具体解法见 `playbooks/frontend.md` §1。
 
 带 `--no-worktree` → 跳过本小节，在当前分支直接开发，docs 目录落在当前工作树。`/finish` 收尾时检测到非 worktree 会跳过 worktree 收尾，对称无悬空分支。
 

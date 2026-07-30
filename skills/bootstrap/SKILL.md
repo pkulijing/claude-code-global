@@ -164,7 +164,7 @@ helper 完整行为（平台 detect、gh/glab dispatch、color 转换、exit 2/3
 [ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
 ```
 
-`--package` 落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件、无 hello world + 含 `[build-system] uv_build` 的 `pyproject.toml`），见 `rules/python.md` §2。空目录 bootstrap 走 `uv init --package` 分支；老项目 adopt 走 `exists` 分支。
+`--package` 落标准 src 布局（生成 `src/<pkg>/__init__.py` 空文件、无 hello world + 含 `[build-system] uv_build` 的 `pyproject.toml`），见 `playbooks/python.md` §2。空目录 bootstrap 走 `uv init --package` 分支；老项目 adopt 走 `exists` 分支。
 
 **多包 `python-uv-workspace`**：**不要 `uv init --package`** —— 它会在虚拟根写出 `[project]` + `src/` 破坏 workspace 形态。虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments（`uv-workspace` / `uv` / `uv-index` / `ruff` / `pytest`）合并而成，成员包随模板 `packages/*` 已整体复制就位。故本步只需**确保上述 fragments 已合**（Step 3.3.6 对「目标不存在」会用 fragment 内容创建根 `pyproject.toml`），不执行任何 `uv init`。
 
@@ -247,5 +247,5 @@ stacks:
   7. 若 `.github/labels.yml` 中 `area:` 段还是占位符：提示「按本项目实际模块改 area 段后跑 `/sync-project-config` 重新同步 labels」
   8. 若已有第一个开发项想法（信息收集第 3 问回答「有」），运行 `/backlog` 登记
   9. 准备好后运行 `/start` 开启 round 0
-  10. 领域规范集中在 `~/.claude/rules/` 对应文件、按 GLOBAL_AGENTS 触发条件主动读入，不需要在项目根独立放指针 md：选了 `python-uv` 见 `rules/python.md`（涉及 Python 时）、选了 `react-vite` 见 `rules/frontend.md`（涉及前端时）
+  10. 领域规范集中在 `~/.claude/playbooks/` 对应文件、按 GLOBAL_AGENTS 触发条件主动读入，不需要在项目根独立放指针 md：选了 `python-uv` 见 `playbooks/python.md`（涉及 Python 时）、选了 `react-vite` 见 `playbooks/frontend.md`（涉及前端时）
 - **不调用 `/commit`** —— 是否立即提交由用户决定（与 `/backlog` 一致）

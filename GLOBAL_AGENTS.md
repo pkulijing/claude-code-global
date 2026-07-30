@@ -13,22 +13,28 @@
 
 绝不输出繁体中文或日文。
 
-## 领域规则文档（rules/）
+## 领域规则文档（playbooks/）
 
-为避免本宪法臃肿，"领域专属"规则（语言、栈、流程）下沉到 `rules/<topic>.md`（CC 端实际路径 `~/.claude/rules/<topic>.md`、Codex 端 `~/.codex/rules/<topic>.md`——同一份文档被两端共读，按自己所在端取路径）。
+为避免本宪法臃肿，"领域专属"规则（语言、栈、流程）下沉到 `playbooks/<topic>.md`（CC 端实际路径 `~/.claude/playbooks/<topic>.md`、Codex 端 `~/.codex/playbooks/<topic>.md`——同一份文档被两端共读，按自己所在端取路径）。
 
-**约定**：本宪法只保留下表「触发条件 → 读哪个文件」，不复述各规则内容；Agent **命中触发条件时必须主动 Read 对应文件**，不依赖 `@mention` 自动展开（两端解析行为不一致，显式 Read 才是稳的契约）。
+**这些文件默认不在你的上下文里。** 本宪法只保留下表「触发条件 → 读哪个文件」，不复述各规则内容；Agent **命中触发条件时，必须在动手之前主动 Read 对应文件**——这是唯一入口，没有任何机制会替你把它们送到手边。
+
+- **先 Read 再动手**，不是"边做边查"：这些文档里大量是禁令与固定坑（"禁止 pip install"、"`$var` 紧贴 CJK 必须写 `${var}`"），事后读等于事后返工。
+- **不得凭记忆作答**：你对某份规则内容的"印象"可能来自别的项目、别的版本，或纯属幻觉。命中就 Read，哪怕你觉得记得。
+- **拿不准算不算命中，就 Read**：一次 Read 的代价远低于一次踩坑——本仓沉淀的每条规则背后都是一次实际返工。
+
+> 目录名是 `playbooks/` 而非 `rules/`，因为 `~/.claude/rules/` 是 Claude Code 的**保留目录**：放进去的 `.md` 会被当作用户级 memory 全文注入每一个会话，与本节"按需读"的设计意图正相反。**别改回去。**
 
 当前已沉淀的领域规则（命中触发条件即 Read）：
 
-- **`rules/python.md`** — 触发：涉及 Python 代码、`pyproject.toml`、依赖管理或 Python 风格判断。（uv / ruff / src 布局 / 包内代码风格 / 测试 / 打包发布）
-- **`rules/frontend.md`** — 触发：涉及前端代码 / web UI、React / Vite / TypeScript，或 Biome / tailwind / shadcn 栈判断。（落 `frontend/` 子目录）
-- **`rules/ros2.md`** — 触发：涉及 ROS 2 工程、colcon 工作空间、ament、`package.xml`、ROS 包 `CMakeLists.txt`、launch 或 ROS 包构建/依赖判断。（包落 `src/`）
-- **`rules/lark.md`** — 触发：用 lark-cli 创作 / 编辑飞书云文档。（署名约定 + docx 实操技巧）
-- **`rules/feishu-bot.md`** — 触发：开发飞书 bot 后端（lark-oapi 长连接、事件回调、`im.message.receive` / `card.action.trigger`）。（消息幂等去重必备 + 卡片回调需后台订阅；文档创作看 `lark.md`）
-- **`rules/shell.md`** — 触发：生成 / 编辑含中文注释或中文输出的 bash / shell 脚本。（中文 / 全角字符 × 引号与变量名两个固定坑）
-- **`rules/cloud-routine.md`** — 触发：涉及 claude.ai Routines、云端定时 agent、`RemoteTrigger` / `/schedule`，或云端 sandbox 能力判断。（实测能力矩阵 + 指令 / 工具链 / 平台能力三层组合）
-- **`rules/scheduled-agent.md`** — 触发：设计 / 部署「定时唤起无头 Agent」的**本机**任务（launchd / systemd timer + `claude -p`）。（四层架构 + macOS·Linux 差异速查 + 实战坑清单；跑在云端的那种看 `cloud-routine.md`）
+- **`playbooks/python.md`** — 触发：涉及 Python 代码、`pyproject.toml`、依赖管理或 Python 风格判断。（uv / ruff / src 布局 / 包内代码风格 / 测试 / 打包发布）
+- **`playbooks/frontend.md`** — 触发：涉及前端代码 / web UI、React / Vite / TypeScript，或 Biome / tailwind / shadcn 栈判断。（落 `frontend/` 子目录）
+- **`playbooks/ros2.md`** — 触发：涉及 ROS 2 工程、colcon 工作空间、ament、`package.xml`、ROS 包 `CMakeLists.txt`、launch 或 ROS 包构建/依赖判断。（包落 `src/`）
+- **`playbooks/lark.md`** — 触发：用 lark-cli 创作 / 编辑飞书云文档。（署名约定 + docx 实操技巧）
+- **`playbooks/feishu-bot.md`** — 触发：开发飞书 bot 后端（lark-oapi 长连接、事件回调、`im.message.receive` / `card.action.trigger`）。（消息幂等去重必备 + 卡片回调需后台订阅；文档创作看 `lark.md`）
+- **`playbooks/shell.md`** — 触发：生成 / 编辑含中文注释或中文输出的 bash / shell 脚本。（中文 / 全角字符 × 引号与变量名两个固定坑）
+- **`playbooks/cloud-routine.md`** — 触发：涉及 claude.ai Routines、云端定时 agent、`RemoteTrigger` / `/schedule`，或云端 sandbox 能力判断。（实测能力矩阵 + 指令 / 工具链 / 平台能力三层组合）
+- **`playbooks/scheduled-agent.md`** — 触发：设计 / 部署「定时唤起无头 Agent」的**本机**任务（launchd / systemd timer + `claude -p`）。（四层架构 + macOS·Linux 差异速查 + 实战坑清单；跑在云端的那种看 `cloud-routine.md`）
 
 ## 核心开发模式
 
@@ -45,7 +51,7 @@
 - **三件套 skill**：`/backlog` 建 issue、`/start <issue#>` 拉详情开轮、`/finish` 收尾并在 commit 写 `Closes #N`。
 - **Closes #N**：commit/PR 描述写 `Closes #N`，合并到 default branch 自动关 issue（GitHub / GitLab 原生支持），issue 永久保留、与 commit/MR 双向可查 —— 这是跨轮上下文可追溯的关键保证。
 - **刻意决定不做**的项归档为带 `wontfix` label 的 **closed issue**（可检索、可按 label 过滤），不维护任何本地文件段。已完成项看平台 closed issues。
-- issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。跨仓库沉淀 issue（如向 claude-code-global 提改进，无论是否经 `/finish`）**必须带三轴 label** —— helper 已对「`--repo` 跨仓库 + 零 label」创建强制拦截（确需裸提才加 `--allow-no-label`）。**本机 / 云端分野**：该 helper 包装的是本机安装的 `gh` / `glab`——claude.ai Routines 等云端 sandbox 中二者均未安装（helper 脚本经软链可见、但因此跑不起来），issue / PR 交互改走环境内置的 GitHub MCP；云端能力边界详见 `rules/cloud-routine.md`。
+- issue 远端平台由 `git remote get-url origin` 自动判定，issue 的创建、评论、编辑等操作统一走 `~/.claude/scripts/platform_issue.py` helper，不直接调 `gh` / `glab`。跨仓库沉淀 issue（如向 claude-code-global 提改进，无论是否经 `/finish`）**必须带三轴 label** —— helper 已对「`--repo` 跨仓库 + 零 label」创建强制拦截（确需裸提才加 `--allow-no-label`）。**本机 / 云端分野**：该 helper 包装的是本机安装的 `gh` / `glab`——claude.ai Routines 等云端 sandbox 中二者均未安装（helper 脚本经软链可见、但因此跑不起来），issue / PR 交互改走环境内置的 GitHub MCP；云端能力边界详见 `playbooks/cloud-routine.md`。
 
 ### 需求生命周期
 
@@ -92,7 +98,7 @@
 - **三条成本硬规则**（细节与实证见 `/review-loop` skill）：① **范围钉死**——委派 prompt 限定「只审 diff 及其接壤代码，禁止全库扫描」；② **永远委派独立 context 子 agent**——主会话直跑会把整轮文件阅读永久写进主对话历史、之后每轮重发；③ **编队只有两档**（3 reviewer 默认 / 5 reviewer 重档），不自行加码。
 - **已知局限**：reviewer 与写这段 diff 的同为 Claude 模型家族，属**同模型自审**，对并发 / 难复现改动有已知盲区。硬实证：一处 grpc.aio 消费迁专用线程的重构，CC 自审只发现 2 个并发隐患，换独立模型（codex）review 又补出 3 个 P1，其中「优雅停不可达」CC 完全漏判。曾自动引入 codex 做跨模型第二意见，因判定链长、触发率近零、维护面外溢而**撤除**；**需要跨模型 review 时由人工手动引入**，本流程不自动做。独立的是 context 而非模型——升重档只是缓解，不等于消除这层盲区。
 - **降级不跳过**：委派失败（Agent 工具不可用，如 Codex 端 / 受限环境）→ 本端按角度清单**结构化自审** + 置信过滤，显著标注「未经独立 context 把关」再继续，绝不静默跳过。优先级：**委派独立子 agent > 本端结构化自审 > 不 review（禁止）**。
-- **琐碎可跳过（配置、指令文件除外）**：纯用户文档（`docs/`）/ 代码注释 / 单行机械 fix 自动跳过；**配置变更、以及 `skills/*.md` / `GLOBAL_AGENTS.md` / `rules/*.md` 这类指令规则文件绝不自动跳过**——前者一行就可能改变安全态或线上行为，后者改的是门禁 / 流程自身的规则，跳过等于让门禁在改自身时失效。
+- **琐碎可跳过（配置、指令文件除外）**：纯用户文档（`docs/`）/ 代码注释 / 单行机械 fix 自动跳过；**配置变更、以及 `skills/*.md` / `GLOBAL_AGENTS.md` / `playbooks/*.md` 这类指令规则文件绝不自动跳过**——前者一行就可能改变安全态或线上行为，后者改的是门禁 / 流程自身的规则，跳过等于让门禁在改自身时失效。
 
 ### 文档记录规范
 

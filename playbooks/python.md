@@ -1,6 +1,6 @@
 # Python 开发规则
 
-> 本文档由 `claude-code-global` 仓库的 `rules/python.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/rules/python.md`（CC 端）与 `~/.codex/rules/python.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
+> 本文档由 `claude-code-global` 仓库的 `playbooks/python.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/playbooks/python.md`（CC 端）与 `~/.codex/playbooks/python.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
 >
 > **触发条件**：Coding Agent 在本轮任务涉及 Python 代码、`pyproject.toml`、依赖管理、Python 风格判断时，**必须先把本文件读入上下文**，再开始动手。
 

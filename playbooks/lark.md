@@ -1,6 +1,6 @@
 # lark-cli 飞书文档创作规则
 
-> 本文档由 `claude-code-global` 仓库的 `rules/lark.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/rules/lark.md`（CC 端）与 `~/.codex/rules/lark.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
+> 本文档由 `claude-code-global` 仓库的 `playbooks/lark.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/playbooks/lark.md`（CC 端）与 `~/.codex/playbooks/lark.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
 >
 > **触发条件**：Coding Agent 在本轮任务涉及用 lark-cli（lark-doc）创作或编辑飞书云文档，**或为 lark-cli 申请 / 排查授权**时，**必须先把本文件读入上下文**，再开始动手。
 

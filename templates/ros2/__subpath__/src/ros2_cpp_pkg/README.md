@@ -36,4 +36,4 @@ colcon test --packages-select ros2_cpp_pkg --cmake-args -DBUILD_TESTING=ON
 colcon test-result --verbose
 ```
 
-> 新增包前对照工作区规则的「新增包检查清单」（`rules/ros2.md`）。
+> 新增包前对照工作区规则的「新增包检查清单」（`playbooks/ros2.md`）。

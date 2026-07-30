@@ -1,10 +1,10 @@
 # 定时唤起无头 Agent 任务规则（本机 OS 层）
 
-> 本文档由 `claude-code-global` 仓库的 `rules/scheduled-agent.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/rules/scheduled-agent.md`（CC 端）与 `~/.codex/rules/scheduled-agent.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
+> 本文档由 `claude-code-global` 仓库的 `playbooks/scheduled-agent.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/playbooks/scheduled-agent.md`（CC 端）与 `~/.codex/playbooks/scheduled-agent.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
 >
 > **触发条件**：Coding Agent 在本轮任务涉及**设计或部署「定时 / 周期性唤起一个无头 Agent 干活」的任务**（launchd / systemd timer / cron + `claude -p` 之类）时，**必须先把本文件读入上下文**，再开始动手。
 
-> **与 `rules/cloud-routine.md` 的分工**：本文管**跑在自己机器上**的定时无头 agent（OS 定时器拉起本地 `claude -p`）。跑在 claude.ai Routines 云端 sandbox 里的定时 agent 是另一套能力边界（无 `gh`、无输出回路、cron 最小 1 小时且走 UTC……），看那一份。两者共享「无人值守就没有人可问」这条纪律，但**执行环境完全不同，别混用结论**。
+> **与 `playbooks/cloud-routine.md` 的分工**：本文管**跑在自己机器上**的定时无头 agent（OS 定时器拉起本地 `claude -p`）。跑在 claude.ai Routines 云端 sandbox 里的定时 agent 是另一套能力边界（无 `gh`、无输出回路、cron 最小 1 小时且走 UTC……），看那一份。两者共享「无人值守就没有人可问」这条纪律，但**执行环境完全不同，别混用结论**。
 
 「定时唤起一个无头 Coding Agent 干周期性杂活」这个场景会反复出现（飞书文档库每日自动整理、多仓 dev 分支定时同步、本仓的配置自动同步……）。每次重新回忆 launchd / systemd 的差异和那堆坑很浪费，故沉淀为通用流程。
 

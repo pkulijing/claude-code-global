@@ -255,7 +255,7 @@ skipped 读写位置按顶部「三态收敛约定」（`len >= 1` 归 `stacks[]
 [ -f pyproject.toml ] && echo "exists, skip uv init" || uv init --package
 ```
 
-`--package` 落标准 src 布局（`src/<pkg>/__init__.py` 空文件 + `[build-system] uv_build` 的 `pyproject.toml`），见 `rules/python.md` §2。adopt 下 `pyproject.toml` 多半已存在、本步 no-op。
+`--package` 落标准 src 布局（`src/<pkg>/__init__.py` 空文件 + `[build-system] uv_build` 的 `pyproject.toml`），见 `playbooks/python.md` §2。adopt 下 `pyproject.toml` 多半已存在、本步 no-op。
 
 **多包 `python-uv-workspace`**：**绝不 `uv init --package`**（会在虚拟根写 `[project]` + `src/` 破坏 workspace 形态）。虚拟根 `pyproject.toml` 由本 stack 的 workspace fragments 合并而成、成员包随模板 `packages/*` 复制就位；本步只确保上述 fragments 已合（2.4 的 TOML 段合并对「目标不存在」会用 fragment 内容创建根 `pyproject.toml`）。
 

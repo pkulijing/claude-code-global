@@ -1,6 +1,6 @@
 # ROS 2 开发规则
 
-> 本文档由 `claude-code-global` 仓库的 `rules/ros2.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/rules/ros2.md`（CC 端）与 `~/.codex/rules/ros2.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
+> 本文档由 `claude-code-global` 仓库的 `playbooks/ros2.md` 提供，经 `install.sh` 双轨软链到 `~/.claude/playbooks/ros2.md`（CC 端）与 `~/.codex/playbooks/ros2.md`（Codex 端）。修改请回到 `claude-code-global` 仓库，不要直接编辑软链目标。
 >
 > **触发条件**：Coding Agent 在本轮任务涉及 ROS 2 工程、colcon 工作空间、ament（`ament_cmake` / `ament_python`）、`package.xml`、`CMakeLists.txt`（ROS 包）、launch 文件或 ROS 包构建/依赖判断时，**必须先把本文件读入上下文**，再开始动手。
 
@@ -137,7 +137,7 @@ ROS 2 + Python 混合仓里，一个纯 Python 包可能既要走 uv / PyPI 链�
 
 ## 6. 纯逻辑 / ROS 薄壳分层（跨语言通用）
 
-呼应 `rules/python.md` §3 的 OO/分层偏好，ROS 包同样遵循：
+呼应 `playbooks/python.md` §3 的 OO/分层偏好，ROS 包同样遵循：
 
 - **可独立验证的业务逻辑放纯函数 / 纯类**（不依赖 rclcpp / rclpy），ROS 节点只做收发翻译与定时。
 - 好处：纯逻辑可在无运行时 ROS 上下文下单测（Python 侧 `test/pure/` 在任意机器含 macOS 快测；C++ 侧 gtest 不必拉起节点）；装配错误（missing include / 参数顺序 / 成员未初始化）由 build 期与节点冒烟抓出。
@@ -147,7 +147,7 @@ ROS 2 + Python 混合仓里，一个纯 Python 包可能既要走 uv / PyPI 链�
 
 - 跑测试：`colcon test`，结果 `colcon test-result --verbose`。
 - C++ 用 `ament_add_gtest`（`find_package(ament_cmake_gtest REQUIRED)`，`test/` 下 gtest 源）。注意统一构建系统常把全局 `BUILD_TESTING` 默认设 `0`，需 `--cmake-args -DBUILD_TESTING=ON`（或团队构建脚本的 `-d BUILD_TESTING=ON`）显式打开。
-- Python 包测试细则（pytest / 纯逻辑分层 / 编排器 happy-path）遵循 `rules/python.md` §4；ROS 节点至少有一条「能 import + 构造」的冒烟测试（无 rclpy 环境用 `pytest.importorskip` 整文件 skip）。
+- Python 包测试细则（pytest / 纯逻辑分层 / 编排器 happy-path）遵循 `playbooks/python.md` §4；ROS 节点至少有一条「能 import + 构造」的冒烟测试（无 rclpy 环境用 `pytest.importorskip` 整文件 skip）。
 
 ## 8. 新增包检查清单
 
