@@ -1,0 +1,2 @@
+# Python 字节码缓存（本目录的 context_budget.py 被单测 import 时产生）
+__pycache__/
