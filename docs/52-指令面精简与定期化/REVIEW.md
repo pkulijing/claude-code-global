@@ -34,7 +34,16 @@
 
 ## 阶段 1 · `templates/MECHANICS.md` 抽取
 
-（待填）
+**运行验证（闸 A）**：本阶段改的是指令规则文件，无运行时面 → 按 `/review-loop` 6.3 判 N/A。可机械验的两条已跑：`check-refs` 无失效引用、单测 41 项全绿。
+
+| # | 角度 | finding | 置信 | 处置 |
+| --- | --- | --- | ---: | --- |
+| 1 | ② 契约与装配 | 抽走机制细节后，两个 skill 必须**在真正写文件之前**读到 `MECHANICS.md`，否则等于把关键约束从流程里摘掉了 | 90 | **已处理**：两处都写明触发点（bootstrap Step 3.3「动手前先读」、sync 顶部「动手改文件前先读」），并注明 `--dry-run` / 只看骨架时不必读 |
+| 2 | ② 契约与装配 | `MECHANICS.md` 落在 `templates/` 顶层，会不会被 stack 探测逻辑误当成一个 stack | 85 | **不成立**：两处探测都写的是「非下划线开头的**子目录**」，`MECHANICS.md` 是文件。已复核措辞仍在 |
+| 3 | ② 契约与装配 | `~/.claude/templates/MECHANICS.md` 现在读不到 —— 软链指向**主 checkout**，本 worktree 的新文件不在其中 | 100 | **非缺陷，是 worktree 的既定行为**（同 `/start` 里「新 worktree 里 gitignored 依赖一概不存在」那条）。合入 master 后即可达，`install.sh` 无需改动（`templates/` 是目录级软链） |
+| 4 | ① 浅层 bug | 两个 skill 一次砍掉 58%／59%，远超 PLAN 的参考目标，可能砍过头 | 75 | **逐条核对过**：原文 16 + 17 个信息点全部落到新 SKILL.md 或 `MECHANICS.md`，账本 `SLIM-LEDGER.md` 记了三列。真正未保留的只有一条出处链接（约束本身已保留），已在账本列明 |
+
+**闸 B 结论**：无遗留高置信 correctness finding。
 
 ## 阶段 2 · review 链路收敛
 
