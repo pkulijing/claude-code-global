@@ -15,7 +15,7 @@ Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。
 | `hooks/*`                 | `~/.claude/hooks/*`                                    | 软链接（逐个文件）                  | hook 脚本本体；由 `settings.base.json` 中带 `# @claude-code-global:<name>` 标记的条目以绝对路径引用                                                                                     |
 | `scripts/*`               | `~/.claude/scripts/*`                                  | 软链接（逐个文件）                  | 被 SKILL.md 显式调用的稳定脚本（如 `platform_issue.py`），SKILL.md 通过 `$HOME/.claude/scripts/...` 引用                                                                                |
 | `templates/`              | `~/.claude/templates/`                                 | 软链接（整目录）                    | 跨项目共享开发配置模板源，由 `/bootstrap` `/sync-project-config` 读取                                                                                                                   |
-| `playbooks/`                  | `~/.claude/playbooks/`                                     | 软链接（整目录）                    | 领域规则文档（按 `<topic>.md` 拆，如 `python.md` / `frontend.md`），由 GLOBAL_AGENTS 顶层指针引用，Agent 命中触发条件时主动 Read                                                        |
+| `playbooks/`              | `~/.claude/playbooks/`                                 | 软链接（整目录）                    | 领域规则文档（按 `<topic>.md` 拆，如 `python.md` / `frontend.md`），由 GLOBAL_AGENTS 顶层指针引用，Agent 命中触发条件时主动 Read。**目录名不能改叫 `rules`**——那是 CC 保留目录，见下方说明        |
 | 仓库根目录                | `~/.claude/global-repo/`                               | 软链接                              | 让 `/sync-project-config` 通过 stable 路径访问模板的 git 历史，计算模板版本变化                                                                                                         |
 | `settings.base.json`      | `~/.claude/settings.json`                              | **合并**（非破坏性）                | 本机特有设置保留；仅追加/覆盖基线里声明的项                                                                                                                                             |
 | `user.config.example.env` | `~/.claude-code-global/config.env`                     | **seed**（user-wins，非软链非合并） | 仓库内是示例基线；真实配置在仓库外、`git pull`/自动同步不覆盖；只在用户未设时填默认、新增 key 才补缺追加。详见 [docs/27-用户可配置项机制/DESIGN.md](docs/27-用户可配置项机制/DESIGN.md) |
@@ -30,6 +30,16 @@ Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。
 - 多次运行 `install.sh` 幂等；真正发生变化时会先备份成 `settings.json.bak.<timestamp>`
 
 合并依赖 `jq`（macOS 自带 `/usr/bin/jq`；Linux 各发行版用包管理器安装）。
+
+### 为什么领域规则目录叫 `playbooks/` 而不是 `rules/`
+
+**`~/.claude/rules/` 是 Claude Code 的保留目录**：放进去的 `.md` 会被当作**用户级 memory 全文注入每一个会话的系统提示**，无论项目类型、无论是否相关。这与本仓「宪法只留指针表、Agent 命中触发条件才 Read」的设计意图正好相反。
+
+本仓早期正是软链到了那个名字，八份领域文档因此每会话常驻——实测代价 **36,520 token/会话**（`~/.claude/rules/` 挂载时 64,821 token，改挂 `~/.claude/playbooks/` 后 28,301 token）。改用 CC 不认识的中性目录名后，加载完全由宪法指针表 + 显式 Read 驱动。**别改回去。** 来龙去脉见 [docs/51-rules按需加载/](docs/51-rules按需加载/)。
+
+**推论**：往 `~/.claude/` 下新增任何目录前，先确认该名字不是 CC 保留名。已知保留：`rules` / `skills` / `agents` / `commands` / `hooks` / `plugins` / `workflows` / `themes` / `plans` / `tasks` / `teams` / `projects` / `sessions` / `cache` / `backups` / `debug`。本仓的 `scripts/` / `templates/` / `playbooks/` 经核查均非保留名。
+
+`install.sh` 会自动清理老机器上遗留的 `~/.claude/rules` 与 `~/.codex/rules` 旧软链（仅当它确实指向某个本仓 checkout 时才删；用户自建的真实目录、指向别处的软链一律不碰）。
 
 ## 同时支持 Claude Code 与 Codex
 
@@ -71,7 +81,7 @@ bash ~/Developer/claude-code-global/install.sh
 | **核心开发模式**          | 需求 → 计划 → 执行 → 总结的四步协作流程，每个开发项在 `docs/` 下留档（PROMPT.md / PLAN.md / SUMMARY.md）；每轮默认在独立 git worktree 内进行，支持多轮并行                                                                                           |
 | **git 规则**              | 中文 semantic commit message，AI 提交须带 Co-authored-by（按执行 Agent 选身份：CC → `Claude` / Codex → `OpenAI Codex`），`.gitignore` 按目录拆分                                                                                                     |
 | **环境变量管理**          | `.env.local`（真实值，gitignore）+ `.env.example`（占位符，提交），禁止泄露密钥                                                                                                                                                                      |
-| **领域规则文档**          | 语言 / 栈 / 流程的具体细则下沉到 `playbooks/<topic>.md`（CC 端 `~/.claude/playbooks/`、Codex 端 `~/.codex/playbooks/`）；本宪法只保留"指针 + 触发条件"，Agent 命中条件时主动 Read 对应文件                                                                       |
+| **领域规则文档**          | 语言 / 栈 / 流程的具体细则下沉到 `playbooks/<topic>.md`（CC 端 `~/.claude/playbooks/`、Codex 端 `~/.codex/playbooks/`）；本宪法只保留"指针 + 触发条件"，**这些文件默认不在上下文里**，Agent 命中条件时必须在动手前主动 Read                                    |
 | **Python 开发规则**       | 指针到 [`playbooks/python.md`](playbooks/python.md)：uv 管依赖 / ruff / pypi index（清华 + aliyun pytorch-wheels）/ src 布局 + uv_build / 7 条 Python 风格 / 测试约定 / 打包·发布·安装（含前端产物 wheel 化 + 自托管 GitLab Registry）                       |
 | **前端开发规则**          | 指针到 [`playbooks/frontend.md`](playbooks/frontend.md)：npm 走 npmmirror / Biome（前端的 ruff）/ React 19 + Vite 6 + TS strict / tailwind v4 CSS-first / shadcn-ui / 落 `frontend/` 子目录，与后端正交                                                      |
 | **ROS 2 开发规则**        | 指针到 [`playbooks/ros2.md`](playbooks/ros2.md)：colcon 工作空间（包落 `src/`）/ ament_cmake + ament_python / package.xml format 3 / CMakeLists ament-first（依赖消费三步法 + 导出 + install 路径）/ 纯逻辑 / ROS 薄壳分层 / 新增包检查清单                  |
