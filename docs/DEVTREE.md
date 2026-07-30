@@ -113,6 +113,7 @@ graph TD
     N47["🏗️ 47 · review-loop 收敛闸重构"]:::refactor
     N48["🏗️ 48 · review-loop 去 codex 简化"]:::refactor
     N50["🏗️ 50 · review 机制独立 agent 重构"]:::refactor
+    N52["🏗️ 52 · 指令面精简与定期化"]:::refactor
     N24 ~~~ N25
     N25 ~~~ N44
     N44 ~~~ N45
@@ -120,6 +121,7 @@ graph TD
     N46 ~~~ N47
     N47 ~~~ N48
     N48 ~~~ N50
+    N50 ~~~ N52
   end
 
   subgraph e_rules["🔄 领域规则沉淀"]
@@ -203,7 +205,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-07-31 | 共 51 轮
+> 最后更新：2026-07-31 | 共 52 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -258,6 +260,7 @@ graph TD
 | 49 | 文档类 issue 云端 routine 自动化 | 🌱 初建 | 云端自动化 routine | 落地 the-foundation round 0 的选型结论：新增 /routine-docs skill 作为 claude.ai Routines 的版本化剧本（云端 clone+install 复现环境、两层分诊出纯文档类 issue、按落点与主题合批、逐条走 /quick 形态出 PR），并逐条定死无人值守下各「停下问用户」分岔的契约；配套 .github/workflows/ff-merge.yml —— 打 ff-merge label 或评论 /ff 即把 PR 直推默认分支（GitHub 的 indirect merge 使其自动标记 merged），拿到真 FF 直线历史，含 owner 硬校验、rebase 重试、workflow 文件边界。dry-run 实跑 27 条真实 issue 反过来改写剧本两条规则；沙盘测试 17 断言覆盖四类路径 |
 | 50 | review 机制独立 agent 重构 | 🏗️ 重构 | 全局宪法治理 | 根治 #60（P0）：`/code-review` 被新版 CC 标 `disable-model-invocation`（round 48 委派成功→数周后同机不可用，flag 随版本漂移不可观测），主路径与降级第一档同废。按「独立 context / CC 原生 / 无人在环」三 intent 重构——主路径改为委派独立 context 的 review orchestrator 子 agent，按档位并行扇出 3（默认全 sonnet）/ 5（并发等硬 diff，深审 opus）个 reviewer 角度 + 0–100 置信打分（<80 过滤）+ 探针验证；降级链按独立 context 优先重排（orchestrator > 主会话结构化自审）；人工闸口改「2 轮自动上限 + 留痕放行」（REVIEW.md + commit 标注，人工兜底前移 /finish）；对上游内部实现的逆向描述全删。自举实测：嵌套扇出 3 reviewer 成功、首轮 0 条 ≥80 finding、~12 万 token 收敛，顺带逮到 `run_in_background` 参数被 Agent 工具 schema 移除的漂移坑 |
 | 51 | rules 改名 playbooks 按需加载 | 🏗️ 重构 | 领域规则沉淀 | 根治 #70：`~/.claude/rules/` 是 CC **保留目录**，install.sh 软链过去等于把八份领域文档注册成用户级 memory、**全文注入每个会话**，与宪法「命中触发条件才 Read」的设计意图正相反（拆分只省宪法行数、token 一分没省）。经 `strings` 在 CC 2.1.220 二进制定位三段代码坐实（`conditionalRule:!1` 无条件扫入 → 按有无 `globs` 分流 → `globs` 来自 frontmatter `paths`）。**未采纳 issue 建议的加 `paths` 方案**（等于先放进默认常驻目录再用 frontmatter 关掉这个默认值；且 `paths` 注入时机在「读完文件之后」、只认 FileReadTool、要求路径落在 originalCwd 内，而八份中四份的触发条件是任务性质、无文件面），改为 `git mv rules playbooks` 换 CC 不认识的中性目录名。宪法该节改写（明写「默认不在你的上下文里」+ 先读再动手 / 不凭记忆 / 拿不准就读三条硬约束）；install.sh 加 `unlink_legacy_dir` 清旧软链（按仓库标志文件认亲而非比对精确路径，兼容一机多 checkout；只认绝对路径）+ `CCG_INSTALL_LIB_ONLY` source 守卫。实测每会话 64,821 → 28,301 token（**省 36,520**），契约抽查两条不碰文件的自然语言需求均「先 Read 再动手」精准命中。额外产物：9 用例沙盘测试（用例 8 当场逮到误删相对软链的缺陷）。过程留下两条教训：红态测试 source 生产脚本把 global-repo 软链改歪（→ #92）、review 因误读 CC 内置系统提示静默降级（→ #91） |
+| 52 | 指令面精简与定期化 | 🏗️ 重构 | 全局宪法治理 | 根治 #84：指令面四个月 32,495 → 162,562 字符（4.8 倍）且从未净减。对照 Anthropic《The new rules of context engineering for Claude 5》（其自述砍掉 CC 系统提示 80%+ 而 eval 无损）逐条核到本仓，痛点排序是 **shift 4 重复 > shift 1 细则→判断 > shift 3 分层**，而非「删」。先落 `scripts/context_budget.py`（measure / delta --since / check-refs，41 项单测）拿到数——**当场纠正一个 3 倍的估算错误**：中文按英文经验值 4 字符/token 估会低估 3 倍，由 /context 两个实测点解出 CJK≈1.03、非 CJK≈0.59 token/字。三板斧（去重 + 细则上提 + WHY 从叙事压成结论）落到 9 个文件：86,194 → 53,457 字符（-38%），其中 10,618 是**搬到** `templates/MECHANICS.md` 与两份 `references/`（内容未减、改为按需读），真正删除约 22,100。最刺眼的两处重复文档自己承认过：sync 写着「与 bootstrap Step 3.3.7 同一份，改动时两处同步」、commit 写着「细节以 /review-loop 为单一真源」却又复述 700 字符（同一套 review 判据原本写在 6 个地方）。常驻上下文 11,610 → 8,851 token（-24%）。**产出 `/routine-slim`**（周日 01:00 UTC，阈值 15% 才动手，PR 强制三列表格「删了什么/依据哪条判据/现在从哪读得到」）把判据固化为定期任务——判据逐字来自本轮实操的账本，非纸上推演。安全边界：宪法与本仓 CLAUDE.md 只报告不动手，永不碰自己 / routine-docs / .github / scripts 等；Step 2.2 强制排除在途 PR 碰过的文件（两条 routine 都写 playbooks，光靠 cron 错开不够）。**局限：本轮全部 commit 未经独立 context review**（session 禁用 Agent 工具，按降级链退到主会话自审），人工 review 是唯一独立视角，核对对象是 docs/52-*/SLIM-LEDGER.md |
 
 ---
 
@@ -295,7 +298,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25, 44, 45, 46, 47, 48, 50
+- 轮次：24, 25, 44, 45, 46, 47, 48, 50, 52
 
 #### 领域规则沉淀
 
