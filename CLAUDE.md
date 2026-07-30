@@ -12,7 +12,7 @@
 - `install.sh` — 安装脚本，双轨软链接 + 基线 settings/config 合并 + 用户可配置项 seed/应用 + 系统级 uv 配置 seed
 - `skills/` — 全局 slash commands（`/start`、`/finish`、`/commit`、`/pybump`、`/rebase`、`/devtree` 等），双轨软链到两端 `skills/`
 - `hooks/` — 全局 hook 脚本（如 `fix-after-edit.sh`），双轨软链到两端 `hooks/`，由各端 settings/config 中的 hook 条目以绝对路径引用
-- `scripts/` — 被引用的稳定脚本，双轨软链到两端 `scripts/`。包括 `auto-update.sh`（多设备自动同步本仓库的 pull + install，由 OS 调度器触发，`AGENT_HOME` 变量化）、`user-config.sh`（用户可配置项的可 source 库：`ccg_seed_user_config` / `ccg_read_config` / `ccg_apply_git_default_branch`，供 install.sh 与未来 hook/skill 复用）
+- `scripts/` — 被引用的稳定脚本，**逐文件**软链到两端 `scripts/`（新增 / 删除脚本需重跑 `install.sh`）。包括 `auto-update.sh`（多设备自动同步本仓库的 pull + install，由 OS 调度器触发，`AGENT_HOME` 变量化）、`user-config.sh`（用户可配置项的可 source 库：`ccg_seed_user_config` / `ccg_read_config` / `ccg_apply_git_default_branch`，供 install.sh 与未来 hook/skill 复用）、`context_budget.py`（指令面量化：`measure` / `delta --since` / `check-refs`，是 `/routine-slim` 的触发闸与「搬走而非蒸发」的机械兑现；token 估算系数由 `/context` 实测标定，**换模型后需重新标定**，单测在 `docs/52-指令面精简与定期化/test_context_budget.py`）
 - `scheduler/` — OS 层调度器注册脚本与模板（macOS launchd / Linux systemd user timer），由 `install.sh` 末尾自动调用，注册"登录跑 + 每小时跑"的自动同步任务。逃生舱：`bash scheduler/uninstall.sh`
 - `templates/` — 跨项目共享开发配置模板（`_common/` 全项目套用 + `<stack>/` 技术栈特异：后端 `python-uv`（单包）/ `python-uv-workspace`（多包单仓，与单包互斥）、前端 `react-vite`、ROS 2 工作空间 `ros2`），目录级软链到两端，由 `bootstrap` / `sync-project-config` 消费。各维正交、可同仓叠加。**落地机制（落点语义、fragment 合并、变体组、迁移去重）的单一真源是 `templates/MECHANICS.md`**，别在别处复述。两个非显然点：`ros2` 把 `ament_python` 与 `ament_cmake` 参考包合并在**单一** stack 内（一个仓库即一个 colcon 工作空间、可含多个 ROS 包，二者共享工作区根配置，拆两 stack 会在 `__root__` 撞车）；`.vscode/*.fragment` 一律汇聚到**项目根**（VS Code 单根工作区只读仓库根的 `.vscode/`）
 - `playbooks/` — 领域规则文档（按 `<topic>.md` 拆分，如 `python.md`、`frontend.md`），目录级软链到两端 `playbooks/`，由 `GLOBAL_AGENTS.md` 顶层指针引用、Agent 命中触发条件时主动 Read。**曾用名 `rules/`，因撞上 CC 保留目录名而改名**（见下方「往 `~/.claude/` 下新增目录前先查保留名」）
@@ -33,4 +33,7 @@
 - Codex 端 hooks 首次需进入 Codex 跑一次 `/hooks` 命令 review 后才生效
 - **往 `~/.claude/` 下新增目录前，先确认该名字不是 CC 保留名。** 本仓踩过一次：`rules/` 是 CC 的**用户级 memory 目录**，软链过去等于把八份领域文档注册成「每会话全文常驻的系统提示」（约 19k token / 每会话），与「按需 Read」的设计意图正相反——详见 `docs/51-rules按需加载/`。已知保留名（CC 二进制里有 `join(configDir, X)` 构造）：`rules` / `skills` / `agents` / `commands` / `hooks` / `plugins` / `workflows` / `themes` / `plans` / `tasks` / `teams` / `projects` / `sessions` / `cache` / `backups` / `debug`。本仓的 `scripts/` / `templates/` / `playbooks/` 经核查均非保留名。核查方法：对 CC 二进制跑 `strings`，搜 `join(` 构造里出现的目录名
 - 开发流程遵循 `GLOBAL_AGENTS.md` 中定义的四步模式（需求 - 计划 - 执行 - 总结）
-- **本仓有一条云端定时 routine**（`/routine-docs`，逻辑见 `skills/routine-docs/SKILL.md`）会每天自动把纯文档类 issue 做成 PR。改动 `skills/routine-docs/SKILL.md` 等于改这条 routine 的行为；改 `.github/workflows/ff-merge.yml` 等于改自动写 `master` 的那条路——两者都是安全边界，别当普通文档改
+- **本仓有两条云端定时 routine，它们的 SKILL.md 都是安全边界、别当普通文档改**：
+  - `/routine-docs`（每天）把纯文档类 issue 做成 PR。它把**外部 issue 正文**变成文件内容，是 prompt-injection 面 —— 故禁止改 `skills/*.md` 与任何可执行面，完整攻击链见 `skills/routine-docs/references/security-boundary.md`
+  - `/routine-slim`（每周日）按增长阈值把指令面精简一轮并出 PR。它**可以**改 `skills/*/SKILL.md` 与 `playbooks/*.md`（输入只有仓库自身、不读外部文本、只做删除与搬移），但**永不碰自己、`/routine-docs`、`.github/`、`install.sh`、`scripts/`、`hooks/`、`templates/`**，且对 `GLOBAL_AGENTS.md` 与本文件**只报告不动手**
+  - 改 `.github/workflows/ff-merge.yml` 等于改自动写 `master` 的那条路。两条 routine 都**绝不以任何方式触发合入** —— `ff-merge` 的准入闸校验「发起人 == 仓库 owner」，而云端 routine 用的就是仓库主人的凭证，这道闸区分不了人和 agent

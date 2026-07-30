@@ -82,3 +82,18 @@
 | 4 | ③ 项目规范合规 | 本轮只做了 3 个 skill，`devtree` / `start` / `quick` / `backlog` / `pybump` / `paper-read` 未动 | 40 | **有意为之**：这几个没有跨文件重复这个大头，收益主要在 A2/A3；与人类「playbooks 交给 routine 逐周做」的决定同构，正好作 routine 的首批试验场。已在账本与 SUMMARY 显式列出，**不是静默漏掉** |
 
 **闸 B 结论**：无遗留高置信 correctness finding。
+
+## 阶段 5 · `/routine-slim`
+
+**运行验证（闸 A）**：新增的是指令规则文件，无运行时面 → N/A。`check-refs` 无失效引用；单测 41 项全绿。`install.sh` 兼容性**经代码核实**（`skills/*/` 逐目录 glob 收 `routine-slim/`；`scripts/*` 逐文件 glob 收 `context_budget.py`，且 `*` 不匹配 dotfile 故 `scripts/.gitignore` 不会被软链进 agent 端）——**未实跑 install.sh**，理由见下表 #4。
+
+| # | 角度 | finding | 置信 | 处置 |
+| --- | --- | --- | ---: | --- |
+| 1 | ② 契约与装配 | **两条 routine 会撞车**：`/routine-docs` 每天跑、写 `playbooks/*.md`，`/routine-slim` 也写 `playbooks/*.md`。PR 可能在人手上挂好几天，**光靠 cron 时间错开根本不够** —— 两条 routine 改同一个文件必然冲突，而冲突要人来解，正是本流程要避免的 | 90 | **已加硬闸**：Step 2.2 强制列出所有 open PR、取其改动文件并集整体排除；**列不出 open PR 就中止本次运行**。这是继承 `/routine-docs` 幂等机制的同一条纪律（宁可这周不跑，也不制造必然冲突的 PR） |
+| 2 | ③ 项目规范合规 | `/routine-docs` 明令禁止改 `skills/*.md`，而本 routine 的主业就是改它 —— 两条 routine 的规则直接矛盾，不解释清楚就是 blog 说的 conflicting guidance | 85 | **已写明实质理由**：二者输入不同。`/routine-docs` 把**外部 issue 正文**变成文件内容（prompt-injection 面），本 routine 只读仓库自身、不读外部文本、只做删除与搬移不引入新语义。**这是可以放宽的实质理由，不是惯例** —— 措辞已写进 Step 2.1，`CLAUDE.md` 的安全边界段也同步说明 |
+| 3 | ① 浅层 bug | 本 routine 能改 `skills/`，若不显式排除自己，就能在改自身时让门禁失效 | 100 | **已硬钉黑名单**：`skills/routine-slim/**`、`skills/routine-docs/**`、`.github/**`、`install.sh`、`scripts/**`、`hooks/**`、`templates/**`、`docs/**`；并写明「**不因为『只是精简、不改语义』而放宽——判断有没有改语义的正是它自己**」 |
+| 4 | ② 契约与装配 | 未实跑 `bash install.sh` 验证新 skill / 新 script 落链 | 70 | **有意不跑**：`install.sh` 从 `REPO_DIR`（= 脚本所在目录）派生软链目标，在本 worktree 里跑会把用户的 `~/.claude` / `~/.codex` **整体重指到一个未合入的分支上**，而本轮按用户要求是「提 PR 不合入」+ 事后删 worktree —— 那会留下一堆悬空软链。改为代码核实两个 glob，并把「合入后需重跑 `bash install.sh`」写进 SUMMARY 的交付说明 |
+| 5 | ① 浅层 bug | 阈值 15% 与「一次只动 1–3 个文件」都是拍的，没有实证 | 45 | **不阻断，但已标注**：`--dry-run` 是上线前的硬要求（`playbooks/cloud-routine.md` §5），首次 dry-run 就是用来校准这两个数的。已写进 SUMMARY 的局限性与后续 TODO |
+| 6 | ② 契约与装配 | 本 routine 不能改 `templates/`，而阶段 1 刚把 `MECHANICS.md` 放在那里 —— 这份 5,478 字符的文档从此不在自动精简的覆盖面内 | 80 | **已知缺口，有意接受**：`templates/` 整体在黑名单里是因为它承载的是**会被真实执行的项目配置**（CI、pre-commit、`pyproject.toml` 片段），放开一个文件就要在剧本里维护例外。已记入 SUMMARY 的局限性 |
+
+**闸 B 结论**：无遗留高置信 correctness finding。
