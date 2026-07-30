@@ -126,12 +126,6 @@ FF 成功则**直接继续**，不停顿。
 
 ### round 编号一致性检查（仅用 `docs/<N>-...` 轮次目录的仓库）
 
-rebase / 历史整理后目标分支可能已占用本地 round 编号，导致三处脱节。**触发**：目标分支已占用当前 round 编号，或 docs round 与 commit round 不一致时，逐条核对、命中给**顺延计划并要求确认**、绝不静默：
-
-1. `docs/<N>-...` 目录编号顺延到下一个空位。
-2. `docs/DEVTREE.md`（Epic 结构 / 可视化 / 节点索引）随之同步顺延。
-3. commit message `[round N]` 前缀与目录编号一致。
-4. **顺延如需改写已提交历史**（rename docs + amend/rebase）→ 明确提示「这会改写历史」、等确认再动手。
-5. 顺延后重跑 `git log --oneline` / `git status` 确认三者一致。
+rebase / 历史整理后目标分支可能已占用本地 round 编号，导致 docs 目录编号、`DEVTREE.md`、commit 的 `[round N]` 前缀三处脱节。**逐条核对、命中给顺延计划并要求确认、绝不静默继续** —— 五步细则见 `/finish` Step 4.5（单一真源）。
 
 纯代码仓（无 `docs/<N>-...`）→ 跳过本节。

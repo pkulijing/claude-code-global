@@ -69,3 +69,16 @@
 | 4 | ① 浅层 bug | -36% 未达 PLAN 的参考目标 ~5,500（-45%） | 20 | **不阻断**：参考目标写明「不是配额，绝不为达标而删」。继续压只能动禁止删除清单里的内容 |
 
 **闸 B 结论**：无遗留高置信 correctness finding。
+
+## 阶段 4 · 逐 skill 三板斧 + 拆 references
+
+**运行验证（闸 A）**：指令规则文件，无运行时面 → N/A。`check-refs` 无失效引用（含两条新的 `references/*.md` 指针）；单测 41 项全绿。
+
+| # | 角度 | finding | 置信 | 处置 |
+| --- | --- | --- | ---: | --- |
+| 1 | ② 契约与装配 | **把安全推导从 `/routine-docs` 移进 reference，会不会让 agent 少了「不越线」的心理约束** —— 这是本仓最重要的一段 WHY，它防的是模型给自己找理由绕过硬规则 | 90 | **按「规则留原地、推导才移走」处理**：`--- 明确不做 ---` 一节的四条禁令、Step 0.5 的两道准入判据、`--dry-run` 零副作用全部原地未动，且各附一句压缩版理由（`sender == owner` 区分不了人和 agent；`issue_comment.created` 是订阅事件之一）。Step 0.5 顶部另加了一条**读 reference 的硬触发**（「本步要读 PR diff，动手前先读 security-boundary.md」） |
+| 2 | ② 契约与装配 | `/rebase` 的 round 编号检查改成指向 `/finish` Step 4.5，但 `/rebase` 可以独立于 `/finish` 被调用 —— 指针会不会落空 | 80 | **可接受**：`/rebase` 保留了触发条件、三处脱节的对象、以及「绝不静默继续」这条判断原则，独立跑也够用；五步操作细则才需要跳转。二者同为全局 skill、路径稳定 |
+| 3 | ① 浅层 bug | `/finish` Step 8 拆走后，各开关（`--no-merge` / `--keep-backup` / `--no-rebase`）的跳过分支散落在两个文件，可能对不上 | 85 | **已处理**：SKILL.md 顶部保留完整开关对照表（含 8.2/8.3/清理三列），reference 内每节开头再标一次该开关的跳过语义，两处一致。逐条比对过原文表格无出入 |
+| 4 | ③ 项目规范合规 | 本轮只做了 3 个 skill，`devtree` / `start` / `quick` / `backlog` / `pybump` / `paper-read` 未动 | 40 | **有意为之**：这几个没有跨文件重复这个大头，收益主要在 A2/A3；与人类「playbooks 交给 routine 逐周做」的决定同构，正好作 routine 的首批试验场。已在账本与 SUMMARY 显式列出，**不是静默漏掉** |
+
+**闸 B 结论**：无遗留高置信 correctness finding。
