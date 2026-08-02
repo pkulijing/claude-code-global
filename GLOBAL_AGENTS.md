@@ -17,6 +17,7 @@
 | playbook | 触发条件 |
 | --- | --- |
 | `python.md` | Python 代码、`pyproject.toml`、依赖管理、Python 风格判断 |
+| `python-packaging.md` | 把 Python 库 / 应用做成 wheel、发布到 registry（PyPI / 自托管 GitLab）、装到目标机（`pip install --target` / `uv tool install`） |
 | `frontend.md` | 前端代码 / web UI、React / Vite / TypeScript、Biome / tailwind / shadcn |
 | `ros2.md` | ROS 2 工程、colcon 工作空间、ament、`package.xml`、ROS 包 `CMakeLists.txt`、launch |
 | `lark.md` | 用 lark-cli 创作 / 编辑飞书云文档 |
