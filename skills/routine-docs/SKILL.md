@@ -1,6 +1,6 @@
 ---
 name: routine-docs
-description: 云端 routine 的真逻辑：扫本仓 open issue，把纯文档类的分诊出来、合批、逐条走 /quick 做掉，每批出一个 PR（PR 即审批闸，打 ff-merge label 或评论 /ff 即 FF 合入）。由 claude.ai Routines 每天定时调用，也可本机手动跑（支持 --dry-run）
+description: 云端 routine 的真逻辑：扫本仓 open issue，把纯文档类的分诊出来、合批、逐条走 /quick 做掉，每批出一个 PR（PR 即审批闸，打 ff-merge label 或评论 /ff 即 FF 合入）。由 claude.ai Routines 每周一 / 三 / 五定时调用，也可本机手动跑（支持 --dry-run）
 disable-model-invocation: false
 ---
 
@@ -14,7 +14,7 @@ disable-model-invocation: false
 
 | 形态 | 怎么触发 | 用途 |
 | --- | --- | --- |
-| **云端（主）** | claude.ai Routines 每天定时（注册方式见末节） | 日常自动开发 |
+| **云端（主）** | claude.ai Routines 每周一 / 三 / 五定时（注册方式见末节） | 日常自动开发 |
 | 本机（辅） | 直接 `/routine-docs`（建议先 `--dry-run`） | 验证分诊 / 合批质量、补跑 |
 
 ## args
@@ -176,7 +176,7 @@ push 分支后开 PR（base = 默认分支），标题形如 `docs: <主题概�
 ## Step 5 · 收尾
 
 - 有 PR → 打印每个 PR 的编号与链接（PR 本身即汇报出口）。
-- **一个 PR 都没产出 → 静默结束**：不提空 PR、不留空提交、不去 issue 下刷存在感。routine 每天跑，噪音会累积。
+- **一个 PR 都没产出 → 静默结束**：不提空 PR、不留空提交、不去 issue 下刷存在感。routine 每周跑三次，噪音会累积。
 
 **已知代价**（不是 bug，是权衡）：**本次零 PR 时跳过清单没有出口、会随本次运行一起消失**，包括「疑似已完成、可以关掉了」这种对人有价值的信号。想看这类信号，人手动跑一次 `--dry-run` 即可（它把完整的分诊与排除理由直接打出来，不依赖 PR）。
 
@@ -191,7 +191,7 @@ push 分支后开 PR（base = 默认分支），标题形如 `docs: <主题概�
 
 ## 如何注册到 claude.ai Routines
 
-在 claude.ai 上建一条 routine，**`sources` 挂本仓**，cron 用 UTC（北京时间 = UTC+8），prompt 只写这一句：
+在 claude.ai 上建一条 routine，**`sources` 挂本仓**，cron 用 UTC（北京时间 = UTC+8 —— **凌晨的时段会退到前一天**，当前的「北京周一 / 三 / 五 02:00」写成 `0 18 * * 0,2,4`，星期字段是 0/2/4 而不是 1/3/5），prompt 只写这一句：
 
 ```
 在 claude-code-global 仓库根目录执行：

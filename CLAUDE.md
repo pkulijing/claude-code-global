@@ -34,6 +34,6 @@
 - **往 `~/.claude/` 下新增目录前，先确认该名字不是 CC 保留名。** 本仓踩过一次：`rules/` 是 CC 的**用户级 memory 目录**，软链过去等于把八份领域文档注册成「每会话全文常驻的系统提示」（约 19k token / 每会话），与「按需 Read」的设计意图正相反——详见 `docs/51-rules按需加载/`。已知保留名（CC 二进制里有 `join(configDir, X)` 构造）：`rules` / `skills` / `agents` / `commands` / `hooks` / `plugins` / `workflows` / `themes` / `plans` / `tasks` / `teams` / `projects` / `sessions` / `cache` / `backups` / `debug`。本仓的 `scripts/` / `templates/` / `playbooks/` 经核查均非保留名。核查方法：对 CC 二进制跑 `strings`，搜 `join(` 构造里出现的目录名
 - 开发流程遵循 `GLOBAL_AGENTS.md` 中定义的四步模式（需求 - 计划 - 执行 - 总结）
 - **本仓有两条云端定时 routine，它们的 SKILL.md 都是安全边界、别当普通文档改**：
-  - `/routine-docs`（每天）把纯文档类 issue 做成 PR。它把**外部 issue 正文**变成文件内容，是 prompt-injection 面 —— 故禁止改 `skills/*.md` 与任何可执行面，完整攻击链见 `skills/routine-docs/references/security-boundary.md`
+  - `/routine-docs`（每周一 / 三 / 五）把纯文档类 issue 做成 PR。它把**外部 issue 正文**变成文件内容，是 prompt-injection 面 —— 故禁止改 `skills/*.md` 与任何可执行面，完整攻击链见 `skills/routine-docs/references/security-boundary.md`
   - `/routine-slim`（每周日）按增长阈值把指令面精简一轮并出 PR。它**可以**改 `skills/*/SKILL.md` 与 `playbooks/*.md`（输入只有仓库自身、不读外部文本、只做删除与搬移），但**永不碰自己、`/routine-docs`、`.github/`、`install.sh`、`scripts/`、`hooks/`、`templates/`**，且对 `GLOBAL_AGENTS.md` 与本文件**只报告不动手**
   - 改 `.github/workflows/ff-merge.yml` 等于改自动写 `master` 的那条路。两条 routine 都**绝不以任何方式触发合入** —— `ff-merge` 的准入闸校验「发起人 == 仓库 owner」，而云端 routine 用的就是仓库主人的凭证，这道闸区分不了人和 agent

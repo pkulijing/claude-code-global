@@ -65,7 +65,7 @@ python3 scripts/context_budget.py delta --threshold 15
 
 ### 2.2 排除与在途 PR 冲突的文件（必做）
 
-`/routine-docs` 每天跑、也写 `playbooks/*.md`，它的 PR 可能在人手上挂好几天。**两条 routine 改同一个文件必然冲突**，而冲突要人来解，正是本流程要避免的。
+`/routine-docs` 每周跑三次、也写 `playbooks/*.md`，它的 PR 可能在人手上挂好几天。**两条 routine 改同一个文件必然冲突**，而冲突要人来解，正是本流程要避免的。
 
 列出所有 open PR（含 `auto/docs-*` 与人开的），取其改动文件的并集，**从本次候选中整体排除**。列不出 open PR → **中止本次运行**（宁可这周不跑，也不制造必然冲突的 PR）。
 
@@ -172,4 +172,4 @@ python3 scripts/context_budget.py measure      # 「后」数据
 
 **prompt 里只留指针、逻辑全在仓库**：这样 routine 的行为随 PR 被 review、有版本历史，不会和网页上的配置漂移。
 
-**排期**：与 `/routine-docs`（每天）错开到周日，且 Step 2.2 会排除所有在途 PR 碰过的文件——两道防线，因为 PR 可能在人手上挂好几天，光靠时间错开不够。
+**排期**：与 `/routine-docs`（每周一 / 三 / 五）错开到周日，且 Step 2.2 会排除所有在途 PR 碰过的文件——两道防线，因为 PR 可能在人手上挂好几天，光靠时间错开不够。
