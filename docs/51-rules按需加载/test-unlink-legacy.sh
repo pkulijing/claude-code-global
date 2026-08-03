@@ -149,6 +149,45 @@ if [ -L "${S}/home/rules" ]; then R=1; else R=0; fi
 check "$R" "用例 8：相对路径软链不碰（认亲只认绝对路径）"
 rm -rf "$S"
 
+# ---- 用例 9：泛化后的第二参数——skill 目录改名留下的断链 → 应删除 ----
+# round 54 把 routine-docs 改名成 routine-dev，老机器上 <agent_home>/skills/routine-docs
+# 就成了断链。与 rules 那次是同一类病，故把函数的目标路径参数化而非另写一个。
+S="$(new_sandbox)"
+mkdir -p "${S}/repo/skills/routine-docs" "${S}/home/skills"
+ln -s "${S}/repo/skills/routine-docs" "${S}/home/skills/routine-docs"
+mv "${S}/repo/skills/routine-docs" "${S}/repo/skills/routine-dev" # 模拟 git mv
+unlink_legacy_dir "${S}/home/skills/routine-docs" "skills/routine-docs" >/dev/null 2>&1
+if [ ! -L "${S}/home/skills/routine-docs" ]; then R=1; else R=0; fi
+check "$R" "用例 9：skill 改名留下的断链被删除"
+rm -rf "$S"
+
+# ---- 用例 10：目标末段与 rel 对不上 → 不碰。且要让 case 判据成为**唯一**防线 ----
+# 造法要点：软链目标**自身**就是 checkout 根（带标志文件）。这样一旦 case 判据被破坏成
+# 恒真，parent 截取会因后缀对不上而原样返回 target，标志文件检查随即通过、软链被误删。
+# 反过来说，本用例是绿的就证明 case 那道判据真在起作用。
+#
+# ⚠️ 别把沙盘改成「目标在一个不带标志文件的目录下」——那样第二道防线会替 case 兜住，
+# 本用例就退化成假绿：把 case 改成恒真它照样 PASS（本轮初版就是这么写的，reviewer 用
+# 探针把 case 破坏后发现它纹丝不动才暴露出来）。
+S="$(new_sandbox)"
+mkdir -p "${S}/home/skills"
+ln -s "${S}/repo" "${S}/home/skills/routine-docs" # 目标是 checkout 根本身，末段不是 skills/routine-docs
+unlink_legacy_dir "${S}/home/skills/routine-docs" "skills/routine-docs" >/dev/null 2>&1
+if [ -L "${S}/home/skills/routine-docs" ]; then R=1; else R=0; fi
+check "$R" "用例 10：目标末段与 rel 不匹配时不删（case 判据是唯一防线）"
+rm -rf "$S"
+
+# ---- 用例 11：不传第二参数时仍按 rules 处理（向后兼容回归）----
+# 上面 8 个用例全是不带第二参数调用的，本例只是把这条契约写成显式断言：
+# 默认值一旦被改掉，rules 的清理会静默失效——正是这个函数最初要治的那种病。
+S="$(new_sandbox)"
+mkdir -p "${S}/repo/rules"
+ln -s "${S}/repo/rules" "${S}/home/rules"
+unlink_legacy_dir "${S}/home/rules" >/dev/null 2>&1
+if [ ! -L "${S}/home/rules" ]; then R=1; else R=0; fi
+check "$R" "用例 11：省略第二参数时默认仍清理 rules"
+rm -rf "$S"
+
 echo ""
 echo "通过 ${PASS}，失败 ${FAIL}"
 [ "$FAIL" = "0" ]

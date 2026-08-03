@@ -108,8 +108,8 @@ bash ~/Developer/claude-code-global/install.sh
 | `/start`               | 开新一轮开发：默认建独立 git worktree（`.claude/worktrees/round<N>-*`）+ 同名分支，再建 `docs/<编号>-<描述>/`、撰写 PROMPT.md，进入计划模式撰写 PLAN.md 等用户确认后再写代码。支持 `#<issue 号>` / GitHub or GitLab issue URL（推荐），也支持自由描述；`--no-worktree` 跳过 worktree 在当前分支直接干                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `/finish`              | 收尾本轮：撰写 SUMMARY.md → 反思跨项目可沉淀流程（任意项目都跑，逐条确认后可直接向 claude-code-global 跨仓库提 issue） → 关联并关闭 issue（如有 `Closes #N`，GitHub / GitLab 均原生支持；「刻意不做」项归档为带 `wontfix` 的 closed issue） → `/devtree` → 必要时同步 README → `/commit` → worktree 轮自动收尾（rebase → FF 合并主分支 → 二次确认后清理 worktree/分支/tag，不自动 push）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `/quick`               | 轻量开发流（三档里最轻）：不落 docs / 不开 worktree / 不进计划模式，直接改代码 → 自动 `/commit` 收尾。默认当前分支直接改，`--branch` 切轻量分支 `quick/<描述>`，`#<issue>` 会拉 issue 详情指导改动（详情只进上下文、不落文档）+ 收尾带 `Closes #N`。适合「小函数改一下、说清楚即可」的小改；要文档追踪 / 计划讨论走 `/start`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `/routine-docs`        | 云端 routine 的真逻辑：扫本仓 open issue → 两层分诊出**纯文档类**（硬 label 过滤 + 模型判定「预期改动只落文档」，排除 P0 / 可执行面 / `skills/*.md`）→ 按落点与主题**合批**（不是一 issue 一 PR）→ 每条走 `/quick` 形态开发（一条一个 commit、各带 `Closes #N`）→ 每批一个 PR。由 claude.ai Routines 每周一 / 三 / 五定时调用，本机可 `--dry-run` 试跑；无人值守下所有「停下问用户」的分岔都有明确契约。详见下文「文档类 issue 的自动开发」                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `/routine-slim`        | 云端 routine：按**增长阈值**触发（`context_budget.py delta --threshold 15`，比 4 周前涨超 15% 才动手，否则空转退出），把指令面按**三板斧**精简一轮并出 PR。三板斧 = 已有单一真源的重复表述去重（留指针）／成组同向细则上提为一句判断原则／事故 WHY 的过程叙事压成结论一句；**明确不做 ablation 删除**。**只允许「搬走」不允许「蒸发」**——PR 描述强制三列表格（删了什么 / 依据哪条判据 / 现在从哪读得到）+ `check-refs` 零失效引用。安全边界：`GLOBAL_AGENTS.md` 与本仓 `CLAUDE.md` **只报告不动手**，永不碰自己 / `/routine-docs` / `agents/` / `.github/` / `install.sh` / `scripts/` / `hooks/` / `templates/` / `docs/`。每周日 01:00 UTC 定时，本机可 `--dry-run` 试跑。详见下文「指令面的定期精简」 |
+| `/routine-dev`         | 云端 routine 的真逻辑：扫本仓 open issue → **两条通道**分诊（**自动通道**保守判、只许落文档；**标记通道**认 owner 打的 `auto:take` label，落点放开到 `skills/`（除自己）/ `templates/` / `scripts/` / `hooks/`）→ 按落点与主题**合批**（不是一 issue 一 PR）→ 每条走 `/quick` 形态开发（一条一个 commit、各带 `Closes #N`）→ 每批一个 PR。四条红线绝不因标记放宽：自己 / `agents/` / `install.sh` / `.github/`。由 claude.ai Routines 每周一 / 三 / 五定时调用，本机可 `--dry-run` 试跑；无人值守下所有「停下问用户」的分岔都有明确契约。**曾名 `/routine-docs`**。详见下文「issue 的自动开发」                                                                                                                                                                                                                                                                                                                                        |
+| `/routine-slim`        | 云端 routine：按**增长阈值**触发（`context_budget.py delta --threshold 15`，比 4 周前涨超 15% 才动手，否则空转退出），把指令面按**三板斧**精简一轮并出 PR。三板斧 = 已有单一真源的重复表述去重（留指针）／成组同向细则上提为一句判断原则／事故 WHY 的过程叙事压成结论一句；**明确不做 ablation 删除**。**只允许「搬走」不允许「蒸发」**——PR 描述强制三列表格（删了什么 / 依据哪条判据 / 现在从哪读得到）+ `check-refs` 零失效引用。安全边界：`GLOBAL_AGENTS.md` 与本仓 `CLAUDE.md` **只报告不动手**，永不碰自己 / `/routine-dev` / `agents/` / `.github/` / `install.sh` / `scripts/` / `hooks/` / `templates/` / `docs/`。每周日 01:00 UTC 定时，本机可 `--dry-run` 试跑。详见下文「指令面的定期精简」 |
 | `/commit`              | 分析当前变更，自动生成中文 semantic commit message 并提交，末尾按执行 Agent 附加 Co-authored-by（CC → `Claude` / Codex → `OpenAI Codex`）；**提交前自动内嵌 `/review-loop`**（委派独立 context 子 agent 编队 review，迭代到「运行验证通过 + 无高置信 correctness 问题」才落 commit）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `/review-loop`         | 提交前的自动 review 迭代环。**收敛靠「运行验证 + 高置信过滤」，非 reviewer 挑不出为止**——治三个实战病根（挑刺变慢、把基础功能审废、一次 review 烧光 session）。主路径：委派**独立 context 的 review orchestrator 子 agent**（不复用开发 context，不依赖 CC 内置 `/code-review`——其 `disable-model-invocation` 随版本漂移），按档位并行扇出 3 个（默认）/ 5 个（并发/多线程/跨进程重试/状态机/难复现/跨 3+ 模块 diff）独立 reviewer 角度，跨 reviewer 去重 + 0–100 置信打分（<80 过滤）+ 探针验证，返回单一 finding 列表。**编队的模型与思考档由 `agents/*.md` 钉死、不继承主会话**（主会话跑 xhigh 时编队不跟着烧）。**三要素并闸收敛**：(A) 运行验证（受影响测试全绿 + happy-path 主流程跑通，编排器无测先补；排在 reviewer 意见之前，堵「基础功能审废无人知」）+ (B) 无高置信 correctness finding（只认 file:line 证据+真会触发，pre-existing/pedantic/推测 corner case 不阻断）+ (C) 已定前提未被重复质疑。修复走 TDD 正序（先写会红的复现测试再改实现）；2 轮不收敛自动留痕放行（REVIEW.md + commit 标注，人工兜底在 `/finish`），全程无人在环。降级：委派失败→主会话结构化自审并标注；配置/指令文件不跳过，仅纯用户文档/注释才跳过。由 `/commit` 提交前自动调用，也可手动跑 |
 | `/bootstrap`           | 为空项目搭建文档骨架（README / CLAUDE / DEVTREE）+ 选 stack 铺设跨项目模板，仅在项目首次开发前调用一次                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -207,20 +207,36 @@ bash ~/Developer/claude-code-global/install.sh
 
 **逃生舱**：取消调度器注册跑 `bash scheduler/uninstall.sh`。详细设计见 [docs/16-自动同步全局配置/SUMMARY.md](docs/16-自动同步全局配置/SUMMARY.md)。
 
-## 文档类 issue 的自动开发（云端 routine）
+## issue 的自动开发（云端 routine）
 
-本仓积压的 issue 里有一大类是「把某条实战教训沉淀成 `playbooks/*.md` 的一节」——**需求已写清、改动只落文档、不需要讨论方案**。这类活由 [claude.ai Routines](https://claude.ai) 每周一 / 三 / 五定时跑一条云端 Claude Code 会话自动做掉，人只在 PR 上做最后一道审批。
+本仓积压的 issue 里有一大类**需求已写清、不需要讨论方案**——沉淀一条实战教训成 `playbooks/*.md` 的一节、加个小 skill、补条 template、修个边界清晰的 bug。这类活由 [claude.ai Routines](https://claude.ai) 每周一 / 三 / 五定时跑一条云端 Claude Code 会话自动做掉，人只在 PR 上做最后一道审批。
+
+**两条通道，授权强度不同**：
+
+| 通道 | 谁决定纳入 | 能改什么 |
+| --- | --- | --- |
+| 自动通道 | 模型分诊（保守判） | 只有文档落点 |
+| **标记通道** | **owner 给 issue 打 `auto:take` label** | 放开到 `skills/`（除自己）/ `templates/` / `scripts/` / `hooks/` |
+
+**为什么要第二条通道**：自动分诊判错的代价不对称、只能保守，于是一大批「其实完全够格」的 issue 被漏收。难度与风险自动区分不了，就让人来标——`auto:take` 的语义是「owner 已过目此条，背书其正文可被无人值守执行」。选 label 而非评论做闸是因为**公开仓任何人都能评论**，而 label 只有写权限者打得上，授权强度由 GitHub 权限模型保证。
 
 | 环节     | 做法                                                                                                                     |
 | -------- | ------------------------------------------------------------------------------------------------------------------------ |
 | 环境复现 | routine prompt 里 `git clone` + `bash install.sh`——skills / hooks 对当前会话**动态生效**，云端与本机跑同一套流程         |
-| 逻辑落点 | **全在仓库**（[`skills/routine-docs/SKILL.md`](skills/routine-docs/SKILL.md)），claude.ai 上只留一句「读它并执行」的指针 |
+| 逻辑落点 | **全在仓库**（[`skills/routine-dev/SKILL.md`](skills/routine-dev/SKILL.md)），claude.ai 上只留一句「读它并执行」的指针 |
 | 平台交互 | 云端**没有 `gh`**、直连 `api.github.com` 被 403 → issue 与 PR 一律走**内置 GitHub MCP**；本机才走 `platform_issue.py`    |
 | 合批     | 按**落点文件 + 主题**聚类，一批放几条**不设上限**（吞吐闸是 PR 数），单次 ≤ `--max-prs`（默认 5）个 PR                   |
 | 汇报回路 | 云端**无编程可读的运行输出** → **PR 即唯一汇报出口**（含改动摘要、review 是否降级、本次跳过清单）                        |
 | 审批     | PR 就是审批闸：手机收到推送 → review → 打 `ff-merge` label 或评论 `/ff` 合入                                             |
 
-**边界**：只碰 `playbooks/*.md` / `GLOBAL_AGENTS.md` / `README.md` / `docs/`，**不碰任何可执行面**，`skills/*.md`（门禁自身的逻辑）也明确排除；`priority:P0` 一律留给人。选型与云端能力实测的来龙去脉见 `the-foundation` 仓 round 0。
+**边界**：自动通道只碰 `playbooks/*.md` / `GLOBAL_AGENTS.md` / `README.md` / `docs/`，**不碰任何可执行面**，`priority:P0` 留给人。标记通道解开落点限制与保守性排除（含 P0），但**四条红线绝不因 `auto:take` 放宽**：
+
+- **`skills/routine-dev/**`（自己）** —— 这份 SKILL 定义的正是「什么可以被自动改」，允许自改 = 一次标记永久放宽此后所有运行的边界，而判断「有没有改语义」的正是它自己；
+- **`agents/**`（自己的检查员）** —— `/review-loop` 编队的 `model` / `effort`，也就是它自己每个 commit 都要过的那道门禁的强度。与上一条同属一条权限提升链，只是隔了一层；
+- **`install.sh`** —— 无单测，改坏了是**静默**的：所有设备的自动同步在下次 pull 后失败，失败发生在 OS 调度器里没人看着；
+- **`.github/**`** —— 自动写 `master` 的那条路。
+
+标记也**换不掉事实性判断**：正文没说清、现状已满足、撞了红线，照样跳过并在 PR 里点名。完整推导（含这条论证的已知弱点：owner 打 label 时未必逐字读过正文）见 [`skills/routine-dev/references/security-boundary.md`](skills/routine-dev/references/security-boundary.md) §7。选型与云端能力实测的来龙去脉见 `the-foundation` 仓 round 0。
 
 ### PR 批准即 fast-forward 合入
 
@@ -228,12 +244,12 @@ GitHub 原生的三种合并方式都拿不到真 FF——merge 留 merge commit
 
 - **触发**：在 PR 上打 `ff-merge` label，或评论 `/ff`（两条路等价，评论取首行第一个词，故 `/ff 合并吧` 也认）；
 - **动作**：先试纯 FF；默认分支在 review 期间前进了就先 rebase 再 FF，**冲突一律停手**（绝不 fallback 成普通 merge）；推送被拒会重取最新 base 重试至多 3 次；成功后关闭关联 issue、删分支、回一条带新旧 SHA 的回执评论。**任何一步失败都会在 PR 上留评论并摘掉 label**，不会出现「label 挂着、其实什么都没发生」；
-- **关联 issue 由脚本显式关闭，不靠 GitHub**：indirect merge 恰好掉在 GitHub 两套自动关闭机制的缝里——commit message 的关键字只在「该提交**首次被推**、且推的就是默认分支」时生效（PR 分支已先推过一遍，于是只被记成 `referenced`），PR body 的关键字又要靠「PR 被合并」事件触发（indirect merge 只改 PR 状态、不走那条链路）。故 [`ff-merge.sh`](.github/scripts/ff-merge.sh) 从「本次合入的提交集合 + PR body」解析关闭关键字后自行 `gh issue close`。**这条对 `/routine-docs` 是必需品而非锦上添花**：它的幂等靠「排除已被 open PR 覆盖的 issue」，PR 合并后覆盖消失而 issue 还开着的话，下次运行就会把同一条原地重做；
+- **关联 issue 由脚本显式关闭，不靠 GitHub**：indirect merge 恰好掉在 GitHub 两套自动关闭机制的缝里——commit message 的关键字只在「该提交**首次被推**、且推的就是默认分支」时生效（PR 分支已先推过一遍，于是只被记成 `referenced`），PR body 的关键字又要靠「PR 被合并」事件触发（indirect merge 只改 PR 状态、不走那条链路）。故 [`ff-merge.sh`](.github/scripts/ff-merge.sh) 从「本次合入的提交集合 + PR body」解析关闭关键字后自行 `gh issue close`。**这条对 `/routine-dev` 是必需品而非锦上添花**：它的幂等靠「排除已被 open PR 覆盖的 issue」，PR 合并后覆盖消失而 issue 还开着的话，下次运行就会把同一条原地重做；
 - **安全**：本仓是公开仓、也是云端 agent 的信任根，故硬校验**发起人 == 仓库 owner**；两个事件都用「workflow 文件恒取自默认分支」的那一档（`pull_request_target` / `issue_comment`），PR 内容改不了将要合并它的这段逻辑；rebase 路径会把 PR 内容落进工作区，但该 job **全程不执行工作区里的任何文件**。
 
 于是 `master` 上既没有 merge commit、也不会被改写 SHA，与 `/rebase`、`/finish` 的 worktree 收尾保持同一套 FF 直线历史纪律。
 
-**唯一的硬边界**：**触及 `.github/workflows/` 的 PR 走不了这条路**——Actions 的 `GITHUB_TOKEN` 被 GitHub 服务端硬性禁止推送 workflow 文件，且 `permissions:` 块里没有可声明的对应 scope，提权也绕不过。这类 PR 会收到一条说明评论，请在本地 `git merge --ff-only` 后直推。`/routine-docs` 产出的 PR 天然不会命中（`.github/` 在它的禁止落点清单里）。
+**唯一的硬边界**：**触及 `.github/workflows/` 的 PR 走不了这条路**——Actions 的 `GITHUB_TOKEN` 被 GitHub 服务端硬性禁止推送 workflow 文件，且 `permissions:` 块里没有可声明的对应 scope，提权也绕不过。这类 PR 会收到一条说明评论，请在本地 `git merge --ff-only` 后直推。`/routine-dev` 产出的 PR 天然不会命中（`.github/` 在它的禁止落点清单里）。
 
 ## 指令面的定期精简（云端 routine）
 
@@ -258,18 +274,18 @@ round 52 对照 Anthropic《[The new rules of context engineering for Claude 5](
 | --- | --- |
 | 触发 | 每周日 01:00 UTC（= 北京时间周日 09:00），且**增长 > 15% 才动手**，否则空转退出 |
 | 逻辑落点 | **全在仓库**（[`skills/routine-slim/SKILL.md`](skills/routine-slim/SKILL.md)），claude.ai 上只留一句指针 |
-| 出口 | PR 即审批闸（打 `ff-merge` label 或评论 `/ff` 即 FF 合入），同 `/routine-docs` |
+| 出口 | PR 即审批闸（打 `ff-merge` label 或评论 `/ff` 即 FF 合入），同 `/routine-dev` |
 | 一次做多少 | 1–3 个文件。删除型 diff 的 review 成本本就高，少而深胜过多而浅 |
 
-**安全边界**（与 `/routine-docs` 的差异是有意的）：
+**安全边界**（与 `/routine-dev` 的差异是有意的）：
 
 - **可自动改** `skills/*/SKILL.md`、`skills/*/references/*.md`、`playbooks/*.md`；
 - **只报告不动手** `GLOBAL_AGENTS.md` 与本仓 `CLAUDE.md`——宪法是所有 skill 的上位规则，一条能自动改它的 routine 就是能改自己上位约束的 routine；
-- **永不碰** 自己、`/routine-docs`、`.github/`、`install.sh`、`scripts/`、`hooks/`、`templates/`、`docs/`。**不因为「只是精简、不改语义」而放宽——判断有没有改语义的正是它自己。**
+- **永不碰** 自己、`/routine-dev`、`.github/`、`install.sh`、`scripts/`、`hooks/`、`templates/`、`docs/`。**不因为「只是精简、不改语义」而放宽——判断有没有改语义的正是它自己。**
 
-**为什么 `/routine-docs` 禁改 `skills/*.md` 而 `/routine-slim` 可以**：二者输入不同。前者把**外部 issue 正文**（任何人都能写）变成文件内容，是 prompt-injection 面；后者只读仓库自身、不读任何外部文本，且只做删除与搬移、不引入新语义。
+**两条 routine 都能改 `skills/*.md`，但放宽的理由各是各的**：`/routine-dev` 把**外部 issue 正文**（任何人都能写）变成文件内容，是 prompt-injection 面，所以它的自动通道只许碰文档，越线要 owner **逐条**打 `auto:take` 背书；`/routine-slim` 只读仓库自身、不读任何外部文本，且只做删除与搬移、不引入新语义，故不需要逐条授权。**别互相援引。**
 
-**两条 routine 的撞车防线**：`/routine-docs` 每周跑三次、也写 `playbooks/*.md`，PR 可能在人手上挂好几天——**光靠 cron 时间错开不够**。故 `/routine-slim` 每次运行强制列出所有 open PR、把它们碰过的文件整体排除；**列不出 open PR 就中止本次运行**。
+**两条 routine 的撞车防线（双向）**：`/routine-dev` 每周跑三次、也写 `playbooks/*.md`，自 round 54 起同样能改 `skills/*.md`，重叠面比原先更大；PR 又可能在人手上挂好几天——**光靠 cron 时间错开不够**。故**两边各守一道、不依赖对方**：`/routine-slim` 每次运行把所有 open PR 碰过的文件整体排除（列不出 open PR 就中止本次运行）；`/routine-dev` 开 PR 前的落点复核，其并集**初始值**同样是「所有 open PR 碰过的文件」——顺带也覆盖了人手开的 PR。
 
 来龙去脉与量化见 [docs/52-指令面精简与定期化/](docs/52-指令面精简与定期化/)，其中 `SLIM-LEDGER.md` 是那一轮删减的完整三列账本。
 

@@ -60,3 +60,10 @@
 - name: "ff-merge"
   color: "0E8A16"
   description: "打在 PR 上即触发 CI 把它 fast-forward 合入 master（等价于评论 /ff）"
+
+# ---------- 授权（三轴之外，打在 issue 上）----------
+# 只有有写权限的人打得上——授权强度由 GitHub 权限模型保证，这正是选 label 而非
+# 评论做闸的理由（公开仓任何人都能评论）。语义见 skills/routine-dev/SKILL.md Step 1.0。
+- name: "auto:take"
+  color: "5319E7"
+  description: "owner 背书：下次 /routine-dev 强制纳入，可改 skills / templates / scripts / hooks"

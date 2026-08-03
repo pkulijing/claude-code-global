@@ -275,23 +275,26 @@ link_item() {
     fi
 }
 
-# 清理本仓早期留下的旧 rules 软链。
-# 用法: unlink_legacy_dir <链接路径>
+# 清理本仓改名 / 迁移后留在 agent 端的旧软链。
+# 用法: unlink_legacy_dir <链接路径> [软链目标相对仓库根的路径，默认 rules]
 #
 # 背景：本仓曾把 rules/ 软链到 <agent_home>/rules，而 rules 是 Claude Code 的**保留目录名**——
 # 放进去的 .md 会被当作用户级 memory 全文注入每一个会话的系统提示（与「按需读」的设计意图正相反）。
 # 改用中性目录名 playbooks/ 后，老机器上的旧软链必须清掉，否则那八份文档继续常驻、收益归零，
 # 而且是静默的：install 全绿、日志漂亮，没人会发现。
+# round 54 把 skills/routine-docs 改名为 skills/routine-dev，留下的是同一类断链，故把目标
+# 路径参数化——改名这件事以后还会发生，第二次就不该再复制一遍函数。
 #
-# 认亲方式：软链目标形如 <某目录>/rules，且 <某目录> 带本仓标志文件。**不比对当次 $REPO_DIR
+# 认亲方式：软链目标形如 <某目录>/<rel>，且 <某目录> 带本仓标志文件。**不比对当次 $REPO_DIR
 # 的精确路径**——一台机器上可能有多个 checkout（主工作树 + 若干 worktree），旧软链指向哪一个
 # 都得认得出来；比对精确路径会在「从 worktree 跑 install」时漏删。
 #
-# 安全边界：非软链（用户自建的真实目录）不碰；目标不叫 rules 的不碰；父目录不带本仓标志
+# 安全边界：非软链（用户自建的真实目录）不碰；目标末段不是 <rel> 的不碰；父目录不带本仓标志
 # 文件的不碰。注意用 -L / readlink 而非 -e / readlink -f——目录改名后旧软链已是断链，后者
 # 在断链上不工作，会造成静默漏删。
 unlink_legacy_dir() {
     local link="$1"
+    local rel="${2:-rules}"
     [ -L "$link" ] || return 0
 
     local target parent
@@ -300,14 +303,14 @@ unlink_legacy_dir() {
     # checkout 根跑起来的，标志文件就在手边，容易把不相干的相对软链误判成自家的。
     # 本仓建的软链一律是绝对路径，直接拒掉相对路径即可，不做花哨解析。
     case "$target" in
-    /*/rules) ;;
+    /*/"$rel") ;;
     *) return 0 ;;
     esac
-    parent="${target%/rules}"
+    parent="${target%/"$rel"}"
     [ -f "${parent}/GLOBAL_AGENTS.md" ] && [ -f "${parent}/install.sh" ] || return 0
 
     rm -f "$link"
-    info "已清理旧的 ${link}（rules 是 CC 保留目录名，改用 playbooks）"
+    info "已清理旧的 ${link}（指向 ${rel}，已改名或迁移）"
 }
 
 # 部署一个 agent 端：软链 skills/hooks/scripts/templates/global-repo + 主指令文档，
@@ -383,6 +386,8 @@ deploy_agent() {
 
     # 旧路径迁移：曾软链到 <agent_home>/rules，而 rules 是 CC 保留目录名（见 unlink_legacy_dir）
     unlink_legacy_dir "$agent_home/rules"
+    # 旧路径迁移：skills/routine-docs 于 round 54 改名为 skills/routine-dev
+    unlink_legacy_dir "$agent_home/skills/routine-docs" "skills/routine-docs"
 
     # playbooks 目录（领域规则文档，按 <topic>.md 组织；目录级软链，新增 md 不需要重跑 install）
     if [ -d "$REPO_DIR/playbooks" ]; then
