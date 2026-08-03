@@ -438,6 +438,58 @@ def cmd_issue_view(args):
     return EXIT_OK
 
 
+def build_issue_list_cmd(platform, limit, repo):
+    """Build the gh/glab issue-list argv (pure, no execution).
+
+    Emits the same field set as issue-view so both subcommands normalize into
+    one schema — consumers (/triage) read `labels` for the priority axis and
+    `body` for the scope field without caring which platform answered.
+    Only open issues: the sole consumer is "what should I pick up next".
+    """
+    if platform == PLATFORM_GITHUB:
+        cmd = [
+            "gh",
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,body,url,labels",
+        ]
+    else:
+        cmd = ["glab", "issue", "list", "--output", "json", "--per-page", str(limit)]
+    if repo:
+        cmd += ["--repo", repo]
+    return cmd
+
+
+def cmd_issue_list(args):
+    plat = resolve_platform(args.platform)
+    if plat == PLATFORM_UNKNOWN:
+        sys.stderr.write("error: cannot detect platform from git remote origin\n")
+        return EXIT_PLATFORM_UNKNOWN
+    result = _run(build_issue_list_cmd(plat, args.limit, args.repo))
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr or result.stdout)
+        return EXIT_ERROR
+    try:
+        raw = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        sys.stderr.write(f"error: cannot parse {plat} issue list output: {e}\n")
+        return EXIT_ERROR
+    if not isinstance(raw, list):
+        sys.stderr.write(f"error: expected a json array from {plat} issue list\n")
+        return EXIT_ERROR
+    print(
+        json.dumps(
+            [normalize_issue(r, plat) for r in raw], ensure_ascii=False, indent=2
+        )
+    )
+    return EXIT_OK
+
+
 def build_label_list_cmd(platform, repo):
     """Build the gh/glab label-list argv (pure, no execution).
 
@@ -868,6 +920,86 @@ def cmd_self_test():
                 f"{got_cmd!r} != {expected_cmd!r}"
             )
 
+    list_cmd_cases = [
+        (
+            (PLATFORM_GITHUB, 100, None),
+            [
+                "gh",
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--limit",
+                "100",
+                "--json",
+                "number,title,body,url,labels",
+            ],
+        ),
+        (
+            (PLATFORM_GITHUB, 30, "o/x"),
+            [
+                "gh",
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--limit",
+                "30",
+                "--json",
+                "number,title,body,url,labels",
+                "--repo",
+                "o/x",
+            ],
+        ),
+        (
+            (PLATFORM_GITLAB, 100, None),
+            ["glab", "issue", "list", "--output", "json", "--per-page", "100"],
+        ),
+        (
+            (PLATFORM_GITLAB, 30, "o/x"),
+            [
+                "glab",
+                "issue",
+                "list",
+                "--output",
+                "json",
+                "--per-page",
+                "30",
+                "--repo",
+                "o/x",
+            ],
+        ),
+    ]
+    for (plat, limit, repo), expected_cmd in list_cmd_cases:
+        got_cmd = build_issue_list_cmd(plat, limit, repo)
+        if got_cmd != expected_cmd:
+            failures.append(
+                f"build_issue_list_cmd({plat}, limit={limit}, repo={repo!r}): "
+                f"{got_cmd!r} != {expected_cmd!r}"
+            )
+
+    # issue-list 归一：两端逐条复用 normalize_issue，schema 与 issue-view 对齐
+    gl_list_raw = [
+        {
+            "iid": 3,
+            "title": "T3",
+            "description": "D3",
+            "web_url": "https://gl/x/-/issues/3",
+            "labels": ["priority:P0"],
+        }
+    ]
+    norm_list = [normalize_issue(r, PLATFORM_GITLAB) for r in gl_list_raw]
+    if norm_list != [
+        {
+            "number": 3,
+            "title": "T3",
+            "body": "D3",
+            "url": "https://gl/x/-/issues/3",
+            "labels": ["priority:P0"],
+        }
+    ]:
+        failures.append(f"issue-list gitlab normalize: {norm_list!r}")
+
     # 沙盘：桩掉 gh / glab，断言**真实传参**而非日志字符串（playbooks/shell.md §4）
     failures.extend(_sandbox_issue_comment())
 
@@ -1105,6 +1237,20 @@ def build_parser():
         help="additionally emit `comments` and `ownerHint` (newest OWNER comment)",
     )
 
+    p_list = sub.add_parser("issue-list")
+    p_list.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Max issues to return (default 100)",
+    )
+    p_list.add_argument(
+        "--repo",
+        default=None,
+        help="Target repo slug (owner/name) to list issues of a repo other "
+        "than cwd's origin",
+    )
+
     p_comment = sub.add_parser("issue-comment")
     p_comment.add_argument("--issue", type=int, required=True)
     p_comment.add_argument("--body-file", required=True)
@@ -1140,6 +1286,7 @@ def main():
         "repo-slug": cmd_repo_slug,
         "issue-create": cmd_issue_create,
         "issue-view": cmd_issue_view,
+        "issue-list": cmd_issue_list,
         "issue-comment": cmd_issue_comment,
         "label-list": cmd_label_list,
         "label-sync-from-file": cmd_label_sync_from_file,

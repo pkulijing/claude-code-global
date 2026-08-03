@@ -11,6 +11,14 @@ python3 $HOME/.claude/scripts/platform_issue.py [--platform github|gitlab] [--re
 - `--platform` / `--repo` 省略时按当前仓库 `git remote` 自动判定、对本仓库操作；跨仓库操作（如向 claude-code-global 沉淀 issue）显式带 `--repo <slug>`。
 - 常用子命令：`issue-view <N>`、`issue-create`、`issue-comment`、`label-list`、`label-sync-from-file <path>`。
 
+## issue-list 语义
+
+```bash
+python3 $HOME/.claude/scripts/platform_issue.py issue-list [--limit N] [--repo <slug>]
+```
+
+只列 **open** issue，stdout 是归一 json **数组**，每项 schema 与 `issue-view` 完全一致（`number` / `title` / `body` / `url` / `labels`）—— 消费方（`/triage`）据此读 `labels` 取 priority 轴、读 `body` 取 scope 字段，不必关心是哪端答的。`--limit` 默认 100（GitHub `--limit` ↔ GitLab `--per-page`）。
+
 ## issue-comment 语义
 
 ```bash
