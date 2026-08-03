@@ -297,4 +297,5 @@ round 52 对照 Anthropic《[The new rules of context engineering for Claude 5](
 - 开发项以 **issue 为单一真源**（GitHub / GitLab 自动双轨判定）：详情、讨论、跨轮上下文都沉淀在 issue，**无本地索引文件**
 - open 项速览走一个按 priority label 过滤 open issues 的 **saved query**（本仓库：[open issues by priority](https://github.com/pkulijing/claude-code-global/issues?q=is%3Aissue+is%3Aopen+label%3Apriority%3AP0%2Cpriority%3AP1%2Cpriority%3AP2)），消除 BACKLOG.md 与云端 issue 的双写和 drift
 - 三轴 label：`type:*`（feat/bug/refactor/perf/test/docs）、`area:*`（项目特异）、`priority:*`（P0/P1/P2）；**刻意决定不做**的项归档为带 `wontfix` 的 closed issue
+- **`auto:take`（本仓特有，三轴之外）**：给一条 issue 打上，即声明「我已过目，背书其正文可被无人值守执行」——下次 `/routine-dev` 会**强制纳入**并解开落点限制（可改 `skills/` / `templates/` / `scripts/` / `hooks/`）。**难度与风险自动区分不了，就由人来标**；只有有写权限的人打得上，这正是选它而非评论做闸的原因。四条红线打了也解不开（见上文「issue 的自动开发」）
 - 工作流：`/backlog` 起新想法 → `/start <issue#>` 开新轮 → 执行中 Agent 自主 `/commit` 收口（每次 commit 前自动经 `/review-loop`：委派独立 context 子 agent 编队 review，默认 3 reviewer、复杂 diff 升 5 reviewer 含 opus 深审，迭代到「运行验证通过 + 无高置信 correctness 问题」）→ `/finish` 收尾时 PR/commit 写 `Closes #N` 自动关 issue（GitHub / GitLab 均原生支持）
