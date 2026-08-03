@@ -22,6 +22,7 @@
 | `ros2.md` | ROS 2 工程、colcon 工作空间、ament、`package.xml`、ROS 包 `CMakeLists.txt`、launch |
 | `lark.md` | 用 lark-cli 创作 / 编辑飞书云文档 |
 | `feishu-bot.md` | 开发飞书 bot 后端（lark-oapi 长连接、事件回调、`im.message.receive` / `card.action.trigger`） |
+| `llm-app.md` | 接入 LLM function calling、设计 agent 工具 schema、让模型做多步任务或任务拆分 |
 | `shell.md` | 生成 / 编辑含中文注释或中文输出的 bash / shell 脚本 |
 | `cloud-routine.md` | claude.ai Routines、云端定时 agent、`RemoteTrigger` / `/schedule`、云端 sandbox 能力判断 |
 | `scheduled-agent.md` | 设计 / 部署**本机**定时唤起无头 Agent（launchd / systemd timer + `claude -p`） |
