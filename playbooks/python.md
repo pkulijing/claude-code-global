@@ -251,6 +251,40 @@ console.print(escape(text), highlight=False)
 
   这类测试值得**在带变量、不带变量两种环境下各跑一遍全量**，两次都绿才算数。
 
+- **行为随平台分叉时，用例内 monkeypatch 平台、各平台各测一遍，绝不 `skipif`**（宪法「测试先行（TDD）」章「环境是被测行为的输入」那条在 Python 侧的落地形态，**理由见宪法、此处不复述**；与上一条同族）：
+
+  **关键是打对靶子 —— patch 要打在「被测模块查这个名字的地方」，不是它的定义处。** 打歪了不报错、各分支双双 PASS，跑的却全是宿主那一条 —— 比它要根治的 `1 skipped` 更隐蔽，`skipped` 好歹还留个字样。三种代码形态各有靶点：
+
+  ```python
+  # ① 被测模块 import platform，运行时调 platform.system()
+  monkeypatch.setattr(platform, "system", lambda: "Darwin")
+
+  # ② 被测模块 from platform import system —— 名字已绑进被测模块，必须打它身上
+  monkeypatch.setattr(sut, "system", lambda: "Darwin")
+
+  # ③ 被测模块读 sys.platform —— 值是字符串不是函数，且值域小写（darwin / linux / win32）
+  monkeypatch.setattr(sys, "platform", "darwin")
+  ```
+
+  **模块级 `IS_MAC = sys.platform == "darwin"` 这类 import 时求值的分叉常量是反模式**：测试期再 patch 已经来不及（模块导入那一刻就定死了），只能改成运行时求值，或退而求其次 `monkeypatch.setattr(sut, "IS_MAC", True)` 直接打被测模块的那个名字。
+
+  测试文件多时，用 `autouse` fixture 锁一个**默认平台**，让没显式声明的用例也不跟宿主走，个别用例再在内部覆盖；**该默认值从命令行开关读**，CI 就能在单一 runner 上换个值把另一个平台整体重跑一遍。自定义选项要在 **rootdir 的 `conftest.py`** 里用 `pytest_addoption` 注册（光写 fixture 不生效）：单包布局即 `tests/conftest.py`；**多包 uv workspace（§2.2）没有统一的 `tests/`，只能放仓根 `conftest.py`** —— 塞进某个成员包会让别的成员漏掉，各成员各注册一次则 pytest 启动即报 `ValueError: option names {'--simulate-platform'} already added`。
+
+  ```python
+  # conftest.py —— 本例锁的是形态 ①
+  def pytest_addoption(parser):
+      parser.addoption("--simulate-platform", default="Linux")
+
+
+  @pytest.fixture(autouse=True)
+  def _default_platform(monkeypatch, request):
+      monkeypatch.setattr(
+          platform, "system", lambda: request.config.getoption("--simulate-platform")
+      )
+  ```
+
+  **fixture 的靶点必须跟着被测模块走**：被测的是形态 ② / ③ 就换成上面对应那一行，否则这个 fixture 静默失效、全树继续跟宿主走且照样全绿 —— 正是本条要根治的那种假绿。值域也随靶点变：`platform.system()` 给 `Darwin` / `Linux`，`sys.platform` 给 `darwin` / `linux`，**别拿同一个 flag 值喂两种靶点**。
+
 - **测试目录结构**：`tests/` 与 `src/` 同级（不嵌进 `src/<pkg>/`），由 `pyproject.toml [tool.pytest.ini_options] pythonpath = ["src"]` 解决 import；测试文件命名 `test_<被测对象>.py`。
 - **运行**：`uv run pytest`（带覆盖率：`uv run pytest --cov=src/<pkg>`）。
 
