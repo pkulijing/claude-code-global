@@ -1,6 +1,6 @@
 # claude-code-global
 
-管理 Coding Agent 全局配置（`GLOBAL_AGENTS.md` + `skills/` + `hooks/` + `settings.base.json` + `codex.config.base.toml`）的仓库，通过 `install.sh` **双轨**部署到 `~/.claude/`（Claude Code）与 `~/.codex/`（OpenAI Codex）—— 单一真源，缺哪端就只装哪端。
+管理 Coding Agent 全局配置（`GLOBAL_AGENTS.md` + `skills/` + `agents/` + `hooks/` + `settings.base.json` + `codex.config.base.toml`）的仓库，通过 `install.sh` **双轨**部署到 `~/.claude/`（Claude Code）与 `~/.codex/`（OpenAI Codex）—— 单一真源，缺哪端就只装哪端。
 
 ## 目录结构
 
@@ -16,6 +16,7 @@
 - `scheduler/` — OS 层调度器注册脚本与模板（macOS launchd / Linux systemd user timer），由 `install.sh` 末尾自动调用，注册"登录跑 + 每小时跑"的自动同步任务。逃生舱：`bash scheduler/uninstall.sh`
 - `templates/` — 跨项目共享开发配置模板（`_common/` 全项目套用 + `<stack>/` 技术栈特异：后端 `python-uv`（单包）/ `python-uv-workspace`（多包单仓，与单包互斥）、前端 `react-vite`、ROS 2 工作空间 `ros2`），目录级软链到两端，由 `bootstrap` / `sync-project-config` 消费。各维正交、可同仓叠加。**落地机制（落点语义、fragment 合并、变体组、迁移去重）的单一真源是 `templates/MECHANICS.md`**，别在别处复述。两个非显然点：`ros2` 把 `ament_python` 与 `ament_cmake` 参考包合并在**单一** stack 内（一个仓库即一个 colcon 工作空间、可含多个 ROS 包，二者共享工作区根配置，拆两 stack 会在 `__root__` 撞车）；`.vscode/*.fragment` 一律汇聚到**项目根**（VS Code 单根工作区只读仓库根的 `.vscode/`）
 - `playbooks/` — 领域规则文档（按 `<topic>.md` 拆分，如 `python.md`、`frontend.md`），目录级软链到两端 `playbooks/`，由 `GLOBAL_AGENTS.md` 顶层指针引用、Agent 命中触发条件时主动 Read。**曾用名 `rules/`，因撞上 CC 保留目录名而改名**（见下方「往 `~/.claude/` 下新增目录前先查保留名」）
+- `agents/` — 子 agent 定义（`review-orchestrator` / `code-reviewer` / `code-reviewer-deep`），目录级软链到 **CC 端** `~/.claude/agents/`（Codex 没有这个概念，`install.sh` 的 `deploy_agent` 第 5 参控制链不链）。**存在的唯一理由是 frontmatter 能钉死 `model` 与 `effort`** —— 没有它，`/review-loop` 委派出去的 reviewer 会继承主会话的思考档（主会话跑 `xhigh` 时全编队跟着 `xhigh`，实测单轮 10–25 分钟 / 13–23 万 token），而 Agent 工具本身**没有 effort 入参**，skill 层调不了。**这里是 review 编队档位的单一真源**，改一行就改了整道提交前门禁的强度，故两条云端 routine 都禁改。合法 effort 值 `low` / `medium` / `high` / `xhigh` / `max`（CC 二进制里的 `EL` 枚举；官方文档的字段说明漏写了 `xhigh`，以枚举为准）。详见 `docs/53-review成本与思考深度调优/`
 - `.github/` — 本仓库自身的 GitHub 配置（**不部署到 agent 端**）：`labels.yml` 三轴 label + `ff-merge` 运维 label、`ISSUE_TEMPLATE/`，以及 `.github/workflows/ff-merge.yml` + `.github/scripts/ff-merge.sh`——在 PR 上打 `ff-merge` label 或评论 `/ff` 即把该 PR **fast-forward** 合入 `master`（GitHub 三种原生合并方式都拿不到真 FF；直推默认分支时 GitHub 会自动把 PR 标记为 merged）。校验发起人必须是仓库 owner，冲突一律停手不硬合。**改本 workflow 自身的 PR 用不了这条路**——`GITHUB_TOKEN` 被服务端禁止推送 `.github/workflows/` 下的文件，脚本会提前判掉并提示本地直推
 - `docs/` — 开发记录，按轮次编号
 
@@ -23,6 +24,7 @@
 
 - 修改 `GLOBAL_AGENTS.md` 后无需重新安装（符号链接会自动生效）
 - 新增或修改 `playbooks/*.md` 后无需重新安装（目录级软链，新加文件直接出现在 `~/.claude/playbooks/` 与 `~/.codex/playbooks/`）
+- 新增或修改 `agents/*.md` 后无需重新安装（同为目录级软链）；但**新 agent 类型要新开一个会话才会出现在 Agent 工具的可选类型里**，当前会话不会热加载。自检命令（不必进交互式会话）：`claude -p "Do not use any tools. From the system-reminder listing available agent types for the Agent tool, output ONLY the agent type names, one per line." --model haiku`
 - 修改 `templates/` 下文件内容后无需重新安装（同理目录级软链）；新增 stack 子目录或在 `__root__/` `__subpath__/` 加新条目，下游 `bootstrap` / `sync-project-config` 即时可见
 - 新增或删除 skill 目录后需重新运行 `bash install.sh`
 - 新增或删除 hook 脚本后需重新运行 `bash install.sh`（hook 脚本本体是软链，修改其内容无需重装）
@@ -31,9 +33,10 @@
 - 修改 `uv.config.base.toml` 后需重新运行 `bash install.sh` 才会 seed（仅对 `~/.config/uv/uv.toml` **不存在**的机器生效，已有该文件的机器 user-wins 不覆盖）
 - 修改 `.github/labels.yml` 后需跑 `python3 $HOME/.claude/scripts/platform_issue.py label-sync-from-file .github/labels.yml` 才会同步到 GitHub（不同步就打不了新 label）
 - Codex 端 hooks 首次需进入 Codex 跑一次 `/hooks` 命令 review 后才生效
-- **往 `~/.claude/` 下新增目录前，先确认该名字不是 CC 保留名。** 本仓踩过一次：`rules/` 是 CC 的**用户级 memory 目录**，软链过去等于把八份领域文档注册成「每会话全文常驻的系统提示」（约 19k token / 每会话），与「按需 Read」的设计意图正相反——详见 `docs/51-rules按需加载/`。已知保留名（CC 二进制里有 `join(configDir, X)` 构造）：`rules` / `skills` / `agents` / `commands` / `hooks` / `plugins` / `workflows` / `themes` / `plans` / `tasks` / `teams` / `projects` / `sessions` / `cache` / `backups` / `debug`。本仓的 `scripts/` / `templates/` / `playbooks/` 经核查均非保留名。核查方法：对 CC 二进制跑 `strings`，搜 `join(` 构造里出现的目录名
+- **往 `~/.claude/` 下新增目录前，先确认该名字不是 CC 保留名。** 本仓踩过一次：`rules/` 是 CC 的**用户级 memory 目录**，软链过去等于把八份领域文档注册成「每会话全文常驻的系统提示」（约 19k token / 每会话），与「按需 Read」的设计意图正相反——详见 `docs/51-rules按需加载/`。已知保留名（CC 二进制里有 `join(configDir, X)` 构造）：`rules` / `skills` / `agents` / `commands` / `hooks` / `plugins` / `workflows` / `themes` / `plans` / `tasks` / `teams` / `projects` / `sessions` / `cache` / `backups` / `debug`。本仓的 `scripts/` / `templates/` / `playbooks/` 经核查均非保留名。核查方法：对 CC 二进制跑 `strings`，搜 `join(` 构造里出现的目录名。
+  **保留名不等于禁用，关键是「知不知道链过去会发生什么」**：`agents/` 就在上面这张表里，本仓仍然链了它 —— 因为那正是我们要的语义（注册子 agent 定义），与 `rules/` 那次「以为只是放文档、实际注册成每会话常驻 memory」正相反。区别不在名字，在于**是不是先查清了 CC 拿这个目录做什么**，再决定链不链
 - 开发流程遵循 `GLOBAL_AGENTS.md` 中定义的四步模式（需求 - 计划 - 执行 - 总结）
 - **本仓有两条云端定时 routine，它们的 SKILL.md 都是安全边界、别当普通文档改**：
-  - `/routine-docs`（每周一 / 三 / 五）把纯文档类 issue 做成 PR。它把**外部 issue 正文**变成文件内容，是 prompt-injection 面 —— 故禁止改 `skills/*.md` 与任何可执行面，完整攻击链见 `skills/routine-docs/references/security-boundary.md`
-  - `/routine-slim`（每周日）按增长阈值把指令面精简一轮并出 PR。它**可以**改 `skills/*/SKILL.md` 与 `playbooks/*.md`（输入只有仓库自身、不读外部文本、只做删除与搬移），但**永不碰自己、`/routine-docs`、`.github/`、`install.sh`、`scripts/`、`hooks/`、`templates/`**，且对 `GLOBAL_AGENTS.md` 与本文件**只报告不动手**
+  - `/routine-docs`（每周一 / 三 / 五）把纯文档类 issue 做成 PR。它把**外部 issue 正文**变成文件内容，是 prompt-injection 面 —— 故禁止改 `skills/*.md`、`agents/*.md` 与任何可执行面，完整攻击链见 `skills/routine-docs/references/security-boundary.md`
+  - `/routine-slim`（每周日）按增长阈值把指令面精简一轮并出 PR。它**可以**改 `skills/*/SKILL.md` 与 `playbooks/*.md`（输入只有仓库自身、不读外部文本、只做删除与搬移），但**永不碰自己、`/routine-docs`、`agents/`、`.github/`、`install.sh`、`scripts/`、`hooks/`、`templates/`**，且对 `GLOBAL_AGENTS.md` 与本文件**只报告不动手**。注意 `skills/review-loop/references/angles.md` 在它的可改范围内、但**压缩角度清单等于降低 review 检出率**（清单是 reviewer 跑低思考档的配套条件），精简前先读那份文件顶部的说明
   - 改 `.github/workflows/ff-merge.yml` 等于改自动写 `master` 的那条路。两条 routine 都**绝不以任何方式触发合入** —— `ff-merge` 的准入闸校验「发起人 == 仓库 owner」，而云端 routine 用的就是仓库主人的凭证，这道闸区分不了人和 agent

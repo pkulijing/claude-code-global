@@ -312,12 +312,17 @@ unlink_legacy_dir() {
 
 # 部署一个 agent 端：软链 skills/hooks/scripts/templates/global-repo + 主指令文档，
 # 并合并各端的 settings/config 基线。
-# 用法: deploy_agent <agent_home> <主指令文档名> <agent 标签> <config 类型: json|toml>
+# 用法: deploy_agent <agent_home> <主指令文档名> <agent 标签> <config 类型: json|toml> <是否链 agents: yes|no>
+#
+# 末位参数单独存在、不复用 config_kind 判断：agents/ 是不是该链，取决于「该端有没有
+# 子 agent 定义这个概念」，与「配置文件是 JSON 还是 TOML」无关。拿 config_kind 当
+# 「是不是 CC」的替身，等下次有第三端或 Codex 支持了子 agent，就会静默链错。
 deploy_agent() {
     local agent_home="$1"
     local main_doc="$2"
     local label="$3"
     local config_kind="$4"
+    local link_agents="${5:-no}"
 
     echo ""
     echo "------------------------------"
@@ -386,6 +391,19 @@ deploy_agent() {
         warn "仓库中未找到 playbooks/ 目录，跳过"
     fi
 
+    # agents 目录（子 agent 定义；目录级软链，新增 .md 不需要重跑 install）
+    #
+    # 只在 CC 端链：`~/.claude/agents/` 是 CC 专有机制，Codex 没有对应概念，链过去是死链接。
+    # 这些定义钉死了 reviewer 编队的 model 与 effort —— 没有它们，子 agent 会继承主会话
+    # 的思考档（主会话在 xhigh 时全编队跟着 xhigh 跑），成本与延迟都失控。见 docs/53-*/。
+    if [ "$link_agents" = "yes" ]; then
+        if [ -d "$REPO_DIR/agents" ]; then
+            link_item "$REPO_DIR/agents" "$agent_home/agents"
+        else
+            warn "仓库中未找到 agents/ 目录，跳过"
+        fi
+    fi
+
     # 仓库根 → global-repo（供 /sync-project-config 访问模板 git 历史）
     link_item "$REPO_DIR" "$agent_home/global-repo"
 
@@ -427,14 +445,14 @@ DEPLOYED_ANY=0
 DEPLOYED_CODEX=0
 
 if [ -d "$HOME/.claude" ]; then
-    deploy_agent "$HOME/.claude" "CLAUDE.md" "Claude Code" "json"
+    deploy_agent "$HOME/.claude" "CLAUDE.md" "Claude Code" "json" "yes"
     DEPLOYED_ANY=1
 else
     info "未检测到 ~/.claude，跳过 Claude Code 端"
 fi
 
 if [ -d "$HOME/.codex" ]; then
-    deploy_agent "$HOME/.codex" "AGENTS.md" "Codex" "toml"
+    deploy_agent "$HOME/.codex" "AGENTS.md" "Codex" "toml" "no"
     DEPLOYED_ANY=1
     DEPLOYED_CODEX=1
 else

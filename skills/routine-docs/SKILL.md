@@ -79,6 +79,7 @@ command -v gh >/dev/null 2>&1 && echo local || echo cloud
 | --- | --- |
 | `playbooks/*.md`、`GLOBAL_AGENTS.md`、`README.md`、`docs/` | `install.sh`、`hooks/`、`scripts/`、`templates/`、`.github/` |
 | | **`skills/*.md`** —— 那是门禁自身的逻辑（含本 skill），不许无人值守自改 |
+| | **`agents/*.md`** —— reviewer 编队的 `model` / `effort`，改一行就改了提交前门禁的强度 |
 
 再排除四类「看着像文档、其实不是」的：
 
@@ -186,7 +187,7 @@ push 分支后开 PR（base = 默认分支），标题形如 `docs: <主题概�
 - **不发任何评论 —— 只通过「开 PR」和「编辑 PR 描述」说话。** 这不是嫌评论吵，是**收窄可攻击面**：`ff-merge.yml` 订阅的两个事件里有一个就是 `issue_comment.created`，routine 只要从不产生评论，这条触发路径就物理上够不着。完整攻击链见 `references/security-boundary.md` §1。
 - **绝不以任何方式触发合入**（硬安全边界，不是偏好）。**判据是「结果」不是「手段」** —— 只要一个动作可能让 PR 进入默认分支，就不许做。已知的四条路（**包括但不限于**）：**不打 `ff-merge` label**、**不发首词为 `/ff` 的评论**、**不调任何带合并语义的 API / 工具**（`gh pr merge`、MCP 的 merge 类工具等）、**不直接推默认分支**。前两条对应 `ff-merge.yml` 订阅的两个事件，后两条完全绕开它。**这份清单不是穷举定义**：遇到没列进来的新路径，按总则判 —— 能导致合入的一律不做，别拿「清单里没写」当许可。
   **为什么必须写成硬规则**：`ff-merge` 的准入闸校验「发起人 == 仓库 owner」，而云端 routine 用的就是仓库主人的凭证 —— **这道闸区分不了「人」和「以人的凭证行事的 agent」**，拦不住 routine，只能靠 routine 自己不越线（详见 `references/security-boundary.md` §2）。
-- **不改 `skills/*.md`**（含本文件）、不改任何可执行面。
+- **不改 `skills/*.md`**（含本文件）、**不改 `agents/*.md`**、不改任何可执行面。
 - **不写 SUMMARY / 不调 `/devtree` / 不做沉淀反思**（那些是 `/finish` 的活，`/quick` 形态本就不带）。
 
 ## 如何注册到 claude.ai Routines
