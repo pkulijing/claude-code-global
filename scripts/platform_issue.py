@@ -10,9 +10,11 @@ See docs/15-三件套skill支持GitLab双轨/PLAN.md for design rationale.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 PLATFORM_GITHUB = "github"
@@ -341,6 +343,57 @@ def cmd_issue_create(args):
     return EXIT_OK
 
 
+def build_issue_comment_cmd(platform, number, body_file, body, repo):
+    """Build the gh/glab issue-comment argv (pure, no execution).
+
+    The two platforms disagree on both the subcommand name and how the body
+    gets in: GitHub reads it from --body-file, GitLab has no such flag and
+    takes it inline via -m (so callers pass both the path and the text).
+    Papering over that split is exactly why this helper exists — skills must
+    not reach for `gh` / `glab` directly.
+
+    Long bodies are safe here: everything is executed as an argv list via
+    subprocess (never through a shell), so backticks / $VAR / quotes in the
+    markdown are passed through literally with no escaping needed.
+    """
+    if platform == PLATFORM_GITHUB:
+        cmd = ["gh", "issue", "comment", str(number), "--body-file", str(body_file)]
+    else:
+        cmd = ["glab", "issue", "note", str(number), "-m", body]
+    if repo:
+        cmd += ["--repo", repo]
+    return cmd
+
+
+def cmd_issue_comment(args):
+    plat = resolve_platform(args.platform)
+    if plat == PLATFORM_UNKNOWN:
+        sys.stderr.write("error: cannot detect platform from git remote origin\n")
+        return EXIT_PLATFORM_UNKNOWN
+    body_path = Path(args.body_file)
+    if not body_path.exists():
+        sys.stderr.write(f"error: body file not found: {body_path}\n")
+        return EXIT_ERROR
+
+    body = body_path.read_text() if plat == PLATFORM_GITLAB else ""
+    result = _run(
+        build_issue_comment_cmd(plat, args.issue, str(body_path), body, args.repo)
+    )
+    if result.returncode != 0:
+        sys.stderr.write(result.stderr or result.stdout)
+        return EXIT_ERROR
+
+    url_match = re.search(r"https?://\S+", result.stdout)
+    if url_match:
+        print(url_match.group(0))
+    else:
+        # The comment *did* post (returncode 0); only the URL is unavailable.
+        # glab's `issue note` output schema is unverified, so failing here
+        # would turn a successful side effect into a spurious error.
+        sys.stderr.write(f"warn: comment posted on {plat} but no URL found in output\n")
+    return EXIT_OK
+
+
 def build_issue_view_cmd(platform, number, with_comments=False):
     """Build the gh/glab issue-view argv (pure, no execution).
 
@@ -534,6 +587,104 @@ def cmd_label_sync_from_file(args):
 # ---------------------------------------------------------------- self-test
 
 
+def _sandbox_issue_comment():
+    """Sandbox `issue-comment` end-to-end with stubbed gh/glab CLIs.
+
+    Follows playbooks/shell.md §4: stub the external CLI, put it on PATH, and
+    assert on the *real argv the stub received* rather than on what we printed.
+    The long-body case is the point — GitLab passes the markdown inline via
+    -m, and that path is where quoting/length problems would show up.
+    """
+    failures = []
+    body = "标题`反引号` $HOME \"引号\" 'single'\n\n```sh\necho $PATH\n```\n" * 300
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        argv_log = tmp / "argv.log"
+        body_file = tmp / "body.md"
+        body_file.write_text(body)
+
+        # 桩把 argv 原样存成 JSON —— 正文本身含换行，按行存会把一个参数拆成好几个
+        for name, url in (("gh", "https://gh.test/x/y/issues/7#note_1"), ("glab", "")):
+            stub = tmp / name
+            stub.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, sys, pathlib\n"
+                f"pathlib.Path({str(argv_log)!r}).write_text("
+                "json.dumps(sys.argv))\n"
+                f"print({url!r})\n"
+            )
+            stub.chmod(0o755)
+
+        env_path = f"{tmp}{os.pathsep}{os.environ.get('PATH', '')}"
+        base = [sys.executable, str(Path(__file__).resolve()), "--platform"]
+
+        cases = [
+            (
+                PLATFORM_GITHUB,
+                ["gh", "issue", "comment", "7", "--body-file", str(body_file)],
+            ),
+            (PLATFORM_GITLAB, ["glab", "issue", "note", "7", "-m", body]),
+        ]
+        for plat, want_argv in cases:
+            proc = subprocess.run(
+                base
+                + [
+                    plat,
+                    "issue-comment",
+                    "--issue",
+                    "7",
+                    "--body-file",
+                    str(body_file),
+                ],
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PATH": env_path},
+            )
+            if proc.returncode != EXIT_OK:
+                failures.append(
+                    f"sandbox issue-comment {plat}: exit {proc.returncode}, "
+                    f"stderr={proc.stderr.strip()!r}"
+                )
+                continue
+            got_argv = json.loads(argv_log.read_text())
+            # argv[0] 是桩的解析后全路径，取 basename 才能与期望的裸命令名比
+            got_argv[0] = Path(got_argv[0]).name
+            if got_argv != want_argv:
+                # 只报差异位置，长正文整段打出来没法看
+                diff = next(
+                    (
+                        f"[{i}] {g!r} != {w!r}"
+                        for i, (g, w) in enumerate(zip(got_argv, want_argv))
+                        if g != w
+                    ),
+                    f"len {len(got_argv)} != {len(want_argv)}",
+                )
+                failures.append(f"sandbox issue-comment {plat} argv mismatch: {diff}")
+
+        # 正文文件不存在 → 明确报错，不静默发空评论
+        proc = subprocess.run(
+            base
+            + [
+                PLATFORM_GITHUB,
+                "issue-comment",
+                "--issue",
+                "7",
+                "--body-file",
+                str(tmp / "nope.md"),
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PATH": env_path},
+        )
+        if proc.returncode != EXIT_ERROR:
+            failures.append(
+                f"sandbox issue-comment missing body-file: exit {proc.returncode}, want {EXIT_ERROR}"
+            )
+
+    return failures
+
+
 def cmd_self_test():
     failures = []
 
@@ -675,6 +826,51 @@ def cmd_self_test():
                 f"build_issue_create_cmd({plat}, repo={repo!r}): {got_cmd!r} != {expected_cmd!r}"
             )
 
+    # issue-comment：两端子命令名与正文传入方式都不同，是 helper 存在的理由本身
+    long_body = '行首`反引号` $VAR "双引号"\n\n```python\nx = 1\n```\n' * 200
+    comment_cmd_cases = [
+        (
+            (PLATFORM_GITHUB, 7, "/tmp/c.md", "BODY", None),
+            ["gh", "issue", "comment", "7", "--body-file", "/tmp/c.md"],
+        ),
+        (
+            (PLATFORM_GITHUB, 7, "/tmp/c.md", "BODY", "o/x"),
+            [
+                "gh",
+                "issue",
+                "comment",
+                "7",
+                "--body-file",
+                "/tmp/c.md",
+                "--repo",
+                "o/x",
+            ],
+        ),
+        (
+            (PLATFORM_GITLAB, 7, "/tmp/c.md", "BODY", None),
+            ["glab", "issue", "note", "7", "-m", "BODY"],
+        ),
+        (
+            (PLATFORM_GITLAB, 7, "/tmp/c.md", "BODY", "o/x"),
+            ["glab", "issue", "note", "7", "-m", "BODY", "--repo", "o/x"],
+        ),
+        # 长正文 + shell 元字符：走 argv 不经 shell，必须原样落在参数里
+        (
+            (PLATFORM_GITLAB, 7, "/tmp/c.md", long_body, None),
+            ["glab", "issue", "note", "7", "-m", long_body],
+        ),
+    ]
+    for (plat, num, bf, body, repo), expected_cmd in comment_cmd_cases:
+        got_cmd = build_issue_comment_cmd(plat, num, bf, body, repo)
+        if got_cmd != expected_cmd:
+            failures.append(
+                f"build_issue_comment_cmd({plat}, repo={repo!r}): "
+                f"{got_cmd!r} != {expected_cmd!r}"
+            )
+
+    # 沙盘：桩掉 gh / glab，断言**真实传参**而非日志字符串（playbooks/shell.md §4）
+    failures.extend(_sandbox_issue_comment())
+
     # 跨仓库零-label 护栏：跨仓库(--repo)创建必须带 label，除非显式逃生
     guard_cases = [
         # (repo, labels, allow_no_label) -> should_block(bool)
@@ -793,7 +989,9 @@ def cmd_self_test():
     }:
         failures.append(f"normalize_comments 缺字段容错: {norm_c[3]!r}")
     if normalize_comments(gh_comments_raw, PLATFORM_GITLAB) != []:
-        failures.append("normalize_comments gitlab 应返回空列表（glab notes 能力未实测）")
+        failures.append(
+            "normalize_comments gitlab 应返回空列表（glab notes 能力未实测）"
+        )
 
     # owner 背书提取：只认 OWNER、取最新一条 —— /routine-dev 的授权判据，
     # 下沉到代码是为了让它被单测覆盖，而不是靠模型每次自觉过滤身份。
@@ -907,6 +1105,16 @@ def build_parser():
         help="additionally emit `comments` and `ownerHint` (newest OWNER comment)",
     )
 
+    p_comment = sub.add_parser("issue-comment")
+    p_comment.add_argument("--issue", type=int, required=True)
+    p_comment.add_argument("--body-file", required=True)
+    p_comment.add_argument(
+        "--repo",
+        default=None,
+        help="Target repo slug (owner/name) to comment on an issue in a repo "
+        "other than cwd's origin",
+    )
+
     p_sync = sub.add_parser("label-sync-from-file")
     p_sync.add_argument("path")
 
@@ -932,6 +1140,7 @@ def main():
         "repo-slug": cmd_repo_slug,
         "issue-create": cmd_issue_create,
         "issue-view": cmd_issue_view,
+        "issue-comment": cmd_issue_comment,
         "label-list": cmd_label_list,
         "label-sync-from-file": cmd_label_sync_from_file,
     }

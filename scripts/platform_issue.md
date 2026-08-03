@@ -9,7 +9,25 @@ python3 $HOME/.claude/scripts/platform_issue.py [--platform github|gitlab] [--re
 ```
 
 - `--platform` / `--repo` 省略时按当前仓库 `git remote` 自动判定、对本仓库操作；跨仓库操作（如向 claude-code-global 沉淀 issue）显式带 `--repo <slug>`。
-- 常用子命令：`issue-view <N>`、`issue-create`、`label-list`、`label-sync-from-file <path>`。
+- 常用子命令：`issue-view <N>`、`issue-create`、`issue-comment`、`label-list`、`label-sync-from-file <path>`。
+
+## issue-comment 语义
+
+```bash
+python3 $HOME/.claude/scripts/platform_issue.py issue-comment --issue <N> --body-file <F> [--repo <slug>]
+```
+
+**「issue 是单一真源」的工作流下，沉淀讨论与结论的动作本身就是评论** —— 补实测数据、贴验证产物、记录决策更正、写 spike 结论。缺了它，单一真源就只能写不能续，于是只剩「违反规则直调 `gh`」或「做不成事」两条坏路。
+
+两端差异正是 helper 存在的理由（连子命令名都不一样）：
+
+|        | 命令                              | 正文传入                       |
+| ------ | --------------------------------- | ------------------------------ |
+| GitHub | `gh issue comment <N>`            | `--body-file <F>`              |
+| GitLab | `glab issue note <N>`             | `-m <text>`，**无 `--body-file`** |
+
+- **长正文安全**：一律以 argv 列表交给 `subprocess`、**不经 shell**，正文里的反引号 / `$VAR` / 引号原样传入，无需转义。已按 `playbooks/shell.md` §4 配沙盘用例（桩掉 `gh` / `glab`，断言真实 argv），覆盖含代码块的长 markdown。
+- **输出**：评论 URL 单行到 stdout（与 `issue-create` 同构）。**GitLab 侧 `issue note` 的输出 schema 未经实测**：取不到 URL 时不报错（评论已经发出去了，此时失败等于把成功的副作用谎报成失败），只在 stderr 留一行 `warn:`，exit 仍为 0。
 
 ## label-sync-from-file 语义
 

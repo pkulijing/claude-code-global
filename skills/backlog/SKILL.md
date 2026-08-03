@@ -10,7 +10,7 @@ disable-model-invocation: false
 
 issue 关闭仍由 `/finish` 完成（commit 含 `Closes #N` → 合并到 default branch 自动关 issue；`Closes #N` 在 GitHub / GitLab 均原生生效）。
 
-所有平台耦合的 CLI 调用都通过 helper `python3 $HOME/.claude/scripts/platform_issue.py <subcommand>`，本 SKILL 不直接调 `gh` / `glab`。
+所有平台耦合的 CLI 调用都通过 helper `python3 $HOME/.claude/scripts/platform_issue.py <subcommand>`，本 SKILL 不直接调 `gh` / `glab`。**给已有 issue 补材料（实测数据、验证产物、决策更正）走 `issue-comment`，同样不许直调 `gh issue comment`** —— 契约见 `scripts/platform_issue.md`。
 
 ## 前置检查
 

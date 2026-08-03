@@ -82,7 +82,9 @@ disable-model-invocation: false
    python3 $HOME/.claude/scripts/platform_issue.py issue-view <N>
    ```
 
-   如参数是完整 URL，先从中提取 N。helper stdout 输出归一 json（GitHub 风格字段），schema 固定为：
+   如参数是完整 URL，先从中提取 N。**本轮若需要往该 issue 补材料（spike 结论、实测数据），走 `issue-comment --issue <N> --body-file <F>`，别直调 `gh issue comment`。**
+
+   helper stdout 输出归一 json（GitHub 风格字段），schema 固定为：
 
    ```json
    {

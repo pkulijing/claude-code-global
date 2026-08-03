@@ -44,6 +44,8 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-create \
 # 建完 close：gh issue close <N> -r "not planned"  /  glab issue close <N>
 ```
 
+**要往 issue 补材料**（验证产物、实测数据、结论回写）时走 helper 的 `issue-comment --issue <N> --body-file <F>`，**不要直调 `gh issue comment`** —— 契约见 `scripts/platform_issue.md`。
+
 body 写原因 + SUMMARY 路径。`wontfix` label 缺失先补进 `.github/labels.yml` 并 sync（**三轴 + wontfix 是硬要求，缺则 `issue-create` 整条失败**）。helper 契约见 `~/.claude/scripts/platform_issue.md`。
 
 用户说「无」→ 跳过。
