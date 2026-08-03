@@ -84,23 +84,70 @@ def normalize_color(color, platform):
 # ---------------------------------------------------------------- field map
 
 
-def normalize_issue(raw, platform):
+def normalize_comments(raw_comments, platform):
+    """Normalize issue comments to {author, authorAssociation, body, createdAt}.
+
+    GitLab returns [] unconditionally: `glab`'s notes capability was never
+    verified (it isn't installed on the machine this was written on), and
+    guessing a command that "looks right" is exactly how a silently-empty
+    result gets shipped. Callers get an explicit not-supported note on stderr
+    instead — see cmd_issue_view.
+    """
     if platform == PLATFORM_GITLAB:
-        return {
+        return []
+    out = []
+    for c in raw_comments or []:
+        author = c.get("author") or {}
+        out.append(
+            {
+                "author": author.get("login", "") if isinstance(author, dict) else "",
+                "authorAssociation": c.get("authorAssociation", "") or "",
+                "body": c.get("body", "") or "",
+                "createdAt": c.get("createdAt", "") or "",
+            }
+        )
+    return out
+
+
+def latest_owner_comment(comments):
+    """Body of the newest OWNER-authored comment, else None.
+
+    This is `/routine-dev`'s authorization judgement, deliberately pushed down
+    into code: this repo is public, so *anyone* can comment on an issue, and
+    only `authorAssociation == "OWNER"` proves the mark came from the repo
+    owner. COLLABORATOR/CONTRIBUTOR are not enough — they're a weaker grant
+    than the `auto:take` label the mark is paired with. Keeping it here (and
+    under self-test) beats asking the model to re-derive the check each run.
+    """
+    for c in reversed(comments or []):
+        if c.get("authorAssociation") == "OWNER":
+            return c.get("body") or ""
+    return None
+
+
+def normalize_issue(raw, platform, with_comments=False):
+    if platform == PLATFORM_GITLAB:
+        out = {
             "number": raw.get("iid"),
             "title": raw.get("title", ""),
             "body": raw.get("description") or "",
             "url": raw.get("web_url", ""),
             "labels": list(raw.get("labels", []) or []),
         }
-    labels = raw.get("labels", []) or []
-    return {
-        "number": raw.get("number"),
-        "title": raw.get("title", ""),
-        "body": raw.get("body") or "",
-        "url": raw.get("url", ""),
-        "labels": [lbl["name"] if isinstance(lbl, dict) else lbl for lbl in labels],
-    }
+    else:
+        labels = raw.get("labels", []) or []
+        out = {
+            "number": raw.get("number"),
+            "title": raw.get("title", ""),
+            "body": raw.get("body") or "",
+            "url": raw.get("url", ""),
+            "labels": [lbl["name"] if isinstance(lbl, dict) else lbl for lbl in labels],
+        }
+    if with_comments:
+        comments = normalize_comments(raw.get("comments"), platform)
+        out["comments"] = comments
+        out["ownerHint"] = latest_owner_comment(comments)
+    return out
 
 
 # ---------------------------------------------------------------- yml parser
@@ -294,18 +341,34 @@ def cmd_issue_create(args):
     return EXIT_OK
 
 
+def build_issue_view_cmd(platform, number, with_comments=False):
+    """Build the gh/glab issue-view argv (pure, no execution).
+
+    `with_comments` only widens GitHub's --json field list; the default field
+    set is untouched so existing consumers (/start et al.) see the exact same
+    schema they always have.
+    """
+    if platform == PLATFORM_GITHUB:
+        fields = "number,title,body,url,labels"
+        if with_comments:
+            fields += ",comments"
+        return ["gh", "issue", "view", str(number), "--json", fields]
+    return ["glab", "issue", "view", str(number), "-F", "json"]
+
+
 def cmd_issue_view(args):
     plat = resolve_platform(args.platform)
     if plat == PLATFORM_UNKNOWN:
         sys.stderr.write("error: cannot detect platform from git remote origin\n")
         return EXIT_PLATFORM_UNKNOWN
     n = args.number
-    if plat == PLATFORM_GITHUB:
-        result = _call_gh(
-            ["issue", "view", str(n), "--json", "number,title,body,url,labels"]
+    with_comments = getattr(args, "with_comments", False)
+    if with_comments and plat == PLATFORM_GITLAB:
+        sys.stderr.write(
+            "note: --with-comments is not supported on gitlab; "
+            "comments will be empty (glab notes capability unverified)\n"
         )
-    else:
-        result = _call_glab(["issue", "view", str(n), "-F", "json"])
+    result = _run(build_issue_view_cmd(plat, n, with_comments))
     if result.returncode != 0:
         sys.stderr.write(result.stderr or result.stdout)
         return EXIT_ERROR
@@ -314,7 +377,11 @@ def cmd_issue_view(args):
     except json.JSONDecodeError as e:
         sys.stderr.write(f"error: cannot parse {plat} issue view output: {e}\n")
         return EXIT_ERROR
-    print(json.dumps(normalize_issue(raw, plat), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            normalize_issue(raw, plat, with_comments), ensure_ascii=False, indent=2
+        )
+    )
     return EXIT_OK
 
 
@@ -659,6 +726,126 @@ def cmd_self_test():
                 f"build_label_list_cmd({plat}, repo={repo!r}): {got_cmd!r} != {expected_cmd!r}"
             )
 
+    issue_view_cmd_cases = [
+        (
+            (PLATFORM_GITHUB, 7, False),
+            ["gh", "issue", "view", "7", "--json", "number,title,body,url,labels"],
+        ),
+        (
+            (PLATFORM_GITHUB, 7, True),
+            [
+                "gh",
+                "issue",
+                "view",
+                "7",
+                "--json",
+                "number,title,body,url,labels,comments",
+            ],
+        ),
+        ((PLATFORM_GITLAB, 7, False), ["glab", "issue", "view", "7", "-F", "json"]),
+        ((PLATFORM_GITLAB, 7, True), ["glab", "issue", "view", "7", "-F", "json"]),
+    ]
+    for (plat, num, with_c), expected_cmd in issue_view_cmd_cases:
+        got_cmd = build_issue_view_cmd(plat, num, with_c)
+        if got_cmd != expected_cmd:
+            failures.append(
+                f"build_issue_view_cmd({plat}, {num}, with_comments={with_c}): "
+                f"{got_cmd!r} != {expected_cmd!r}"
+            )
+
+    gh_comments_raw = [
+        {
+            "author": {"login": "outsider"},
+            "authorAssociation": "NONE",
+            "body": "任何人都能发这条",
+            "createdAt": "2026-08-01T00:00:00Z",
+        },
+        {
+            "author": {"login": "pkulijing"},
+            "authorAssociation": "OWNER",
+            "body": "第一条 owner 说明",
+            "createdAt": "2026-08-02T00:00:00Z",
+        },
+        {
+            "author": {"login": "pkulijing"},
+            "authorAssociation": "OWNER",
+            "body": "改主意了，按这条来",
+            "createdAt": "2026-08-03T00:00:00Z",
+        },
+        {
+            "author": {},
+            "body": "缺字段的畸形评论",
+        },
+    ]
+    norm_c = normalize_comments(gh_comments_raw, PLATFORM_GITHUB)
+    if len(norm_c) != 4 or norm_c[0] != {
+        "author": "outsider",
+        "authorAssociation": "NONE",
+        "body": "任何人都能发这条",
+        "createdAt": "2026-08-01T00:00:00Z",
+    }:
+        failures.append(f"normalize_comments github: {norm_c!r}")
+    if norm_c[3] != {
+        "author": "",
+        "authorAssociation": "",
+        "body": "缺字段的畸形评论",
+        "createdAt": "",
+    }:
+        failures.append(f"normalize_comments 缺字段容错: {norm_c[3]!r}")
+    if normalize_comments(gh_comments_raw, PLATFORM_GITLAB) != []:
+        failures.append("normalize_comments gitlab 应返回空列表（glab notes 能力未实测）")
+
+    # owner 背书提取：只认 OWNER、取最新一条 —— /routine-dev 的授权判据，
+    # 下沉到代码是为了让它被单测覆盖，而不是靠模型每次自觉过滤身份。
+    owner_hint_cases = [
+        (norm_c, "改主意了，按这条来"),  # 多条 OWNER → 取最后一条
+        ([], None),  # 无评论
+        (normalize_comments(gh_comments_raw[:1], PLATFORM_GITHUB), None),  # 只有外人
+        (
+            normalize_comments(
+                [
+                    {
+                        "author": {"login": "helper"},
+                        "authorAssociation": "COLLABORATOR",
+                        "body": "协作者也不算",
+                        "createdAt": "2026-08-01T00:00:00Z",
+                    }
+                ],
+                PLATFORM_GITHUB,
+            ),
+            None,
+        ),
+    ]
+    for comments, expected_hint in owner_hint_cases:
+        got_hint = latest_owner_comment(comments)
+        if got_hint != expected_hint:
+            failures.append(
+                f"latest_owner_comment({comments!r}) = {got_hint!r}, want {expected_hint!r}"
+            )
+
+    # 默认 schema 零变化（/start 等既有消费方的回归保护）
+    gh_raw_with_c = dict(gh_raw, comments=gh_comments_raw)
+    if "comments" in normalize_issue(gh_raw_with_c, PLATFORM_GITHUB):
+        failures.append("normalize_issue 默认不应带 comments 字段")
+    norm_with_c = normalize_issue(gh_raw_with_c, PLATFORM_GITHUB, with_comments=True)
+    if norm_with_c.get("ownerHint") != "改主意了，按这条来":
+        failures.append(f"normalize_issue ownerHint: {norm_with_c.get('ownerHint')!r}")
+    if len(norm_with_c.get("comments") or []) != 4:
+        failures.append(f"normalize_issue comments: {norm_with_c!r}")
+
+    # 两条边界：issue 本来就没有评论、以及 GitLab 端走 with_comments。
+    # 二者都不该炸，且都该给出「空但存在」的字段——调用方只读 ownerHint 就够。
+    no_comment_cases = [
+        (gh_raw, PLATFORM_GITHUB),  # raw 里根本没有 comments 键
+        (gl_raw, PLATFORM_GITLAB),  # GitLab 端恒空（glab notes 能力未实测）
+    ]
+    for raw_case, plat_case in no_comment_cases:
+        norm_empty = normalize_issue(raw_case, plat_case, with_comments=True)
+        if norm_empty.get("comments") != [] or norm_empty.get("ownerHint") is not None:
+            failures.append(
+                f"normalize_issue({plat_case}, 无评论) comments/ownerHint: {norm_empty!r}"
+            )
+
     if failures:
         for f in failures:
             print(f"FAIL: {f}", file=sys.stderr)
@@ -714,6 +901,11 @@ def build_parser():
 
     p_view = sub.add_parser("issue-view")
     p_view.add_argument("number", type=int)
+    p_view.add_argument(
+        "--with-comments",
+        action="store_true",
+        help="additionally emit `comments` and `ownerHint` (newest OWNER comment)",
+    )
 
     p_sync = sub.add_parser("label-sync-from-file")
     p_sync.add_argument("path")
