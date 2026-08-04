@@ -6,7 +6,7 @@
 
 ## 1. 环境与工具
 
-- 使用 **uv** 管理项目依赖：用 `uv add <pkg>` 添加，依赖记录在 `pyproject.toml`（uv 天然支持）。**禁止使用 `pip install` 或 `uv pip install`**。
+- 使用 **uv** 管理项目依赖：用 `uv add <pkg>` 添加，依赖记录在 `pyproject.toml`（uv 天然支持）。**禁止使用 `pip install` 或 `uv pip install`**。**这条管的是本项目自身的依赖**，别按字面推广到「一个恰好用 Python 写的外部应用」上 —— 那种情形见 §1.1。
 - 使用 **`uv run`** 运行 Python 脚本，如 `uv run some_script.py`、`uv run python -m ruff check .`。**禁止直接调用 `python` / `python3`**。
 - **让 uv 全权管 python**：`pyproject.toml` 设 `[tool.uv] python-preference = "only-managed"`，强制 uv 只用托管 standalone python、忽略系统 python。默认 `managed` 会复用系统 python，而系统 python 常缺 dev 头文件（无 `Python.h`）→ 含 C 扩展的依赖（如 `evdev`）编译失败、且易误判为编译器问题；托管 standalone python 永远自带头文件、缺版自动下载。python-uv 模板已默认带此设置；机器级一劳永逸可在 `~/.config/uv/uv.toml` 设同名键（`install.sh` 缺失时会 seed）。
 - 使用 **ruff** 做代码格式化与语法检查（`uv run ruff check` / `uv run ruff format`）。
@@ -14,6 +14,27 @@
   - 普通库走[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)
   - `torch` / `torchaudio` / `torchvision` 等 torch 系列走 [aliyun pytorch-wheels 镜像](https://mirrors.aliyun.com/pytorch-wheels/cu121/)。这并非完整 pypi 源，必须在 `pyproject.toml` 用 `extra` 方式指定。
 - 如无特殊要求，`torch` 默认 `2.5.1` 版本，CUDA 编译版 `cu121`。
+
+### 1.1 外部 Python 应用：独立 venv，不进本项目依赖树
+
+§1 的禁令管的是**本项目自身的依赖**。当项目要集成一个**大型第三方 Python 应用**（ComfyUI、Stable Diffusion WebUI、vLLM，以及各种推理 / 标注 / 训练框架）时，它是一个**独立应用**、不是本项目的一个依赖库；把禁令按字面推广过去只剩一条死路 —— `uv add` 它的全部依赖，后果是绑死三十余个无关包的版本、上游换依赖时本项目 lockfile 从保障变成阻碍、本项目自己那点代码的依赖树被彻底淹没。
+
+**判据（区分「本项目的依赖」与「一个恰好用 Python 写的外部应用」）**：它有自己的 git 仓库 + 自己的 `requirements.txt` + 自己的发布节奏 + **你不会去改它的源码**。四条通常同进同出，命中即按外部应用处理。
+
+**姿势：给它独立 venv，落 `third_party/<app>/`**：
+
+```bash
+git clone --depth 1 <upstream-url> third_party/<app>
+cd third_party/<app> && uv venv --python 3.12
+uv pip install --index-url <清华源> -r requirements.txt
+```
+
+配套四条：
+
+- **此语境下 `uv pip install -r requirements.txt` 是正确工具、不是违规** —— 依赖清单的所有权在上游，本项目复述一遍只会与它漂移，且升级时无法跟随上游。
+- `third_party/` 自带 `.gitignore` 全忽略：外部应用由上游 git 管理，不入本仓。
+- **用应用自己的配置机制接资源，不造软链** —— 如用 ComfyUI 原生的 `extra_model_paths.yaml` 把本仓的权重目录接过去，零复制零软链。这是宪法「wrapper 原则」（先核实外部工具的原生能力）在资源接入方向上的同一个道理。
+- 项目 `CLAUDE.md` 写明「它是外部应用、不是本项目依赖」，挡住后来者（含 AI）好心把它 `uv add` 进来。
 
 ## 2. 项目骨架（src 布局）
 
