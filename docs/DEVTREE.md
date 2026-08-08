@@ -115,6 +115,7 @@ graph TD
     N50["🏗️ 50 · review 机制独立 agent 重构"]:::refactor
     N52["🏗️ 52 · 指令面精简与定期化"]:::refactor
     N53["🏗️ 53 · review 成本与思考深度调优"]:::refactor
+    N55["✨ 55 · 委派授权声明"]:::feature
     N24 ~~~ N25
     N25 ~~~ N44
     N44 ~~~ N45
@@ -124,6 +125,7 @@ graph TD
     N48 ~~~ N50
     N50 ~~~ N52
     N52 ~~~ N53
+    N53 ~~~ N55
   end
 
   subgraph e_rules["🔄 领域规则沉淀"]
@@ -209,7 +211,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-08-04 | 共 54 轮
+> 最后更新：2026-08-08 | 共 55 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -267,6 +269,7 @@ graph TD
 | 52 | 指令面精简与定期化 | 🏗️ 重构 | 全局宪法治理 | 根治 #84：指令面四个月 32,495 → 162,562 字符（4.8 倍）且从未净减。对照 Anthropic《The new rules of context engineering for Claude 5》（其自述砍掉 CC 系统提示 80%+ 而 eval 无损）逐条核到本仓，痛点排序是 **shift 4 重复 > shift 1 细则→判断 > shift 3 分层**，而非「删」。先落 `scripts/context_budget.py`（measure / delta --since / check-refs，41 项单测）拿到数——**当场纠正一个 3 倍的估算错误**：中文按英文经验值 4 字符/token 估会低估 3 倍，由 /context 两个实测点解出 CJK≈1.03、非 CJK≈0.59 token/字。三板斧（去重 + 细则上提 + WHY 从叙事压成结论）落到 9 个文件：86,194 → 53,457 字符（-38%），其中 10,618 是**搬到** `templates/MECHANICS.md` 与两份 `references/`（内容未减、改为按需读），真正删除约 22,100。最刺眼的两处重复文档自己承认过：sync 写着「与 bootstrap Step 3.3.7 同一份，改动时两处同步」、commit 写着「细节以 /review-loop 为单一真源」却又复述 700 字符（同一套 review 判据原本写在 6 个地方）。常驻上下文 11,610 → 8,851 token（-24%）。**产出 `/routine-slim`**（周日 01:00 UTC，阈值 15% 才动手，PR 强制三列表格「删了什么/依据哪条判据/现在从哪读得到」）把判据固化为定期任务——判据逐字来自本轮实操的账本，非纸上推演。安全边界：宪法与本仓 CLAUDE.md 只报告不动手，永不碰自己 / routine-docs / .github / scripts 等；Step 2.2 强制排除在途 PR 碰过的文件（两条 routine 都写 playbooks，光靠 cron 错开不够）。**局限：本轮全部 commit 未经独立 context review**（session 禁用 Agent 工具，按降级链退到主会话自审），人工 review 是唯一独立视角，核对对象是 docs/52-*/SLIM-LEDGER.md |
 | 53 | review 成本与思考深度调优 | 🏗️ 重构 | 全局宪法治理 | 根治 #98（P0）：`/review-loop` 委派的 reviewer **继承主会话 reasoning effort**——主会话 `xhigh` 时全编队跟着跑，实测单轮 10–25 分钟 / 13–23 万 token，5 小时额度动辄被 review 吃掉一半；而 round20 实证显示真正阻断的 7 条 finding **全部来自多角度独立 + 契约追踪 + 探针验证**，深想只额外产出约 20 条被 `<80` 置信闸滤掉的钻牛角尖项。Agent 工具**没有 effort 入参**，只能下沉到 `.claude/agents/*.md` frontmatter。动手前证伪两条断言：二进制 zod schema 坐实 `effort` 可钉死（`EL=["low","medium","high","xhigh","max"]`，官方文档字段说明漏写 `xhigh`）、**实测软链的 agent 定义能被加载且目录级软链也行**；同时**推翻 issue 的原方案**——官方分模型建议里 Sonnet 5 的 `low` 明确只适用于非编码场景，故底档是 `medium` 而非 `low`。新增 `agents/` 三定义（orchestrator / code-reviewer 跑 sonnet+medium、code-reviewer-deep 跑 opus+medium），逐个显式钉死 effort 不靠继承；工具面去 `Edit`/`Write`（把「不改文件」变成机制约束）、叶子 reviewer 另去 `Agent` 堵住再扇出一层。**不设 `maxTurns`**：截断产出「假 clean」是门禁最坏失效形态（与外层「2 轮留痕放行」是两个层级）。配套把角度分工抽到 `references/angles.md` 并写成**显式 checklist**——低思考档会把工作收敛到被明确要求的事上，没清单降档就等于降检出；**契约与装配提为首位**（AI 代码最常错在「一个组件的输出成为另一个组件的输入」处）。`agents/**` 进两条云端 routine 禁改清单。实测同类 diff 默认档 **~11 min → 4 min 25 s**，两边同为 0 条高置信 finding。**局限：0 finding 不构成检出率证据**（旧档同类 diff 也是 0），人类拍板不做 A/B，改为定下升档判据；`code-reviewer-deep` 这一路本轮从未被真实执行 |
 | 54 | routine 手动标记扩面 | ✨ 功能 | 云端自动化 routine | 给 `/routine-docs`（本轮改名 `/routine-dev`）加**人工标记通道**：owner 给 issue 打 `auto:take` 即背书其正文可被无人值守执行，落点从「只限文档」放开到 `skills/`（除自己）/ `templates/` / `scripts/` / `hooks/`。**关键认识：「落点只限文档」原本不只是范围设定，它同时是替「issue 正文来自公开仓、不可信」兜底的安全机制**——文档写错人下次读到就发现，脚本写错每次工具调用都在执行它；故放开必须先给这道防线找等价替代，替代物就是人工背书。**选 label 而非需求原提的评论做闸**：公开仓任何人都能评论（`authorAssociation` 为 `NONE`），而 label 只有写权限者打得上，授权强度由 GitHub 权限模型保证；且云端读 label 已实测跑通、读评论的 MCP 能力未经实测，押在后者会静默失效。评论降级为可选实现提示（`issue-view --with-comments` 输出 `ownerHint`，读不到不阻断）。产出一条可复用判据：**标记覆盖「保守性」排除（P0 / 需讨论 / 需落 PLAN / 落点非文档），覆盖不了「事实性」排除（正文没说清 / 现状已满足 / 撞红线）——「我授权你做」≠「你必须做出来」**。四条红线打了标记也解不开：自己、`agents/**`、`install.sh`、`.github/**`；其中 `agents/**` 是 PLAN 里没有、rebase 并入 round 53 后新增的，它是**本 routine 自己每个 commit 都要过的那道门禁的强度**——reference §7 把前两条归并成通则「routine 不得修改任何决定它自己被允许做什么、或自己被怎样检查的东西」。§7 同时明写论证弱点不粉饰：owner 打 label 时未必逐字读过正文，攻击链未失效、只是把要骗过的对象从分诊模型换成了人。顺带补上原先**单向**的撞车防线（slim 排除在途 PR 碰过的文件、dev 只按 `Closes #N` 排 issue 不看文件）——dev 侧落点复核的并集初始值从空集改为「所有 open PR 碰过的文件」，一处初始化改动补成双向且覆盖人开的 PR。额外产物：`platform_issue.py` 加 `--with-comments`（**owner 身份判据下沉进代码并挂单测**，不留给模型每次自觉过滤；默认 schema 实测新旧字节级相同）、`unlink_legacy_dir` 目标路径参数化（改名清理复用不了写死的 `/*/rules`，测试 9→12 条）、分支前缀 `auto/dev-*` 但仍认历史前缀防老 PR 失联。**教训：TDD 的「先红」只证明测试当时会红、不证明它红在你以为的判据上**——新增用例 10 初版是假绿（沙盘没建标志文件，第二道防线替被测判据兜了底），reviewer 主动改坏实现才发现 |
+| 55 | 委派授权声明 | ✨ 功能 | 全局宪法治理 | #91 的增量补充（主体已由 735c04c 修完）。起因是 review 编队上线后反复静默降级：CC 向 Opus 5 档常驻注入 `Do not call the AgentTool unless the user requested it`（服务端 flag 控制、用户不可关、sonnet 不复现），模型把这条**条件式策略约束**读成**能力缺失**、一次不试就退到本端自审。**本轮最值钱的不是那 3 行 diff，是撞车后的取舍**：完整实现 + 2 轮 review clean + 2 个 commit 落地后才 fetch，发现远端 6 天前已修完同一 issue 且更全面（多出「无人值守例外」与 /commit 联动），人类拍板**弃掉整版**（存备份 tag）、只补真增量——在已有判据旁再写近似表述会双写漂移，重复比漏改更糟。最终只加两处：① 宪法补一条**正面**授权声明（远端表述是防御式的「不构成降级理由」、绑定在降级判断上；本条声明长期授权、作用域覆盖任何委派场景），措辞刻意写成「那类条件式指令的条件**已被满足**」而非「忽略平台指令」——前者如实陈述、后者是通用后门，故自带作用域限定句严格限于「委派子 agent」；② review-loop 堵住「编一次没发生的调用来凑降级证据」这个反向逃逸口。**刻意不把 Kep / flag 名 / 版本号写进指令面**（round 50 已确立逆向描述全删），只留 PROMPT.md 档案备将来比对。3 行 diff、指令面 +0.2%，3 reviewer 首轮即 clean，两条专项（是否与远端重复、是否构成后门）三方独立核验均通过。**过程逮到两件事**：`~/.claude/agents/` 根本没软链过去（远端新增目录后本机未重跑 install.sh），意味着 review-orchestrator 编队在本机一直不可用而无任何告警——按新门槛真调了一次拿到确凿报错，但判定「缺的只是专用定义、Agent 工具与 general-purpose 都在、独立 context 拿得到」故**不降级**，改用 general-purpose 委派（代价：编队档位未由 frontmatter 钉死）；以及**实测证伪** CLAUDE.md「新 agent 类型需新开会话」一句（install 建软链后本会话内即热加载，但边界待验证故不夹带改）。沉淀三条 → #114（/start 开轮前 fetch 查 issue 是否已被远端关闭，P1）/ #115（skill 依赖缺失应显式报错而非自行找替代路径）/ #116（宪法补「与远端已合入实现撞车」的决策路径） |
 
 ---
 
@@ -304,7 +307,7 @@ graph TD
 #### 全局宪法治理
 
 - 状态：进行中
-- 轮次：24, 25, 44, 45, 46, 47, 48, 50, 52, 53
+- 轮次：24, 25, 44, 45, 46, 47, 48, 50, 52, 53, 55
 
 #### 领域规则沉淀
 
