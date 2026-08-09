@@ -128,7 +128,7 @@ echo-back 新建文件的路径（`README.md`、`CLAUDE.md`、`docs/DEVTREE.md`�
 3. 已跑 3.5 的：项目已可 `uv run pytest` / `git commit`，可选跑 `pre-commit run --all-files` 验证（首次接入易出 finding）。已跑 3.5b 的：`frontend/` 已可 `npm run dev` / `npm run build`
 4. 3.5 被用户跳过的：未来可手动跑 `uv init --package && uv add --dev pytest pytest-cov ruff && uv tool install pre-commit && pre-commit install`，或重跑 `/sync-project-config` 走 adopt
 5. Step 3 整段跳过 / 选了非 python stack 的：未来可运行 `/sync-project-config` 走 adopt 补全
-6. 3.3.5 跳过了 labels 同步的：按 helper exit code 补救（3 auth → `gh`/`glab auth login`；2 无 origin → 关联 remote 或自托管 GitLab 加 `--platform gitlab`；4 CLI 缺失 → 装 `gh`/`glab`），补齐后重跑 `/sync-project-config`
+6. 3.3.5 跳过了 labels 同步的：按 `scripts/platform_issue.md`「exit code 降级」表逐码补救，补齐后重跑 `/sync-project-config`
 7. `.github/labels.yml` 的 `area:` 段还是占位符的：按本项目实际模块改完再 `/sync-project-config` 重新同步
 8. 已有第一个开发项想法的：运行 `/backlog` 登记
 9. 准备好后运行 `/start` 开启 round 0
