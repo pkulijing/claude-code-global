@@ -17,9 +17,11 @@ disable-model-invocation: false
 | `--keep-backup` | ✓ | ✓ | ✓ | ✗ |
 | `--no-rebase` | ✗ | ⚠️ 仅当已可 FF | （随其它开关） | （随其它开关） |
 
-- `--no-merge`（同义 `--keep-branch`）：rebase 让分支线性，但**不** FF merge；worktree / 分支 / backup tag 全保留。用于发包 / 外审前想先留分支等 review、或本轮想继续迭代。
-- `--keep-backup`：正常合并清理，但保留 backup tag（高风险轮想多保几天兜底）。
-- `--no-rebase`：跳过 8.2 与备份 tag；仅在「分支相对主分支已可 FF」时仍能 merge，否则停下提示。
+各开关**做什么以上表为准**，下面只说什么时候用它：
+
+- `--no-merge`（同义 `--keep-branch`）：发包 / 外审前想先留分支等 review，或本轮想继续迭代。
+- `--keep-backup`：高风险轮想让 backup tag 多留几天兜底。
+- `--no-rebase`：不想动历史；此时**只有分支相对主分支已可 FF 才会 merge**，否则停下提示。
 
 开关可组合、语义叠加（`--no-merge --keep-backup` 与单 `--no-merge` 等价 —— 后者本就保留全部）。
 
@@ -44,9 +46,9 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-create \
 # 建完 close：gh issue close <N> -r "not planned"  /  glab issue close <N>
 ```
 
-**要往 issue 补材料**（验证产物、实测数据、结论回写）时走 helper 的 `issue-comment --issue <N> --body-file <F>`，**不要直调 `gh issue comment`** —— 契约见 `scripts/platform_issue.md`。
+**要往 issue 补材料**（验证产物、实测数据、结论回写）时走 helper 的 `issue-comment --issue <N> --body-file <F>`，**不要直调 `gh issue comment`**。
 
-body 写原因 + SUMMARY 路径。`wontfix` label 缺失先补进 `.github/labels.yml` 并 sync（**三轴 + wontfix 是硬要求，缺则 `issue-create` 整条失败**）。helper 契约见 `~/.claude/scripts/platform_issue.md`。
+body 写原因 + SUMMARY 路径。`wontfix` label 缺失先补进 `.github/labels.yml` 并 sync（**三轴 + wontfix 是硬要求，缺则 `issue-create` 整条失败**）。helper 契约（子命令语义、exit code 降级、三轴硬约束）的单一真源是 `scripts/platform_issue.md`。
 
 用户说「无」→ 跳过。
 
@@ -86,19 +88,19 @@ body 写原因 + SUMMARY 路径。`wontfix` label 缺失先补进 `.github/label
 
    目录不存在 / `URL` 取不到 / `PLAT` 空 → 跳过 file，提示「无法定位 claude-code-global，候选已记在 SUMMARY 可沉淀项段」，**不阻塞 finish**。
 
-2. **选并校验三轴 label**：`type:*` + `priority:P2`（沉淀项默认排队）+ `area:*`（读 `$GLOBAL_DIR/.github/labels.yml` 选最贴的一个）。**三轴是硬要求。** 选完对**目标仓库**校验三个 label 都真实存在 —— `labels.yml` 未必已同步到远端，二者可能脱节：
+2. **选并校验三轴 label**：`type:*` + `priority:P2`（沉淀项默认排队）+ `area:*`（读 `$GLOBAL_DIR/.github/labels.yml` 选最贴的一个）。**三轴是硬要求**，且选完必须对**目标仓库**校验三个 label 都真实存在：
 
    ```bash
    python3 "$HOME/.claude/scripts/platform_issue.py" --platform "$PLAT" label-list --repo "$SLUG"
    ```
 
-   只从该列表挑；不在列表的不要硬塞（会让 `issue-create` 整条失败），改选已存在的同轴 label，或先 `label-sync-from-file` 同步后再校验。
+   只从该列表挑，不在列表的不要硬塞（为什么必须校验、以及硬塞失败后的补救路径，见 `scripts/platform_issue.md`「三轴 label 硬约束」）。
 
 3. **写临时 body**（`/tmp/distill-<n>.md`）：来源项目名 + 轮次 + 为什么值得沉淀 + 具体落点建议 + 末尾标注「跨项目自动沉淀 issue」。当前项目有 remote 就给回链 URL。
 
 4. **调 helper 跨仓库提**（`--platform "$PLAT" issue-create --repo "$SLUG"` + 三轴 label + `--body-file`），成功则打印返回的 issue URL。
 
-   **失败兜底（关键）**：helper 报错时**绝不去掉 `--label` 重试以求创建成功** —— 那正是历史上产出无 label 裸 issue 的原因。正确做法是回第 2 步重新校验 / 修正 label，带齐三轴重试；仍无法解决则停下把错误报给用户（候选已记在 SUMMARY，可手动补，不阻塞 finish）。
+   **失败兜底（关键）**：helper 报错时**绝不去掉 `--label` 重试以求创建成功** —— 那正是历史上产出无 label 裸 issue 的原因（完整推导见 `scripts/platform_issue.md`）。正确做法是回第 2 步重新校验 / 修正 label，带齐三轴重试；仍无法解决则停下把错误报给用户（候选已记在 SUMMARY，可手动补，不阻塞 finish）。
 
 ## Step 4 · 识别 issue 关联
 
