@@ -45,6 +45,8 @@
 
 launchd / systemd 拉起的进程**不走**你的 `.zshrc` / `.bashrc`。`~/.local/bin`、`/opt/homebrew/bin` 这些全都不在 PATH 里——`claude` 命令本身往往就是第一个「找不到」的。**wrapper 里显式 export，别指望继承。**
 
+**同一根因还有另一种形态：非交互式 ssh（`ssh host 'cmd'`）**——完整的三种修法、以及「为什么手动验证恰好绕开这个失败模式」，见 `playbooks/shell.md` §5。
+
 ### 3.4 无头 agent 三要素
 
 - **显式降档模型**：周期性杂活用便宜档，且**永远显式传**（不传就跟着默认走，默认会随版本漂移）；
