@@ -394,6 +394,63 @@ def cmd_issue_comment(args):
     return EXIT_OK
 
 
+def build_issue_label_cmd(platform, number, labels, remove, repo):
+    """Build the gh/glab argv that adds or removes labels on an issue (pure).
+
+    The two platforms disagree on the subcommand *and* on both flag names
+    (`issue edit --add-label/--remove-label` vs `issue update
+    --label/--unlabel`), which is the usual reason a caller must come through
+    this helper instead of reaching for the CLI.
+
+    Each label gets its own flag rather than one comma-joined value: a label
+    name may itself contain a comma, and joining would have the platform
+    split it into two names that exist nowhere.
+
+    Semantics are incremental on both ends — the labels already on the issue
+    are left alone. That matters for the `auto:skip` writer in /routine-dev:
+    a replace-style call would silently drop the three-axis labels.
+
+    GitLab side is unverified (no `glab` on the dev machine) — see
+    scripts/platform_issue.md.
+    """
+    if platform == PLATFORM_GITHUB:
+        flag = "--remove-label" if remove else "--add-label"
+        cmd = ["gh", "issue", "edit", str(number)]
+    else:
+        flag = "--unlabel" if remove else "--label"
+        cmd = ["glab", "issue", "update", str(number)]
+    for label in labels:
+        cmd += [flag, label]
+    if repo:
+        cmd += ["--repo", repo]
+    return cmd
+
+
+def _cmd_issue_label(args, remove):
+    plat = resolve_platform(args.platform)
+    if plat == PLATFORM_UNKNOWN:
+        sys.stderr.write("error: cannot detect platform from git remote origin\n")
+        return EXIT_PLATFORM_UNKNOWN
+    result = _run(
+        build_issue_label_cmd(plat, args.issue, args.label, remove, args.repo)
+    )
+    if result.returncode != 0:
+        # 原样透传底层错误：打标是为了持久化一个判断，谎报成功比失败更坏
+        sys.stderr.write(result.stderr or result.stdout)
+        return EXIT_ERROR
+    verb = "removed" if remove else "added"
+    print(f"{verb} on {plat}: #{args.issue} {' '.join(args.label)}")
+    return EXIT_OK
+
+
+def cmd_issue_label_add(args):
+    return _cmd_issue_label(args, remove=False)
+
+
+def cmd_issue_label_remove(args):
+    return _cmd_issue_label(args, remove=True)
+
+
 def build_issue_view_cmd(platform, number, with_comments=False):
     """Build the gh/glab issue-view argv (pure, no execution).
 
@@ -737,6 +794,125 @@ def _sandbox_issue_comment():
     return failures
 
 
+def _sandbox_issue_label():
+    """Sandbox `issue-label-add` / `-remove` end-to-end with stubbed gh/glab.
+
+    Pins two things the pure argv builder cannot: labels arrive as separate
+    repeated flags with spaces / CJK intact, and a non-zero exit from the
+    underlying CLI surfaces as EXIT_ERROR. The second matters more than it
+    looks — /routine-dev writes this label to persist a triage verdict, so a
+    failed write reported as success would leave it re-reading the same issue
+    bodies every run while believing the mark had landed.
+    """
+    failures = []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        argv_log = tmp / "argv.log"
+
+        def write_stub(name, exit_code=0, stderr=""):
+            stub = tmp / name
+            stub.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, sys, pathlib\n"
+                f"pathlib.Path({str(argv_log)!r}).write_text(json.dumps(sys.argv))\n"
+                f"sys.stderr.write({stderr!r})\n"
+                f"sys.exit({exit_code})\n"
+            )
+            stub.chmod(0o755)
+
+        env_path = f"{tmp}{os.pathsep}{os.environ.get('PATH', '')}"
+        base = [sys.executable, str(Path(__file__).resolve()), "--platform"]
+
+        cases = [
+            (
+                PLATFORM_GITHUB,
+                [
+                    "issue-label-add",
+                    "--issue",
+                    "7",
+                    "--label",
+                    "auto:skip",
+                    "--label",
+                    "help wanted",
+                ],
+                [
+                    "gh",
+                    "issue",
+                    "edit",
+                    "7",
+                    "--add-label",
+                    "auto:skip",
+                    "--add-label",
+                    "help wanted",
+                ],
+            ),
+            (
+                PLATFORM_GITLAB,
+                ["issue-label-remove", "--issue", "7", "--label", "auto:skip"],
+                ["glab", "issue", "update", "7", "--unlabel", "auto:skip"],
+            ),
+        ]
+        for plat, argv_in, want_argv in cases:
+            write_stub("gh")
+            write_stub("glab")
+            proc = subprocess.run(
+                base + [plat] + argv_in,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "PATH": env_path},
+            )
+            if proc.returncode != EXIT_OK:
+                failures.append(
+                    f"sandbox {argv_in[0]} {plat}: exit {proc.returncode}, "
+                    f"stderr={proc.stderr.strip()!r}"
+                )
+                continue
+            got_argv = json.loads(argv_log.read_text())
+            got_argv[0] = Path(got_argv[0]).name
+            if got_argv != want_argv:
+                failures.append(
+                    f"sandbox {argv_in[0]} {plat} argv: {got_argv!r} != {want_argv!r}"
+                )
+
+        # 底层 CLI 非零退出必须透传：打标失败却报成功，会让 routine 以为
+        # 结论已持久化，下次照样把同一批正文重读一遍
+        write_stub("gh", exit_code=1, stderr="HTTP 403: Resource not accessible\n")
+        proc = subprocess.run(
+            base
+            + [
+                PLATFORM_GITHUB,
+                "issue-label-add",
+                "--issue",
+                "7",
+                "--label",
+                "auto:skip",
+            ],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PATH": env_path},
+        )
+        if proc.returncode != EXIT_ERROR:
+            failures.append(
+                f"sandbox issue-label-add 失败透传: exit {proc.returncode}, want {EXIT_ERROR}"
+            )
+        if "403" not in proc.stderr:
+            failures.append(f"sandbox issue-label-add 失败 stderr 未透传: {proc.stderr!r}")
+
+        # 缺 --label 必须被拒，不许对平台发一次空的 label 编辑
+        write_stub("gh")
+        proc = subprocess.run(
+            base + [PLATFORM_GITHUB, "issue-label-add", "--issue", "7"],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PATH": env_path},
+        )
+        if proc.returncode == EXIT_OK:
+            failures.append("sandbox issue-label-add 缺 --label 应当拒绝")
+
+    return failures
+
+
 def cmd_self_test():
     failures = []
 
@@ -920,6 +1096,84 @@ def cmd_self_test():
                 f"{got_cmd!r} != {expected_cmd!r}"
             )
 
+    # issue-label-add / -remove：两端连子命令名带 flag 名都不同（edit/--add-label
+    # 对 update/--label），且**每个 label 各带一次 flag** —— 拼成 "a,b" 会让名字里
+    # 本来就含逗号的 label 被平台侧拆成两个。
+    label_cmd_cases = [
+        (
+            (PLATFORM_GITHUB, 7, ["auto:skip"], False, None),
+            ["gh", "issue", "edit", "7", "--add-label", "auto:skip"],
+        ),
+        (
+            (PLATFORM_GITHUB, 7, ["auto:skip", "type:docs"], False, None),
+            [
+                "gh",
+                "issue",
+                "edit",
+                "7",
+                "--add-label",
+                "auto:skip",
+                "--add-label",
+                "type:docs",
+            ],
+        ),
+        (
+            (PLATFORM_GITHUB, 7, ["auto:skip"], True, None),
+            ["gh", "issue", "edit", "7", "--remove-label", "auto:skip"],
+        ),
+        (
+            (PLATFORM_GITHUB, 7, ["auto:skip"], False, "o/x"),
+            [
+                "gh",
+                "issue",
+                "edit",
+                "7",
+                "--add-label",
+                "auto:skip",
+                "--repo",
+                "o/x",
+            ],
+        ),
+        (
+            (PLATFORM_GITLAB, 7, ["auto:skip"], False, None),
+            ["glab", "issue", "update", "7", "--label", "auto:skip"],
+        ),
+        (
+            (PLATFORM_GITLAB, 7, ["auto:skip"], True, "o/x"),
+            [
+                "glab",
+                "issue",
+                "update",
+                "7",
+                "--unlabel",
+                "auto:skip",
+                "--repo",
+                "o/x",
+            ],
+        ),
+        # label 名里的空格 / 中文原样进 argv（不经 shell，无需转义）
+        (
+            (PLATFORM_GITHUB, 7, ["help wanted", "待确认"], False, None),
+            [
+                "gh",
+                "issue",
+                "edit",
+                "7",
+                "--add-label",
+                "help wanted",
+                "--add-label",
+                "待确认",
+            ],
+        ),
+    ]
+    for (plat, num, labels, remove, repo), expected_cmd in label_cmd_cases:
+        got_cmd = build_issue_label_cmd(plat, num, labels, remove, repo)
+        if got_cmd != expected_cmd:
+            failures.append(
+                f"build_issue_label_cmd({plat}, remove={remove}, repo={repo!r}): "
+                f"{got_cmd!r} != {expected_cmd!r}"
+            )
+
     list_cmd_cases = [
         (
             (PLATFORM_GITHUB, 100, None),
@@ -1002,6 +1256,7 @@ def cmd_self_test():
 
     # 沙盘：桩掉 gh / glab，断言**真实传参**而非日志字符串（playbooks/shell.md §4）
     failures.extend(_sandbox_issue_comment())
+    failures.extend(_sandbox_issue_label())
 
     # 跨仓库零-label 护栏：跨仓库(--repo)创建必须带 label，除非显式逃生
     guard_cases = [
@@ -1261,6 +1516,23 @@ def build_parser():
         "other than cwd's origin",
     )
 
+    for name, verb in (("issue-label-add", "add"), ("issue-label-remove", "remove")):
+        p_label = sub.add_parser(name)
+        p_label.add_argument("--issue", type=int, required=True)
+        p_label.add_argument(
+            "--label",
+            action="append",
+            required=True,
+            help=f"Label to {verb}; repeat for several. Incremental — labels "
+            "already on the issue are untouched",
+        )
+        p_label.add_argument(
+            "--repo",
+            default=None,
+            help="Target repo slug (owner/name) to label an issue in a repo "
+            "other than cwd's origin",
+        )
+
     p_sync = sub.add_parser("label-sync-from-file")
     p_sync.add_argument("path")
 
@@ -1288,6 +1560,8 @@ def main():
         "issue-view": cmd_issue_view,
         "issue-list": cmd_issue_list,
         "issue-comment": cmd_issue_comment,
+        "issue-label-add": cmd_issue_label_add,
+        "issue-label-remove": cmd_issue_label_remove,
         "label-list": cmd_label_list,
         "label-sync-from-file": cmd_label_sync_from_file,
     }

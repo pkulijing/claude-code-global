@@ -9,7 +9,7 @@ python3 $HOME/.claude/scripts/platform_issue.py [--platform github|gitlab] [--re
 ```
 
 - `--platform` / `--repo` 省略时按当前仓库 `git remote` 自动判定、对本仓库操作；跨仓库操作（如向 claude-code-global 沉淀 issue）显式带 `--repo <slug>`。
-- 常用子命令：`issue-view <N>`、`issue-create`、`issue-comment`、`label-list`、`label-sync-from-file <path>`。
+- 常用子命令：`issue-view <N>`、`issue-create`、`issue-comment`、`issue-label-add` / `issue-label-remove`、`label-list`、`label-sync-from-file <path>`。
 
 ## issue-list 语义
 
@@ -36,6 +36,25 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-comment --issue <N> --body
 
 - **长正文安全**：一律以 argv 列表交给 `subprocess`、**不经 shell**，正文里的反引号 / `$VAR` / 引号原样传入，无需转义。已按 `playbooks/shell.md` §4 配沙盘用例（桩掉 `gh` / `glab`，断言真实 argv），覆盖含代码块的长 markdown。
 - **输出**：评论 URL 单行到 stdout（与 `issue-create` 同构）。**GitLab 侧 `issue note` 的输出 schema 未经实测**：取不到 URL 时不报错（评论已经发出去了，此时失败等于把成功的副作用谎报成失败），只在 stderr 留一行 `warn:`，exit 仍为 0。
+
+## issue-label-add / issue-label-remove 语义
+
+```bash
+python3 $HOME/.claude/scripts/platform_issue.py issue-label-add    --issue <N> --label <X> [--label <Y>] [--repo <slug>]
+python3 $HOME/.claude/scripts/platform_issue.py issue-label-remove --issue <N> --label <X> [--repo <slug>]
+```
+
+两端连子命令带 flag 名都不同：
+
+|        | 加                                      | 删                                        |
+| ------ | --------------------------------------- | ----------------------------------------- |
+| GitHub | `gh issue edit <N> --add-label <X>`     | `gh issue edit <N> --remove-label <X>`    |
+| GitLab | `glab issue update <N> --label <X>`     | `glab issue update <N> --unlabel <X>`     |
+
+- **增量语义**：只动指定的那几个 label，issue 上已有的原样保留。消费方（`/routine-dev` 打 `auto:skip`）依赖这一点 —— 换成全量替换会把三轴 label 悄悄抹掉。
+- **一个 label 一次 flag**，绝不拼成 `"a,b"`：label 名本身可以含逗号，拼起来会被平台侧拆成两个不存在的名字。
+- **输出**：成功打一行 `added on <platform>: #<N> <labels>`（删则 `removed`）。**失败原样透传底层 stderr 并 exit 1** —— 打标是为了持久化一个判断，谎报成功会让调用方以为结论已落库。
+- **GitLab 侧未经实测**（本机没装 `glab`）：argv 形态由纯函数 + 沙盘桩测钉住，真实 flag 语义待有 GitLab 环境时校，与 `issue-comment` 的 GitLab 输出 schema 同属一类未验项。
 
 ## label-sync-from-file 语义
 
