@@ -26,7 +26,7 @@ disable-model-invocation: false
 python3 $HOME/.claude/scripts/platform_issue.py issue-list
 ```
 
-按 `git remote get-url origin` 自动判定 GitHub / GitLab，stdout 是归一 json 数组（`number` / `title` / `body` / `url` / `labels`，与 `issue-view` 同 schema）。
+按 `git remote get-url origin` 自动判定 GitHub / GitLab，stdout 是归一 json 数组（`number` / `title` / `body` / `url` / `labels`，与 `issue-view` 同 schema；另带 `state`，本子命令只列 open 故恒为 `open`）。
 
 **拿不到数据就把原因照实说出来并停在这里，不要凭印象手写一张表。** 本子命令实际会出现的退出码只有三种：**2** 平台未知（无 origin / 自托管 URL 不含 `gitlab` 字样）、**4** `gh` / `glab` 没装、**1** 其余一切失败（含 **auth 过期** —— 那是底层 CLI 的非零退出，helper 原样透传它的 stderr，**不会**变成 `scripts/platform_issue.md` 降级表里的 3；exit 3 只有 `auth-status` 子命令才产生）。所以判 auth 问题要看 stderr 内容，别按数值分支。
 

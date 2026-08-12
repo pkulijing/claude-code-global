@@ -53,3 +53,62 @@ EXIT=1
 | `"CLOSED "`（尾随空格）未 `.strip()` 会被判成 `open` | 判错方向落在既定的「判不出算 open」安全侧，且 `gh` / `glab` 实际输出不会产出带空白的字段值。不改。 |
 | `state=0/False/list/dict` 等非字符串 | 已复核全部归一为 `open`，不抛异常。符合设计。 |
 | `/triage`、`/start` 的内联 schema 尚未提及新字段 | 命中已定前提 5（后续 commit 的范围），不计本轮。**已记入待办，别在 commit 2 漏掉这块接线。** |
+
+## 开发单元 2 —— `/start` 的远端对齐（`skills/start/SKILL.md`）
+
+### 元信息
+
+- **档位**：默认档，角度 ①②③
+- **是否降级**：**否，但编队装配方式变了，如实记**：第 2 轮里 `review-orchestrator` **收不回子 agent 的结果** —— 连续两次只回「还在等角度 ②」，等于零 finding。改为**主会话直接委派 3 个单角度 `code-reviewer`**（各自读 `references/angles.md` 按原文执行），跨角度去重与置信汇总由主会话做。
+  **这不是宪法意义上的降级**：独立 context 这个首要属性完整保住了（三个 reviewer 各自独立、都没有本轮对话历史），丢的只是 orchestrator 的汇总环节。**代价如实记**：汇总由写这段 diff 的同一个 context 做，理论上有偏向性；三个角度的原始结论都保留在 `REVIEW.md` 可复核。
+  **额外观察**：角度 ② 的 reviewer 反馈它 `SendMessage` 给 `review-orchestrator` 时报 `No agent named 'review-orchestrator' is reachable`，遂改发主会话 —— 这解释了 orchestrator 为什么空等。
+- **闸 A（运行验证）**：指令文件无可运行单元，判 N/A；以**逐字抠出文档里的命令实跑**代偿（见下）
+- **迭代轮数**：2 轮，收敛
+
+### 第 1 轮：1 条 finding（置信 85，已修）
+
+**`skills/start/SKILL.md:101`「`<中文描述>` 同第 4 步 docs 目录的描述」—— 步骤从 7 扩到 8 步后，docs 目录创建顺延为第 5 步，这处引用变成自指 worktree 创建本身。**
+
+典型的「**顺延了步号，却漏了 diff 之外的正文引用**」。改为「第 5 步」。
+
+顺带修了同轮判 45–65 分未上报的一条：`<主分支>` 在第 1 步就被用上，探测方法却定义在第 4 步展开小节。加一句**指针**（只指路、不复述命令，避免双写漂移）。
+
+### 第 2 轮：1 条 finding（置信 78，已修）
+
+**关闭动词正则只有右边界，没有左边界。**
+
+第 1 轮我给数字加了右边界 `([^0-9]|$)`（挡「查 `#11` 命中 `#114`」），但动词侧写成 `(clos|fix|resolv)[a-z]*` 一把抓，于是：
+
+```
+$ echo "still unresolved #11" | grep -iE '(clos|fix|resolv)[a-z]* #11([^0-9]|$)'   # 命中
+$ echo "not fixing #11 yet"   | grep -iE '(clos|fix|resolv)[a-z]* #11([^0-9]|$)'   # 命中
+```
+
+**把「还没修」报成「已经修完了」** —— 同一类漏洞的另一侧，我只堵了一侧。
+
+置信 78 在 80 阈值**下方**、按 rubric 本可丢弃；仍然修，因为代价是一次误报式停机，而修它只要改一行。
+
+**修法不是简单加左边界**：先试 `(^|[^a-z])(clos|fix|resolv)[a-z]*`，实测 `unresolved` / `AlsoCloses` 挡住了，**`not fixing` 仍然命中** —— 因为 `fix[a-z]*` 会吃掉 `fixing`。根因是 `[a-z]*` 太宽。最终按 **GitHub 的真实关闭关键字清单枚举**（close/closes/closed、fix/fixes/fixed、resolve/resolves/resolved，**没有进行时**）：
+
+```
+(^|[^a-z])(close[sd]?|fix(es|ed)?|resolve[sd]?) #<N>([^0-9]|$)
+```
+
+### 验证：拿文件里的真串跑，不是拿「我以为写进去的」跑
+
+第一次验证**自己翻了车**：用 `grep -o` 抠正则时模式没匹配上，变量成了空串，而空正则匹配一切 —— 输出「全部命中」，看起来像结论，其实什么都没测。改用 python 抠出后重跑：
+
+- 文件里两处 `--grep` 正则**逐字一致**，且与预期逐字相同；
+- 6 条反例全落空（`unresolved` / `not fixing` / `AlsoCloses` / `closing` / `#114` / `reopens`）；
+- 12 条正例全命中（九种关键字词形 + 行首 `- ` 前缀 + 句末句点 + **多行 body 里的 `Closes #11`**）；
+- 真仓库回归：`#91` 命中 `735c04c`，`#114` / `#116` 为空（确认本轮两条 issue 未被远端做过）。
+
+**这次翻车本身值得记**：验证脚本自己出错时，最危险的形态不是报错，而是**输出一份看起来全绿的结果**。
+
+### 三个角度的最终结论
+
+| 角度 | 结论 |
+| --- | --- |
+| ① 契约与装配 | **clean** —— 独立重数 8 处「第 N 步」引用全部自洽；核对新指针确指向「探测主分支」那一条；`state`/`stateReason` 与上一 commit 的实现及单测逐字对得上 |
+| ② 缺陷定向扫描 | 上述正则 finding；其余 clean —— 实测确认 `git ls-tree` 在 `docs/` 不存在时返回空不报错、`--remotes=origin --not <主分支>` 的在途语义成立、选项 flag 放在 `--not` 之后仍被正确解析 |
+| ③ 项目规范合规 | **clean** —— 全仓扫描确认 `skills/` 与 `GLOBAL_AGENTS.md` 中**无任何指向 `/start` 内部步骤号的外部引用**；新增 schema 说明与 `scripts/platform_issue.md` 一致且带指针，不构成双写 |
