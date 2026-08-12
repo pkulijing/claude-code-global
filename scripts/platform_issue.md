@@ -11,13 +11,25 @@ python3 $HOME/.claude/scripts/platform_issue.py [--platform github|gitlab] [--re
 - `--platform` / `--repo` 省略时按当前仓库 `git remote` 自动判定、对本仓库操作；跨仓库操作（如向 claude-code-global 沉淀 issue）显式带 `--repo <slug>`。
 - 常用子命令：`issue-view <N>`、`issue-create`、`issue-comment`、`issue-label-add` / `issue-label-remove`、`label-list`、`label-sync-from-file <path>`。
 
+## issue-view 语义
+
+```bash
+python3 $HOME/.claude/scripts/platform_issue.py issue-view <N> [--with-comments]
+```
+
+stdout 是归一 json：`number` / `title` / `body` / `url` / `labels` / `state` / `stateReason`（GitLab 的 `iid` / `description` / `web_url` 已在 helper 内归一）。`--with-comments` 再加 `comments` 与 `ownerHint`（**GitHub only**，GitLab 侧 notes 能力未实测，`comments` 恒空并在 stderr 留 `note:`）。
+
+- **`state` 只有 `open` / `closed` 两个值。** 两端词形不同（GitHub `CLOSED`／GitLab `closed`），归一的赌注押在**「关闭」这一侧** —— 两端小写后同字；而「打开」两端不一致（`OPEN` vs `opened`），押它就得赌一个未实测的词形。**判不出一律算 `open`**：失败方向定死在「照常开轮」，而不是把人拦在门外。
+- **`stateReason` 是 GitHub 独有**（`COMPLETED` / `NOT_PLANNED` / `REOPENED`），GitLab 恒为空串，不伪造。它区分的是「做完了」与「**有人决定不做**」—— 二者的处理方向相反。
+- 主要消费方是 `/start` 的**开轮远端对齐**：`state` 回答「这条还该不该做」，比 `git log --grep "Closes #N"` 更权威 —— 后者依赖提交信息写了关闭关键字，而 `/start` 要在任何项目里跑，别的项目未必有这个约定。
+
 ## issue-list 语义
 
 ```bash
 python3 $HOME/.claude/scripts/platform_issue.py issue-list [--limit N] [--repo <slug>] [--no-body]
 ```
 
-只列 **open** issue，stdout 是归一 json **数组**，每项 schema 与 `issue-view` 完全一致（`number` / `title` / `body` / `url` / `labels` / `updatedAt`）—— 消费方（`/triage`）据此读 `labels` 取 priority 轴、读 `body` 取 scope 字段，不必关心是哪端答的。`--limit` 默认 100（GitHub `--limit` ↔ GitLab `--per-page`）。
+只列 **open** issue，stdout 是归一 json **数组**，每项 schema 与 `issue-view` 完全一致（`number` / `title` / `body` / `url` / `labels` / `updatedAt` / `state`，末者只列 open 故恒为 `open`）—— 消费方（`/triage`）据此读 `labels` 取 priority 轴、读 `body` 取 scope 字段，不必关心是哪端答的。`--limit` 默认 100（GitHub `--limit` ↔ GitLab `--per-page`）。
 
 - **`updatedAt`**：平台给什么就是什么（GitLab 侧字段名是 `updated_at`，helper 归一）；**平台没给就是 `null`，绝不拿「现在」兜底** —— 它的消费方拿它和一个更早的快照比对「这条 issue 有没有被人动过」，编一个时间戳会让那道闸永远答「没动过」。
 - **`--no-body`**：整个丢掉 `body` 字段（不是截断），GitHub 侧在服务端就不取。用于**只要时间戳的复核式重读** —— `/routine-dev` 打 `auto:skip` 前要确认「读完正文到现在这段时间里没人编辑过它」，若为此把所有正文再拉一遍，花掉的正是这个 label 要省的那笔。GitLab 无字段选择能力，argv 不变、正文在归一层丢，schema 承诺一致。

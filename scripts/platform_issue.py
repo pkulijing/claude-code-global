@@ -158,6 +158,18 @@ def normalize_issue(raw, platform, with_comments=False, include_body=True):
             "labels": [lbl["name"] if isinstance(lbl, dict) else lbl for lbl in labels],
             "updatedAt": raw.get("updatedAt"),
         }
+    # 状态两端归一成 open / closed 两个值。消费方（`/start` 的开轮远端对齐）问的只有
+    # 「这条还该不该做」，不该知道答话的是哪一端。
+    #
+    # 赌注刻意押在「关闭」这一侧：GitHub 是 CLOSED、GitLab 是 closed，小写后同字；
+    # 而「打开」两端词形不同（OPEN vs opened），押它就得赌一个本机无法实测的词形
+    # （没装 glab）。押词形一致的一侧，未实测的那端才不会判错。
+    #
+    # 字段缺失（issue-list 老路径）→ open：判不出就照常开轮，不把人拦在门外。
+    out["state"] = "closed" if str(raw.get("state") or "").lower() == "closed" else "open"
+    # GitHub 独有，用来区分「做完了」（COMPLETED）与「有人决定不做」（NOT_PLANNED）——
+    # 二者的处理方向相反。GitLab 无对应字段，恒为空串，不伪造。
+    out["stateReason"] = raw.get("stateReason") or ""
     if not include_body:
         out.pop("body", None)
     if with_comments:
@@ -475,7 +487,10 @@ def build_issue_view_cmd(platform, number, with_comments=False):
     answered.
     """
     if platform == PLATFORM_GITHUB:
-        fields = "number,title,body,url,labels,updatedAt"
+        # state / stateReason 是 `/start` 开轮远端对齐要的「这条还该不该做」——
+        # 它比 `git log --grep "Closes #N"` 更权威：后者依赖提交信息写了关闭关键字，
+        # 而 /start 是全局 skill，别的项目未必有这个约定。
+        fields = "number,title,body,url,labels,updatedAt,state,stateReason"
         if with_comments:
             fields += ",comments"
         return ["gh", "issue", "view", str(number), "--json", fields]
@@ -527,9 +542,9 @@ def build_issue_list_cmd(platform, limit, repo, no_body=False):
     the body is dropped when normalizing instead.
     """
     if platform == PLATFORM_GITHUB:
-        fields = "number,title,url,labels,updatedAt"
+        fields = "number,title,url,labels,updatedAt,state"
         if not no_body:
-            fields = "number,title,body,url,labels,updatedAt"
+            fields = "number,title,body,url,labels,updatedAt,state"
         cmd = [
             "gh",
             "issue",
@@ -972,6 +987,7 @@ def cmd_self_test():
         "description": "D",
         "web_url": "https://gl.com/x/y/-/issues/7",
         "labels": ["a", "b"],
+        "state": "opened",
     }
     norm_gl = normalize_issue(gl_raw, PLATFORM_GITLAB)
     if norm_gl != {
@@ -981,6 +997,8 @@ def cmd_self_test():
         "url": "https://gl.com/x/y/-/issues/7",
         "labels": ["a", "b"],
         "updatedAt": None,
+        "state": "open",
+        "stateReason": "",
     }:
         failures.append(f"normalize_issue gitlab: {norm_gl!r}")
 
@@ -990,6 +1008,8 @@ def cmd_self_test():
         "body": "D",
         "url": "https://gh.com/x/y/issues/7",
         "labels": [{"name": "a"}, {"name": "b"}],
+        "state": "OPEN",
+        "stateReason": "",
     }
     norm_gh = normalize_issue(gh_raw, PLATFORM_GITHUB)
     if norm_gh != {
@@ -999,6 +1019,8 @@ def cmd_self_test():
         "url": "https://gh.com/x/y/issues/7",
         "labels": ["a", "b"],
         "updatedAt": None,
+        "state": "open",
+        "stateReason": "",
     }:
         failures.append(f"normalize_issue github: {norm_gh!r}")
 
@@ -1030,6 +1052,51 @@ def cmd_self_test():
         failures.append(f"normalize_issue include_body=False 仍带 body: {slim!r}")
     if slim.get("updatedAt") != "T1" or slim.get("labels") != ["a", "b"]:
         failures.append(f"normalize_issue include_body=False 丢了别的字段: {slim!r}")
+
+    # issue 状态两端归一（`/start` 开轮远端对齐的输入）。
+    #
+    # 赌注押在「关闭」这一侧：GitHub 是 CLOSED、GitLab 是 closed，小写后同字；而「打开」
+    # 两端词形不同（OPEN vs opened），押它就得赌一个本机无法实测的词形（没装 glab）。
+    # 押词形一致的一侧，未实测的那端才不会判错。
+    #
+    # 末两例钉死失败方向：判不出一律算 open —— 照常开轮，而不是把人拦在门外。
+    state_cases = [
+        ({"state": "CLOSED"}, PLATFORM_GITHUB, "closed"),
+        ({"state": "OPEN"}, PLATFORM_GITHUB, "open"),
+        ({"state": "closed"}, PLATFORM_GITLAB, "closed"),
+        ({"state": "opened"}, PLATFORM_GITLAB, "open"),  # 归一的核心：opened → open
+        ({}, PLATFORM_GITHUB, "open"),  # 未请求该字段的老路径，不许抛
+        ({"state": None}, PLATFORM_GITLAB, "open"),
+        ({"state": "locked"}, PLATFORM_GITLAB, "open"),  # 只有 closed 才算关闭
+        ({"state": 42}, PLATFORM_GITHUB, "open"),  # 非字符串也不许抛
+    ]
+    for raw_case, plat_case, want_state in state_cases:
+        got_state = normalize_issue(raw_case, plat_case)["state"]
+        if got_state != want_state:
+            failures.append(
+                f"normalize_issue state({plat_case}, {raw_case!r}): "
+                f"{got_state!r} != {want_state!r}"
+            )
+
+    # stateReason 区分「做完了」与「有人决定不做」——二者处理方向相反。GitHub 独有，
+    # GitLab 恒为空串，不伪造。
+    reason_cases = [
+        ({"state": "CLOSED", "stateReason": "COMPLETED"}, PLATFORM_GITHUB, "COMPLETED"),
+        (
+            {"state": "CLOSED", "stateReason": "NOT_PLANNED"},
+            PLATFORM_GITHUB,
+            "NOT_PLANNED",
+        ),
+        ({"state": "closed"}, PLATFORM_GITLAB, ""),
+        ({}, PLATFORM_GITHUB, ""),
+    ]
+    for raw_case, plat_case, want_reason in reason_cases:
+        got_reason = normalize_issue(raw_case, plat_case)["stateReason"]
+        if got_reason != want_reason:
+            failures.append(
+                f"normalize_issue stateReason({plat_case}, {raw_case!r}): "
+                f"{got_reason!r} != {want_reason!r}"
+            )
 
     color_cases = [
         ("0E8A16", PLATFORM_GITHUB, "0E8A16"),
@@ -1246,7 +1313,7 @@ def cmd_self_test():
                 "--limit",
                 "100",
                 "--json",
-                "number,title,body,url,labels,updatedAt",
+                "number,title,body,url,labels,updatedAt,state",
             ],
         ),
         (
@@ -1260,7 +1327,7 @@ def cmd_self_test():
                 "--limit",
                 "30",
                 "--json",
-                "number,title,body,url,labels,updatedAt",
+                "number,title,body,url,labels,updatedAt,state",
                 "--repo",
                 "o/x",
             ],
@@ -1277,7 +1344,7 @@ def cmd_self_test():
                 "--limit",
                 "100",
                 "--json",
-                "number,title,url,labels,updatedAt",
+                "number,title,url,labels,updatedAt,state",
             ],
         ),
         (
@@ -1331,6 +1398,8 @@ def cmd_self_test():
             "url": "https://gl/x/-/issues/3",
             "labels": ["priority:P0"],
             "updatedAt": None,
+            "state": "open",
+            "stateReason": "",
         }
     ]:
         failures.append(f"issue-list gitlab normalize: {norm_list!r}")
@@ -1399,7 +1468,7 @@ def cmd_self_test():
                 "view",
                 "7",
                 "--json",
-                "number,title,body,url,labels,updatedAt",
+                "number,title,body,url,labels,updatedAt,state,stateReason",
             ],
         ),
         (
@@ -1410,7 +1479,7 @@ def cmd_self_test():
                 "view",
                 "7",
                 "--json",
-                "number,title,body,url,labels,updatedAt,comments",
+                "number,title,body,url,labels,updatedAt,state,stateReason,comments",
             ],
         ),
         ((PLATFORM_GITLAB, 7, False), ["glab", "issue", "view", "7", "-F", "json"]),
