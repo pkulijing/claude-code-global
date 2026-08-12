@@ -1,4 +1,4 @@
-# PROMPT · round 56 —— 开轮远端对齐与撞车决策
+# PROMPT · round 57 —— 开轮远端对齐与撞车决策
 
 > 来自 [#114 /start 开轮前应先 fetch 并检查目标 issue 是否已被远端关闭（多设备并行下必然撞车）](https://github.com/pkulijing/claude-code-global/issues/114)
 > Labels: `type:feat` `area:skill` `priority:P1`

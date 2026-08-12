@@ -1,4 +1,4 @@
-# PLAN · round 56 —— 开轮远端对齐与撞车决策
+# PLAN · round 57 —— 开轮远端对齐与撞车决策
 
 一次事故的两半：**#114 管撞车发生前（`/start` 开轮时拦住）**，**#116 管撞车已经发生（怎么取舍）**。
 
@@ -116,7 +116,7 @@ out["stateReason"] = raw.get("stateReason") or ""   # GitHub 独有，GitLab 恒
 
 `normalize_issue` / `build_issue_view_cmd` 都是纯函数，**先写测试再改实现**。
 
-> **执行中修正（review 推翻了原计划的落点）**：原计划新建 `docs/56-*/test_platform_issue.py`，沿用 round 52 `test_context_budget.py` 的先例。实际这么做了（19 例，先红后绿），但提交前 review 查出 `scripts/platform_issue.py` **自带一套 `cmd_self_test()`**（`--self-test`），里面硬编码着旧 schema 的期望值 —— 改了 schema 没同步它，`--self-test` 直接红（exit 1、7 条 FAIL）。
+> **执行中修正（review 推翻了原计划的落点）**：原计划新建 `docs/57-*/test_platform_issue.py`，沿用 round 52 `test_context_budget.py` 的先例。实际这么做了（19 例，先红后绿），但提交前 review 查出 `scripts/platform_issue.py` **自带一套 `cmd_self_test()`**（`--self-test`），里面硬编码着旧 schema 的期望值 —— 改了 schema 没同步它，`--self-test` 直接红（exit 1、7 条 FAIL）。
 >
 > 更要紧的是它才是**被文档承认的门禁**：`skills/routine-dev/SKILL.md:186` 明写「`scripts/platform_issue.py` → `python3 scripts/platform_issue.py --self-test`」。留两套测试意味着**新增的 state 逻辑不在那道门禁覆盖内** —— 将来 routine 改这个脚本，门禁绿着而 state 归一已经坏了，正是本仓最忌的「静默失效的门禁」。
 >

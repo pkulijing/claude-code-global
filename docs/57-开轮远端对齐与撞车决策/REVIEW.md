@@ -1,4 +1,4 @@
-# REVIEW · round 56
+# REVIEW · round 57
 
 ## 开发单元 1 —— helper 吐出 issue 状态（`scripts/platform_issue.py`）
 
@@ -32,7 +32,7 @@ EXIT=1
 **修复分两部分**：
 
 1. 同步全部 7 处过期期望值。
-2. **结构决定**：把 19 个 unittest 用例并进 `cmd_self_test()`（新增 `state_cases` / `reason_cases` 两组），删掉独立文件 `docs/56-*/test_platform_issue.py`。
+2. **结构决定**：把 19 个 unittest 用例并进 `cmd_self_test()`（新增 `state_cases` / `reason_cases` 两组），删掉独立文件 `docs/57-*/test_platform_issue.py`。
 
 第 2 部分不是 finding 要求的，是顺着它暴露的问题往下推一步：`skills/routine-dev/SKILL.md:186` 明写该脚本的门禁是 `--self-test`，**留两套测试等于新增的 state 逻辑不在被文档承认的门禁覆盖内** —— 将来 routine 改这个脚本，门禁绿着而 state 归一已经坏了。这是本仓最忌的「静默失效的门禁」形态。配套依据是宪法「写代码要像周围的代码」：这个文件的既有惯例就是内联 self-test（round 52 建立独立测试文件的先例成立，是因为 `context_budget.py` 根本没有内联 self-test）。
 
@@ -59,9 +59,9 @@ EXIT=1
 ### 元信息
 
 - **档位**：默认档，角度 ①②③
-- **是否降级**：**否，但编队装配方式变了，如实记**：第 2 轮里 `review-orchestrator` **收不回子 agent 的结果** —— 连续两次只回「还在等角度 ②」，等于零 finding。改为**主会话直接委派 3 个单角度 `code-reviewer`**（各自读 `references/angles.md` 按原文执行），跨角度去重与置信汇总由主会话做。
-  **这不是宪法意义上的降级**：独立 context 这个首要属性完整保住了（三个 reviewer 各自独立、都没有本轮对话历史），丢的只是 orchestrator 的汇总环节。**代价如实记**：汇总由写这段 diff 的同一个 context 做，理论上有偏向性；三个角度的原始结论都保留在 `REVIEW.md` 可复核。
-  **额外观察**：角度 ② 的 reviewer 反馈它 `SendMessage` 给 `review-orchestrator` 时报 `No agent named 'review-orchestrator' is reachable`，遂改发主会话 —— 这解释了 orchestrator 为什么空等。
+- **是否降级**：**否**。第 1 轮由 `review-orchestrator` 正常跑完（那条 85 分 finding 就是它给的）。**第 2 轮它返回「还在等角度 ②」**，催一次仍是「还在等」；第二次明确要求「别等了、自己按 `angles.md` 补审那个角度」后，**它完整跑完并给出了 78 分那条 finding**。
+  **事后修正（重要）**：我当时把这归因为「orchestrator 收不回结果 / 不可用」，并在开发单元 3 直接绕过它。**这个判断下重了** —— 本轮共调它 5 次、**4 次正常**，事后用同一份 diff 做的对照实验也跑通了。真正缺的是**任务书里没写「拿不到子 agent 结果时怎么收尾」**，补上一句即恢复正常。详见 `SUMMARY.md` §3.6。
+  **额外观察**：角度 ② 的 reviewer 反馈它 `SendMessage` 给 `review-orchestrator` 时报 `No agent named 'review-orchestrator' is reachable`。但结果本来就经 Agent 工具返回值回传、不靠 `SendMessage`，故这条**不是** orchestrator 空等的原因。
 - **闸 A（运行验证）**：指令文件无可运行单元，判 N/A；以**逐字抠出文档里的命令实跑**代偿（见下）
 - **迭代轮数**：2 轮，收敛
 
@@ -117,7 +117,7 @@ $ echo "not fixing #11 yet"   | grep -iE '(clos|fix|resolv)[a-z]* #11([^0-9]|$)'
 
 ### 元信息
 
-- **档位**：默认档，角度 ①②③，**主会话直接委派**（沿用单元 2 的装配方式，orchestrator 仍不可用）
+- **档位**：默认档，角度 ①②③，**主会话直接委派**（当时误判 orchestrator 不可用，见单元 2 元信息的事后修正）。**事后已用 orchestrator 对同一份 diff 复核过一遍，结论一致为 clean**，并多出一条 55 分观察（「先盘点…再按下表取舍并请人类确认」的动作顺序略模糊，<80 丢弃）
 - **闸 A（运行验证）**：纯规则文本，无可运行单元 → N/A；以 `check-refs` + 预算实测代偿
 - **迭代轮数**：2 轮（第 1 轮 2 条 finding → 修 → 第 2 轮 clean），**收敛**
 - **风险定级**：本文件**每会话全文常驻注入、影响所有项目与 CC / Codex 两端**，故给三个角度都配了攻击式专项
