@@ -1,0 +1,18 @@
+# .gitlab-ci.yml —— docker-executor 变体（GitLab.com / 官方 docker runner）
+# runner 为 docker executor 时用本变体：image 提供 uv + Python，before_script 直接 sync。
+# 本地 shell runner（公司自建、无 docker executor）改用 .variant.shell。
+# 与 .github/workflows/lint.yml 等价：ruff check + ruff format --check。
+stages:
+  - lint
+
+ruff:
+  stage: lint
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+  before_script:
+    - uv sync --frozen
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

@@ -1,0 +1,25 @@
+# .gitlab-ci.yml —— shell-runner 变体（本地 shell runner，公司自建，无 docker executor）
+# 不指定 image：job 直接在宿主机跑。runner 无 uv 时用官方脚本装（uv 自带 standalone Python）。
+# GitLab.com / 官方 docker runner 改用 .variant.docker。
+#
+# 复用约定：若未来多 job 需复用 before_script，一律用标准 YAML 锚点（&anchor / *anchor），
+# 禁用 GitLab 的 reference tag —— 通用 YAML 解析器（如 pre-commit 的 check-yaml）不认它这个
+# 自定义 tag，会报「could not determine a constructor for the tag」让 commit 失败；
+# YAML 锚点 GitLab 同样支持、且 check-yaml 能过。
+stages:
+  - lint
+
+ruff:
+  stage: lint
+  before_script:
+    # runner 无 uv 时用官方脚本装（幂等：已装则短路，不重复下载）
+    - command -v uv >/dev/null 2>&1 || curl -LsSf https://astral.sh/uv/install.sh | sh
+    # 把本次安装的 uv 加进 PATH（官方 env 脚本；已装时仅设 PATH，无副作用）
+    - . "$HOME/.local/bin/env"
+    - uv sync --frozen
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.tox/
+.coverage
+htmlcov/
+.cache/
+
+# 注意：uv.lock 应当 commit 进 git（uv 官方推荐），所以这里不忽略
+
+# Env files（本地真实值，不进 git）
+.env
+.env.local
+*.local.env
+
+# Editors / OS
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+.vscode/*.log

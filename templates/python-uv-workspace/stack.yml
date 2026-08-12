@@ -5,6 +5,11 @@
 # 工作区级共享配置（[tool.uv] / [tool.uv.workspace] / 清华 index / [tool.ruff] /
 # [tool.pytest.ini_options]）以 fragment 合进根 pyproject.toml；各成员独立 pyproject.toml
 # 落 packages/<member>/，跨成员依赖走 [tool.uv.sources] <dep> = { workspace = true }。
+#
+# __root__/ 下的根级配置（.gitignore / .pre-commit-config.yaml / .gitlab-ci.yml 变体组 /
+# .github/workflows/lint.yml / .vscode/extensions.json.fragment）与单包 python-uv 的
+# __root__/ 是**逐字节相同的物理副本** —— 这些内容与包布局无关，两个 stack 又互斥、
+# 不会同仓相撞。代价是双写：改其中一份务必同步改另一份。
 default_path: .
 label: "Python uv workspace（多包单仓 · 虚拟根 + packages/*）"
 description: "uv workspace 多包单仓脚手架：虚拟根 pyproject.toml（无 [project]，仅 [tool.uv.workspace]）+ 共享配置上提到根（only-managed / 清华源 / ruff / pytest importlib 模式）+ packages/ 下两个参考成员（example_core 库 + example_app 应用，演示 [tool.uv.sources] workspace=true 跨成员依赖、纯逻辑可独立单测、各成员 tests/ 无 __init__.py）。与单包 python-uv 互斥。"
