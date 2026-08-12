@@ -64,6 +64,25 @@ Biome 的 assist（`organizeImports`）负责 import 排序与分组（external 
 
 修法：显式关联——`<label htmlFor="x">` + `<Input id="x" />` 匹配 id 即过。这是自包含、a11y-correct 的解，优于在 `biome.json` 给该规则配 `inputComponents`（后者要改全局配置）。
 
+### 4.5 照抄持有外部资源的组件时，setup 与 teardown 必须成对核对
+
+凡组件持有**外部资源**——WebGL context、canvas、`AudioContext`、`WebSocket` 等长连接、`ResizeObserver` / `IntersectionObserver`、`setInterval` / `setTimeout`——照抄它的初始化就必须**逐行核对它的 cleanup**，不能只抄前半。这类组件的正确性有一半在 cleanup 里，而 cleanup 通常在文件末尾、离 setup 很远；照抄的人眼睛停在「建场景」那一段，没往下读到配对的「拆场景」。
+
+WebGL 要点名 `renderer.forceContextLoss()`：
+
+```js
+renderer.dispose();
+renderer.forceContextLoss(); // 缺了它，底层 context 不会被真正放弃
+```
+
+`renderer.dispose()` 只释放 three.js 内部的 GL 资源，**不放弃底层 WebGL context**；漏了配套这一步，每次卸载泄漏一个。同理，卸载时要对场景内 mesh 的 geometry / material 逐个 dispose。
+
+**失效不在肇事者身上报错**，这是它难查的根本原因：浏览器每页的 context 数有上限，攒满后被强制丢弃的是**最旧的那个**——也就是常驻的那个实时窗黑屏，而不是刚打开的新页面。现场只看到「主 3D 窗莫名黑了」，归因线索完全不指向肇事组件。这类「泄漏方与受害方分离」的 bug 事后排查代价极高，靠一条事前核对极便宜。
+
+配套：异步加载（URDF / GLTF / 大资源）的完成回调里，`if (disposed)` 分支不能只 `return`，要把**已建好的对象树就地释放**——此时它既没进场景、ref 也还是 null，cleanup 根本看不到它。
+
+判据：**条件挂载（切 tab 即卸）的组件比常驻组件更需要严格 cleanup**。常驻组件一辈子只挂载一次，泄漏不显；条件挂载的挂载 / 卸载次数与用户操作次数同阶，每次进出都泄漏一个，几分钟就能撞上限。React StrictMode 下首次挂载还必然多一次「挂了立刻卸」。
+
 ## 5. 测试
 
 前端组件 / 纯逻辑的单测可用 Vitest + Testing Library，遵循全局宪法 TDD 章节（有清晰输入输出契约的逻辑先写测试）。`react-vite` 模板当前未预置测试脚手架，引入测试时把 Vitest 配置与 `test` 脚本一并补进 `frontend/`；编排型组件（拼装多个子组件做端到端流程的页面）至少补一条 happy-path 渲染冒烟。
