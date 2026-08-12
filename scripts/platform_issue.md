@@ -14,10 +14,13 @@ python3 $HOME/.claude/scripts/platform_issue.py [--platform github|gitlab] [--re
 ## issue-list 语义
 
 ```bash
-python3 $HOME/.claude/scripts/platform_issue.py issue-list [--limit N] [--repo <slug>]
+python3 $HOME/.claude/scripts/platform_issue.py issue-list [--limit N] [--repo <slug>] [--no-body]
 ```
 
-只列 **open** issue，stdout 是归一 json **数组**，每项 schema 与 `issue-view` 完全一致（`number` / `title` / `body` / `url` / `labels`）—— 消费方（`/triage`）据此读 `labels` 取 priority 轴、读 `body` 取 scope 字段，不必关心是哪端答的。`--limit` 默认 100（GitHub `--limit` ↔ GitLab `--per-page`）。
+只列 **open** issue，stdout 是归一 json **数组**，每项 schema 与 `issue-view` 完全一致（`number` / `title` / `body` / `url` / `labels` / `updatedAt`）—— 消费方（`/triage`）据此读 `labels` 取 priority 轴、读 `body` 取 scope 字段，不必关心是哪端答的。`--limit` 默认 100（GitHub `--limit` ↔ GitLab `--per-page`）。
+
+- **`updatedAt`**：平台给什么就是什么（GitLab 侧字段名是 `updated_at`，helper 归一）；**平台没给就是 `null`，绝不拿「现在」兜底** —— 它的消费方拿它和一个更早的快照比对「这条 issue 有没有被人动过」，编一个时间戳会让那道闸永远答「没动过」。
+- **`--no-body`**：整个丢掉 `body` 字段（不是截断），GitHub 侧在服务端就不取。用于**只要时间戳的复核式重读** —— `/routine-dev` 打 `auto:skip` 前要确认「读完正文到现在这段时间里没人编辑过它」，若为此把所有正文再拉一遍，花掉的正是这个 label 要省的那笔。GitLab 无字段选择能力，argv 不变、正文在归一层丢，schema 承诺一致。
 
 ## issue-comment 语义
 

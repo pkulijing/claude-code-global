@@ -127,7 +127,18 @@ def latest_owner_comment(comments):
     return None
 
 
-def normalize_issue(raw, platform, with_comments=False):
+def normalize_issue(raw, platform, with_comments=False, include_body=True):
+    """Normalize one raw gh/glab issue object into the helper's own schema.
+
+    `updatedAt` is part of the base schema on both ends (GitLab spells it
+    `updated_at`). It stays **None** when the platform did not supply one —
+    never a synthesized "now", because its consumer compares it against an
+    earlier snapshot to decide whether a human touched the issue mid-run, and
+    a fabricated timestamp would make that check silently answer "untouched".
+
+    `include_body=False` drops the body entirely (not truncates) so a caller
+    that only needs the timestamp cannot accidentally read a partial one.
+    """
     if platform == PLATFORM_GITLAB:
         out = {
             "number": raw.get("iid"),
@@ -135,6 +146,7 @@ def normalize_issue(raw, platform, with_comments=False):
             "body": raw.get("description") or "",
             "url": raw.get("web_url", ""),
             "labels": list(raw.get("labels", []) or []),
+            "updatedAt": raw.get("updated_at"),
         }
     else:
         labels = raw.get("labels", []) or []
@@ -144,7 +156,10 @@ def normalize_issue(raw, platform, with_comments=False):
             "body": raw.get("body") or "",
             "url": raw.get("url", ""),
             "labels": [lbl["name"] if isinstance(lbl, dict) else lbl for lbl in labels],
+            "updatedAt": raw.get("updatedAt"),
         }
+    if not include_body:
+        out.pop("body", None)
     if with_comments:
         comments = normalize_comments(raw.get("comments"), platform)
         out["comments"] = comments
@@ -454,12 +469,13 @@ def cmd_issue_label_remove(args):
 def build_issue_view_cmd(platform, number, with_comments=False):
     """Build the gh/glab issue-view argv (pure, no execution).
 
-    `with_comments` only widens GitHub's --json field list; the default field
-    set is untouched so existing consumers (/start et al.) see the exact same
-    schema they always have.
+    `with_comments` only widens GitHub's --json field list; the base field set
+    is the same one `issue-list` asks for, so both subcommands normalize into
+    one schema and consumers (/start et al.) never have to ask which one
+    answered.
     """
     if platform == PLATFORM_GITHUB:
-        fields = "number,title,body,url,labels"
+        fields = "number,title,body,url,labels,updatedAt"
         if with_comments:
             fields += ",comments"
         return ["gh", "issue", "view", str(number), "--json", fields]
@@ -495,15 +511,25 @@ def cmd_issue_view(args):
     return EXIT_OK
 
 
-def build_issue_list_cmd(platform, limit, repo):
+def build_issue_list_cmd(platform, limit, repo, no_body=False):
     """Build the gh/glab issue-list argv (pure, no execution).
 
     Emits the same field set as issue-view so both subcommands normalize into
     one schema — consumers (/triage) read `labels` for the priority axis and
     `body` for the scope field without caring which platform answered.
     Only open issues: the sole consumer is "what should I pick up next".
+
+    `no_body` drops the body from GitHub's field list server-side. That exists
+    for /routine-dev's re-check pass: before writing `auto:skip` it re-reads
+    the timestamps to see whether anyone edited an issue mid-run, and pulling
+    every body a second time would spend exactly the tokens the label is meant
+    to save. GitLab offers no field selection, so its argv is unchanged and
+    the body is dropped when normalizing instead.
     """
     if platform == PLATFORM_GITHUB:
+        fields = "number,title,url,labels,updatedAt"
+        if not no_body:
+            fields = "number,title,body,url,labels,updatedAt"
         cmd = [
             "gh",
             "issue",
@@ -513,7 +539,7 @@ def build_issue_list_cmd(platform, limit, repo):
             "--limit",
             str(limit),
             "--json",
-            "number,title,body,url,labels",
+            fields,
         ]
     else:
         cmd = ["glab", "issue", "list", "--output", "json", "--per-page", str(limit)]
@@ -527,7 +553,8 @@ def cmd_issue_list(args):
     if plat == PLATFORM_UNKNOWN:
         sys.stderr.write("error: cannot detect platform from git remote origin\n")
         return EXIT_PLATFORM_UNKNOWN
-    result = _run(build_issue_list_cmd(plat, args.limit, args.repo))
+    no_body = getattr(args, "no_body", False)
+    result = _run(build_issue_list_cmd(plat, args.limit, args.repo, no_body))
     if result.returncode != 0:
         sys.stderr.write(result.stderr or result.stdout)
         return EXIT_ERROR
@@ -541,7 +568,9 @@ def cmd_issue_list(args):
         return EXIT_ERROR
     print(
         json.dumps(
-            [normalize_issue(r, plat) for r in raw], ensure_ascii=False, indent=2
+            [normalize_issue(r, plat, include_body=not no_body) for r in raw],
+            ensure_ascii=False,
+            indent=2,
         )
     )
     return EXIT_OK
@@ -951,6 +980,7 @@ def cmd_self_test():
         "body": "D",
         "url": "https://gl.com/x/y/-/issues/7",
         "labels": ["a", "b"],
+        "updatedAt": None,
     }:
         failures.append(f"normalize_issue gitlab: {norm_gl!r}")
 
@@ -968,8 +998,38 @@ def cmd_self_test():
         "body": "D",
         "url": "https://gh.com/x/y/issues/7",
         "labels": ["a", "b"],
+        "updatedAt": None,
     }:
         failures.append(f"normalize_issue github: {norm_gh!r}")
+
+    # updatedAt：/routine-dev 打 auto:skip 前用它比对「读到这条之后有没有人动过」，
+    # 两个时间戳都落在同一次运行内，故不需要任何持久化。两端字段名不同。
+    ua_cases = [
+        (
+            {**gl_raw, "updated_at": "2026-08-12T01:02:03Z"},
+            PLATFORM_GITLAB,
+            "2026-08-12T01:02:03Z",
+        ),
+        (
+            {**gh_raw, "updatedAt": "2026-08-12T01:02:03Z"},
+            PLATFORM_GITHUB,
+            "2026-08-12T01:02:03Z",
+        ),
+        # 平台没给就老实是 None —— 绝不拿「现在」兜底，那会让比对永远判「没动过」，
+        # 把一个防丢失的闸悄悄变成永远放行
+        (gh_raw, PLATFORM_GITHUB, None),
+    ]
+    for raw, plat, want in ua_cases:
+        got = normalize_issue(raw, plat).get("updatedAt", "<missing>")
+        if got != want:
+            failures.append(f"normalize_issue updatedAt({plat}): {got!r} != {want!r}")
+
+    # include_body=False：复核 updatedAt 时不该把正文再拉一遍（正是本机制要省的那笔）
+    slim = normalize_issue({**gh_raw, "updatedAt": "T1"}, PLATFORM_GITHUB, include_body=False)
+    if "body" in slim:
+        failures.append(f"normalize_issue include_body=False 仍带 body: {slim!r}")
+    if slim.get("updatedAt") != "T1" or slim.get("labels") != ["a", "b"]:
+        failures.append(f"normalize_issue include_body=False 丢了别的字段: {slim!r}")
 
     color_cases = [
         ("0E8A16", PLATFORM_GITHUB, "0E8A16"),
@@ -1176,7 +1236,7 @@ def cmd_self_test():
 
     list_cmd_cases = [
         (
-            (PLATFORM_GITHUB, 100, None),
+            (PLATFORM_GITHUB, 100, None, False),
             [
                 "gh",
                 "issue",
@@ -1186,11 +1246,11 @@ def cmd_self_test():
                 "--limit",
                 "100",
                 "--json",
-                "number,title,body,url,labels",
+                "number,title,body,url,labels,updatedAt",
             ],
         ),
         (
-            (PLATFORM_GITHUB, 30, "o/x"),
+            (PLATFORM_GITHUB, 30, "o/x", False),
             [
                 "gh",
                 "issue",
@@ -1200,17 +1260,37 @@ def cmd_self_test():
                 "--limit",
                 "30",
                 "--json",
-                "number,title,body,url,labels",
+                "number,title,body,url,labels,updatedAt",
                 "--repo",
                 "o/x",
             ],
         ),
+        # --no-body：GitHub 能在服务端就把正文摘掉，省的正是分诊要重读的那一笔
         (
-            (PLATFORM_GITLAB, 100, None),
+            (PLATFORM_GITHUB, 100, None, True),
+            [
+                "gh",
+                "issue",
+                "list",
+                "--state",
+                "open",
+                "--limit",
+                "100",
+                "--json",
+                "number,title,url,labels,updatedAt",
+            ],
+        ),
+        (
+            (PLATFORM_GITLAB, 100, None, False),
+            ["glab", "issue", "list", "--output", "json", "--per-page", "100"],
+        ),
+        # GitLab 无字段选择，argv 不因 --no-body 变化（正文改在归一层丢）
+        (
+            (PLATFORM_GITLAB, 100, None, True),
             ["glab", "issue", "list", "--output", "json", "--per-page", "100"],
         ),
         (
-            (PLATFORM_GITLAB, 30, "o/x"),
+            (PLATFORM_GITLAB, 30, "o/x", False),
             [
                 "glab",
                 "issue",
@@ -1224,12 +1304,12 @@ def cmd_self_test():
             ],
         ),
     ]
-    for (plat, limit, repo), expected_cmd in list_cmd_cases:
-        got_cmd = build_issue_list_cmd(plat, limit, repo)
+    for (plat, limit, repo, no_body), expected_cmd in list_cmd_cases:
+        got_cmd = build_issue_list_cmd(plat, limit, repo, no_body)
         if got_cmd != expected_cmd:
             failures.append(
-                f"build_issue_list_cmd({plat}, limit={limit}, repo={repo!r}): "
-                f"{got_cmd!r} != {expected_cmd!r}"
+                f"build_issue_list_cmd({plat}, limit={limit}, repo={repo!r}, "
+                f"no_body={no_body}): {got_cmd!r} != {expected_cmd!r}"
             )
 
     # issue-list 归一：两端逐条复用 normalize_issue，schema 与 issue-view 对齐
@@ -1250,6 +1330,7 @@ def cmd_self_test():
             "body": "D3",
             "url": "https://gl/x/-/issues/3",
             "labels": ["priority:P0"],
+            "updatedAt": None,
         }
     ]:
         failures.append(f"issue-list gitlab normalize: {norm_list!r}")
@@ -1312,7 +1393,14 @@ def cmd_self_test():
     issue_view_cmd_cases = [
         (
             (PLATFORM_GITHUB, 7, False),
-            ["gh", "issue", "view", "7", "--json", "number,title,body,url,labels"],
+            [
+                "gh",
+                "issue",
+                "view",
+                "7",
+                "--json",
+                "number,title,body,url,labels,updatedAt",
+            ],
         ),
         (
             (PLATFORM_GITHUB, 7, True),
@@ -1322,7 +1410,7 @@ def cmd_self_test():
                 "view",
                 "7",
                 "--json",
-                "number,title,body,url,labels,comments",
+                "number,title,body,url,labels,updatedAt,comments",
             ],
         ),
         ((PLATFORM_GITLAB, 7, False), ["glab", "issue", "view", "7", "-F", "json"]),
@@ -1504,6 +1592,12 @@ def build_parser():
         default=None,
         help="Target repo slug (owner/name) to list issues of a repo other "
         "than cwd's origin",
+    )
+    p_list.add_argument(
+        "--no-body",
+        action="store_true",
+        help="Omit issue bodies (GitHub drops them server-side). For cheap "
+        "timestamp-only re-reads, e.g. /routine-dev's mid-run edit check",
     )
 
     p_comment = sub.add_parser("issue-comment")

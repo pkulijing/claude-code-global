@@ -32,3 +32,14 @@
 **处置：不改逻辑，补护栏注释。** 这条 job 的并发安全完全建立在「摘 label 幂等」上，故在文件头写明「往这个 job 加任何非幂等副作用都会破坏这条前提」，与 `ff-merge.yml` 里那条「别加执行工作区文件的步骤」同类。注释是纯机械补充，不再另起一轮复审。
 
 **结论：本 commit 的三个文件闸 B 通过，放行；两条 finding 转为 commit 3 / 4 的设计输入。**
+
+## 第 3 次（commit 3 前）：`updatedAt` 字段 + `issue-list --no-body`
+
+Finding 1 的堵法落地：helper 吐 `updatedAt`，并加 `--no-body` 让「只要时间戳」的复核不必把正文再拉一遍。
+
+- **档位**：默认档（`code-reviewer` ×3，角度 ①②③）。纯数据归一 + argv 构造，无并发 / 状态机特征。
+- **闸 A 运行验证**：`--self-test` 全绿（先红后绿：新用例在实现前分别以 `TypeError` 与字段不符失败）；另对真实仓库跑 `issue-list --limit 3 --no-body`，返回不含 `body`、含 `updatedAt` 的结果。
+- **闸 B 结果**：**clean**。三个角度均确认：现有消费方没有对 schema 做精确 key 集合匹配、也没有裸 `d["body"]` 硬取值，多一个键不破坏任何人；全文搜索无时间戳兜底逻辑；`gh_raw` 用例确实完全不含 `updatedAt` 键（而非显式 `None`），能真正抓住「误加兜底」的回归。
+- **顺手修**：reviewer 提到但置信不足 80 未上报的一处 —— `build_issue_view_cmd` 的 docstring 还写着「默认字段集未动」，加了 `updatedAt` 之后这句已失真，改掉。纯注释修正，不另起复审。
+
+**结论：一轮即收敛，放行。**
