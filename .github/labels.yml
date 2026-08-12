@@ -67,3 +67,12 @@
 - name: "auto:take"
   color: "5319E7"
   description: "owner 背书：下次 /routine-dev 强制纳入，可改 skills / templates / scripts / hooks"
+
+# ---------- 分诊缓存（三轴之外，打在 issue 上，由 agent 自己打）----------
+# 与上面那条相反：auto:take 是人授权 agent 做，auto:skip 是 agent 记下「本次判定
+# 不自动做」，好让下次运行在读正文之前就跳过它（省的正是模型分诊那一层的 token）。
+# **不是 wontfix**——issue 仍 open、人照常可以做；而且 issue 一被编辑或评论，
+# .github/workflows/auto-skip-reset.yml 就自动摘掉它、下次重新完整分诊。
+- name: "auto:skip"
+  color: "D4C5F9"
+  description: "routine 本次判定不自动做；issue 被编辑 / 评论后自动摘除，人照常可做（≠ wontfix）"
