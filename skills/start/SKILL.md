@@ -28,12 +28,12 @@ disable-model-invocation: false
 1. **远端对齐**（`git fetch` + 撞车检查）—— 见下方「远端对齐」小节。**必须排在最前**：轮次编号要用远端信号；而撞车检查得赶在建 worktree / 建 docs 之前，否则拦下来时已经落了一个分支和一个目录要清。
 2. **确定轮次编号 N**：取「已占用编号」并集的最大值 +1。**为什么要并集**：并行多 round 各在独立 worktree、未合回主分支时，新建的 `docs/<N>-*` 尚未合入、本树看不见，只扫本树 `docs/` 会让各 round 算出同一个 N+1，合入时撞车；而多设备 / 云端 routine 并行时，**本地信号还会整体滞后于远端**。故五个信号源取并集：
    1. **本树 `docs/`**：现有 `docs/<N>-*` 目录名解析出的 N；
-   2. **在途分支名**：`git branch --list 'round*'` 输出里 `round<N>-*` 前缀解析的 N（worktree 一创建分支就带 N，docs 目录还没建也能防撞）；
+   2. **在途分支名**：`git branch --list 'round*'` 输出里 `round` 后**紧跟的数字段**即 N —— 只认数字、不管后面跟什么，于是 `round<N>-<英文短描述>` / 裸 `round<N>` / 历史的 `round<N>-<中文描述>` 三种形态通吃（worktree 一创建分支就带 N，docs 目录还没建也能防撞）；
    3. **其它 worktree 的 docs**：`git worktree list --porcelain` 遍历每个 worktree 路径，扫其 `docs/<N>-*` 解析 N（覆盖「worktree 内已建 docs 目录」）。
    4. **远端已合入的 docs**：`git ls-tree --name-only origin/<主分支> docs/` 解析出的 N —— 覆盖别的设备已经做完并合入的轮次。
    5. **远端在途分支**：`git branch -r --list 'origin/round*'` 解析出的 N —— ② 的远端对应物（② 只看得见本机分支），与 ④ 同吃第 1 步那次 fetch，零额外成本。
 
-   五源并集取 max + 1。**解析失败一律跳过该条、不报错**——非 `round<N>-` 规范的分支（如自由描述分支、`feat/xxx`）、worktree 路径不可达等都跳过，不阻断开轮。**fetch 失败时 ④⑤ 整体缺席**，按本地三源算并明确提示（见「远端对齐」的降级表）。
+   五源并集取 max + 1。**解析失败一律跳过该条、不报错**——非 `round<N>` 规范的分支（如自由描述分支、`feat/xxx`）、worktree 路径不可达等都跳过，不阻断开轮。**fetch 失败时 ④⑤ 整体缺席**，按本地三源算并明确提示（见「远端对齐」的降级表）。
 
 3. **确定本轮中文描述**：issue 驱动 → 复用第 1 步已拉到的 issue 详情，从 issue 标题提炼简短中文描述；自由描述 → 从描述文字提炼。
 4. **创建 worktree**（默认；带 `--no-worktree` 时跳过本步）—— 见下方「worktree 创建」小节。
@@ -103,11 +103,26 @@ disable-model-invocation: false
 - **探测主分支**：`git symbolic-ref --short refs/remotes/origin/HEAD`（得 `origin/master` → 取末段 `master`）；失败则本地探测 `main` / `master`。
 - **防嵌套**：若当前已在某个 linked worktree 内（`git rev-parse --git-dir` ≠ `git rev-parse --git-common-dir`）→ 停下提示用户「已在 worktree 内」，问是接续当前轮还是退出，**不嵌套创建 worktree**。
 - **确保 worktree 目录被忽略（优先复用全局）**：先 `git check-ignore -q .claude/worktrees` 探测是否已被忽略 —— 这会自动吃到全局 `core.excludesFile`（很多人已在 `~/.gitignore_global` 里全局忽略 `.claude/worktrees`）与任何本地规则。**已忽略 → 什么都不做**，绝不冗余落 `.claude/.gitignore`。仅当**未忽略**时，才创建 / 追加 `.claude/.gitignore` 忽略 `worktrees/`（幂等），避免主工作树把嵌套 worktree 当 untracked。
-- **创建**：worktree 目录名与分支名统一为 `round<N>-<中文描述>`（`<中文描述>` 同第 5 步 docs 目录的描述）：
+- **建之前先确认这个 N 没被别人占走**（第 2 步的信号可能已滞后）：
 
   ```bash
-  git worktree add .claude/worktrees/round<N>-<中文描述> -b round<N>-<中文描述> <主分支>
+  git branch    --list "round<N>" --list "round<N>-*"                # 本地
+  git branch -r --list "origin/round<N>" --list "origin/round<N>-*"  # 远端，吃第 1 步那次 fetch
   ```
+
+  **两条都要跑，别图省事合成一条 `git branch -a`** —— `-a` 配不带 `origin/` 前缀的 pattern **匹配不到远端分支**（实测：`git branch -a --list "round59-*"` 对着 `remotes/origin/round59-bar` 返回空），只查本地恰好漏掉「别的设备已经推上去了」这个主要场景。
+
+  任一条有输出 → **重算 N 取下一个空位，别靠换个描述词绕开**。这步不能省：描述不同的 `round<N>-a` / `round<N>-b` 会各自建成功、git 不会拦，撞号一路潜伏到合并时才炸。
+
+- **创建**：worktree 目录名与分支名统一为 `round<N>-<英文短描述>`，**整串纯 ASCII**：
+
+  ```bash
+  git worktree add .claude/worktrees/round<N>-<英文短描述> -b round<N>-<英文短描述> <主分支>
+  ```
+
+  **短描述规格（照做，别自由发挥）**：字符集 `[a-z0-9-]`（小写字母 / 数字 / 连字符）；**短描述本身 ≤ 20 字符**（不含 `round<N>-` 前缀）、2–4 个词；与第 3 步的中文描述同义即可（`开轮远端对齐` → `remote-align`、`review 成本与思考深度调优` → `review-cost-tuning`）。没有自然英文对应的专名用拼音。**实在起不出好名字就退回裸 `round<N>`** —— 那是合法命名，别为了凑名字硬造缩写。
+
+  **为什么必须 ASCII**：GitHub 网页端**导航不进非 ASCII 分支名的文件树**。缺陷在其前端而非服务端 —— 同一个 percent-encoded URL 直接 `curl` 返回 200 且页面内容完整，属上游问题、我们只能规避。约束只落在 **ref 位置**（分支名、以及与之同名的 worktree 目录）；`docs/<N>-<中文描述>/` 这类 **path 位置**的中文照旧保留，形如 `/tree/<sha>/docs/1-第1章-信息论导引` 实测可正常打开。
 
 - **进入**：`cd` 进新 worktree 目录，其后所有文件操作、git 操作都在该 worktree 内进行。
 - **告知**：打印一行 worktree 路径与分支名，提示用户可在 IDE 中打开该目录并行开发。

@@ -23,7 +23,7 @@ disable-model-invocation: false
      - 强制提交：用户明示后才用 `--no-verify` 等方式绕过
    - **不要静默修复**：lint 跑出来的错都得显式让用户知道再决策
 6. **探测轮次 N**（决定是否加 `[round N]` 前缀，给跨轮追溯补一层约束）：
-   - **主信号**：当前分支名匹配 `^round(\d+)-` → 取捕获组为 N（`/start` 默认 worktree 模式的分支命名）。
+   - **主信号**：当前分支名匹配 `^round(\d+)(-|$)` → 取第一个捕获组为 N（`/start` 默认 worktree 模式的分支命名 `round<N>-<英文短描述>`；裸 `round<N>` 与历史的中文后缀一并命中）。
    - **兜底**（`--no-worktree` 等非 round 分支）：看本次变更涉及的文件里有没有 `docs/<N>-*/` 路径（`git diff --cached --name-only` 与 `git status --porcelain` 的并集），命中唯一的 `<N>` 则取之。
    - 两路都判不出 N → **不加前缀**，走普通 commit，不要硬凑。
 7. 分析所有变更，生成 commit message：

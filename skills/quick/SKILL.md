@@ -31,7 +31,7 @@ disable-model-invocation: false
 
 args 可含以下项（三者正交、可任意组合），解析后剩余文字即本次小改动的需求描述：
 
-- **`--branch`**：切一个轻量分支 `quick/<描述>`（**不建 worktree**），改完 commit 留在该分支等用户手动合 / 提 PR。默认不带 = 在当前分支直接改。
+- **`--branch`**：切一个轻量分支 `quick/<ascii 短描述>`（**不建 worktree**），改完 commit 留在该分支等用户手动合 / 提 PR。默认不带 = 在当前分支直接改。
 - **`#<issue 号>` 或 issue URL**：两层用途——① **拉 issue 详情用于理解本次要改什么**，进工作上下文指导改动（这样你传 `#N` 就不必再口述一遍需求）；② issue 号进收尾 commit 的 `Closes #N`。**详情只进上下文、不落成 PROMPT.md 文档**（简易流不留档，这正是它与 `/start <issue#>` 的关键区别）；可传多个。
 - **剩余文字**：需求描述。
 
@@ -45,7 +45,7 @@ args 可含以下项（三者正交、可任意组合），解析后剩余文字
 
 - 探测主分支：`git symbolic-ref --short refs/remotes/origin/HEAD`（得 `origin/master` → 取末段）；失败则本地探测 `main` / `master`。
 - 若工作区已有未提交改动 → 提示用户「切分支会带走当前未提交改动」，等用户确认。
-- `git switch -c quick/<描述>`（从当前 HEAD 切，`<描述>` 从需求描述提炼，**不建 worktree**）。
+- `git switch -c quick/<ascii 短描述>`（从当前 HEAD 切，**不建 worktree**）。短描述从需求描述提炼，**规格同 `/start`**：`[a-z0-9-]`、2–4 个词、≤ 20 字符，无自然英文对应用拼音。GitHub 网页端导航不进非 ASCII 分支名的文件树（缺陷在其前端，服务端正常），凡 ref 位置一律避开中文。
 
 **默认（不带 `--branch`）**：跳过本步，在当前所在分支直接改。若当前分支就是主分支（`master` / `main`），**允许**——简易流小改直提主分支是合理的，但打印一行提示让用户知情（「将在主分支 `<主分支>` 上直接改并提交」），给用户一个喊停的机会。
 
@@ -62,13 +62,13 @@ args 可含以下项（三者正交、可任意组合），解析后剩余文字
 调用 `/commit` 提交（继承其 lint 门禁 / semantic commit message / Co-authored-by trailer，单一真源不重复实现）：
 
 - **若解析出 `#N`**：把 `Closes #N` 作为额外上下文传给 `/commit`，让 message body 自然包含（不嵌入 title）。**关多个 issue 时每个 `#N` 各占一行、各带 `Closes` 关键字**（`Closes #13` / `Closes #20` / …）—— 绝不写成 `Closes #13 #20`（GitHub / GitLab 的关闭关键字只对紧跟的第一个号生效，后面的不会关，这是 `/finish` 里踩过的坑）。
-- **`[round N]` 前缀天然不加**：`/quick` 默认既不建 `round<N>-` 分支、也不建 `docs/<N>-*/` 目录 → `/commit` 的两路轮次探测都判不出 N → 走普通 commit、不加前缀。**这是预期行为**（简易流本就不进轮次追踪），无需干预。
+- **`[round N]` 前缀天然不加**：`/quick` 默认既不建 `round<N>` 分支、也不建 `docs/<N>-*/` 目录 → `/commit` 的两路轮次探测都判不出 N → 走普通 commit、不加前缀。**这是预期行为**（简易流本就不进轮次追踪），无需干预。
 
 ## Step 4：轻量收尾提示
 
 打印一行收尾提示，按分支策略分岔：
 
-- **`--branch`**：「改动已提交到 `quick/<描述>` 分支，review 后自行 merge / 提 PR。」
+- **`--branch`**：「改动已提交到 `quick/<ascii 短描述>` 分支，review 后自行 merge / 提 PR。」
 - **默认**：「已提交到当前分支 `<分支名>`，是否 `git push` 由你决定。」（与全局不自动 push 的约定一致。）
 
 统一附一句：「如果这个改动其实需要文档追踪 / 计划讨论 / 开发树记节点，下次走 `/start`。」
