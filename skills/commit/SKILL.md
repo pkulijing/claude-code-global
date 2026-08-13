@@ -11,13 +11,13 @@ disable-model-invocation: false
 3. 运行 `git log --oneline -5` 了解近期 commit 风格
 4. **提交前 review loop**（防止 bug 随 commit 沉淀，尤其并发 / 复杂逻辑）：调 `/review-loop` 对当前工作树跑自动 review 迭代，**迭代到 clean 才继续往下**。判据与降级链**以 `/review-loop` 为单一真源**，本步不复述。两点本步需要知道的：① 它可能以「2 轮未收敛留痕放行」返回，此时会给出一行标注，第 7 步必须原样写进 message body；② **放在 lint 之前**，因为它会自动改代码，须让下一步 lint 覆盖到这些修复。
 5. **commit 前 lint 检查**（防止把 lint 错误推上 CI 才发现；**放在 review-loop 之后**，好让 review-loop 的自动修复也被 lint 把关，不留绕过口子）：
-   - 探测项目类型并跑对应的 lint 命令：
+   - 逐条判定下表，**命中几条跑几条**（多栈仓库会同时命中多条，如 Python 后端 + TS 前端、ros2 的 C++ + Python）。**只跑一条 = 另一条语言的问题静默溜到 CI** —— 那一条的绿灯看着和全绿一模一样：
      - Python + uv: 见到 `pyproject.toml` + `[tool.ruff]` 配置 → `uv run ruff check .`
      - Python（其他）: 见到 `pyproject.toml` 含 ruff/flake8/pylint → 用对应工具
-     - Node.js: `package.json` 里有 `scripts.lint` → `npm run lint`（或 `yarn lint` / `pnpm lint`）
+     - Node.js: `package.json` 里有 `scripts.lint` → `npm run lint`（或 `yarn lint` / `pnpm lint`）；monorepo 要覆盖全部包：`npm run lint --workspaces` / `pnpm -r lint`（yarn 的 classic 与 berry 写法不同，用前先查）
      - Rust: `Cargo.toml` → `cargo clippy --all-targets -- -D warnings`
      - Go: `go.mod` → `go vet ./...`
-     - 都不匹配 / 找不到工具配置 → **跳过这一步**，继续往下走
+     - **一条都没命中**（或命中但工具配置缺失）→ **跳过这一步**，继续往下走
    - **lint 失败时停止 commit 流程**，把错误原文给用户看，让用户决定：
      - 先修（推荐）：修完再调 `/commit`
      - 强制提交：用户明示后才用 `--no-verify` 等方式绕过
