@@ -82,10 +82,16 @@ review 的对象是**整个工作树的全部改动** —— `/commit` 调本 sk
 
 > **本段是 CC 端路径。** Codex 端没有 Agent 工具、也没有 `agents/` 这个概念（`install.sh` 只把 `agents/` 链到 CC 端），故在 Codex 上本步必然走 Step 5 的降级链 —— 那是能力缺失，属正当降级，照 Step 5 留痕。
 
+**先钉死工作目录**（这条排在任务书之前，因为它决定了后面六条审的是不是同一棵树）：主会话自己跑 `git rev-parse --show-toplevel` 取**绝对路径**，写进委派 prompt，并要求整个编队**一切操作都锚定这个根**（`git -C <根>` + 绝对路径读文件）、把它**原样**逐层转给每个 reviewer。
+
+> **为什么**：子 agent 继承的是**会话的主工作目录**（主 checkout），继承不到主会话 shell `cd` 进 worktree 后的 cwd。而 `/start` 默认每轮在独立 worktree 里开发 —— 不把根传下去，reviewer 就会在主 checkout 上跑 `git diff`，读到的是**另一个分支的改动**（那里常躺着别轮的未提交文件），认认真真审完报 clean。**失败完全静默**，没有任何一步会发现审错了对象。
+>
+> **为什么必须是 `-C` 而不是让它 `cd` 过去**：主会话的 shell 状态跨调用保持，**agent 线程的不保持** —— 实测（`cd /tmp && pwd` 得 `/tmp`，下一次独立调用 `pwd` 弹回原目录）与环境说明「Agent threads always have their cwd reset between bash calls」一致。允许 `cd` 等于把同一个静默失败换个更隐蔽的形态放回来：自证做了、`cd` 也成功了一次，后续每条命令又飘回错的树。
+
 **orchestrator 任务书**（六条缺一不可）：
 
-1. **对象与范围**：自己跑 `git status` / `git diff` 拿全部改动；只审 diff 及其接壤代码，禁止全库扫描。
-2. **编队**：按档位表并行起 reviewer 子 agent，各自独立审、互不通信，各返回 finding 列表（`file:line` + 严重度 + 理由 + 证据）。**起不了子 agent 时**自己按同一角度清单逐角度顺序审，并在结果顶部注明「reviewer 未并行」——**不许因此少审一个角度**。
+1. **对象与范围**：用 `git -C <根> status` / `git -C <根> diff` 拿全部改动；只审 diff 及其接壤代码，禁止全库扫描。
+2. **编队**：按档位表并行起 reviewer 子 agent，**每份委派 prompt 都带上那个仓库根**；各自独立审、互不通信，各返回 finding 列表（`file:line` + 严重度 + 理由 + 证据）。**起不了子 agent 时**自己按同一角度清单逐角度顺序审，并在结果顶部注明「reviewer 未并行」——**不许因此少审一个角度**。
 3. **角度分工**：清单在本 skill 目录下的 `references/angles.md`（CC 端绝对路径 `$HOME/.claude/skills/review-loop/references/angles.md`）。**orchestrator 自己去读那个文件**，把对应角度那一节**逐字原文**转给该 reviewer —— 不改写、不压缩、不合并。清单是「低思考档也不漏审」的机制本身，压缩它等于抵消降档的前提。
 4. **汇总**：跨 reviewer 去重；逐条按 0–100 置信打分 —— 0 = 伪报 / pre-existing；25 = 可能真但未验证；50 = 真但属 nit / 低频；75 = 双查过、很可能实际触发、直接影响功能；100 = 确证且高频。**< 80 直接丢弃**。75 分上下的存疑项，能用可执行探针（边界值、调用点核对、最小复现）验证的先验证再定分。
 5. **返回**：单一结构化 finding 列表（`file:line`、置信分、证据、来源角度）；无 finding 则明确说 clean。**不修改任何文件。**
