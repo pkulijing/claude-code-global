@@ -10,20 +10,20 @@ disable-model-invocation: false
 
 **收尾开关**（控制 Step 8，可组合；不带任何开关 = rebase + FF merge + 删 worktree + 删分支 + 删 backup tag 一站到底）：
 
-| 调用 | 8.2 rebase + 备份 tag | 8.3 FF merge | 删 worktree / 分支 | 删 backup tag |
-| --- | --- | --- | --- | --- |
-| `/finish`（默认） | ✓ | ✓ | ✓ | ✓ |
-| `--no-merge` / `--keep-branch` | ✓ | ✗ | ✗ | ✗ |
-| `--keep-backup` | ✓ | ✓ | ✓ | ✗ |
-| `--no-rebase` | ✗ | ⚠️ 仅当已可 FF | （随其它开关） | （随其它开关） |
+| 调用 | 8.2 rebase + 备份 tag | 8.3 FF merge | 删 worktree | 删分支 | 删 backup tag |
+| --- | --- | --- | --- | --- | --- |
+| `/finish`（默认） | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `--no-merge` / `--keep-branch` | ✓ | ✗ | ✓ | ✗ | ✗ |
+| `--keep-backup` | ✓ | ✓ | ✓ | ✓ | ✗ |
+| `--no-rebase` | ✗ | ⚠️ 仅当已可 FF | （随其它开关） | （随其它开关） | （随其它开关） |
 
 各开关**做什么以上表为准**，下面只说什么时候用它：
 
-- `--no-merge`（同义 `--keep-branch`）：发包 / 外审前想先留分支等 review，或本轮想继续迭代。
+- `--no-merge`（同义 `--keep-branch`）：开发已做完但还不想合入主干（等 review / 等跨仓联调）。**worktree 照删** —— 留着它主工作树反而切不到该分支，删掉后 `git switch <分支>` 即可继续用。
 - `--keep-backup`：高风险轮想让 backup tag 多留几天兜底。
 - `--no-rebase`：不想动历史；此时**只有分支相对主分支已可 FF 才会 merge**，否则停下提示。
 
-开关可组合、语义叠加（`--no-merge --keep-backup` 与单 `--no-merge` 等价 —— 后者本就保留全部）。
+开关可组合、语义叠加（`--no-merge --keep-backup` 与单 `--no-merge` 等价 —— 后者本就保留 backup tag）。
 
 ## Step 1 · 撰写 SUMMARY.md
 

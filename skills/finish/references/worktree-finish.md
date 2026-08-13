@@ -24,7 +24,7 @@
 
 ## 8.3 FF merge 到主分支
 
-> `--no-merge` / `--keep-branch` 跳过本节与 8.4，改走 8.4-skip。
+> `--no-merge` / `--keep-branch` 跳过本节，清理改走 8.4-skip（**worktree 照删**，只留分支与 backup tag）。
 
 主分支 checkout 在主工作树，当前 worktree 不能 `git checkout` 它，故用 `-C` 在主工作树内合并：
 
@@ -36,7 +36,7 @@ git -C <主工作树> merge --ff-only <当前分支>
 
 ## 8.4 二次确认 + 清理
 
-向用户**明确列出**将删除的项，等用户确认（销毁性动作）。`--keep-backup` 时 backup tag 不在删除列表里。
+向用户**明确列出**将删除的项，等用户确认（销毁性动作）。`--keep-backup` 时 backup tag 不在删除列表里。列表须点明 **worktree 内未提交 / untracked 的产物（调试脚本、样例文件等）会一并丢失**。
 
 **用户确认** → 先 `cd <主工作树>`（当前 cwd 即将随 worktree 一起消失），再依次：
 
@@ -52,15 +52,18 @@ git tag -d backup/<分支名>-<时间戳>   # --keep-backup 时跳过，末尾�
 
 ## 8.4-skip（`--no-merge` / `--keep-branch` 专用）
 
-不 merge、不删除任何东西。打印三项的保留位置供后续手动处理：
+不 merge，**但照删 worktree** —— 保留的是「分支不合入主干」，不是「代码留在 worktree 里」：留着它主工作树就切不到该分支（`fatal: '<分支>' is already used by worktree at <路径>`），而跨仓联调的路径引用与脚本入口都指向主工作树。分支与 backup tag 全留。
+
+**删除项只有 worktree 一项，其余纪律同 8.4**：二次确认 + 将删除项列表、先 `cd <主工作树>`、`remove` 失败提示关编辑器重试且**不加 `--force`**、用户拒绝则原样保留。额外一条：**`remove` 失败时必须把「worktree 未删」打印出来**，不得静默按已删继续 —— 否则下面引导的 `git switch` 会切不动。
+
+删成功后打印：
 
 ```
-本轮已 commit + SUMMARY 就位，按 --no-merge 保留：
-  worktree : <当前 worktree 路径>
-  分支     : <当前分支>（已 rebase 到 <主分支>，线性可后续 FF）
-  backup   : backup/<分支名>-<时间戳>
-后续可：① 让人 review / 提 PR；② 继续在此 worktree 迭代；③ 准备好后手动
-   git -C <主工作树> merge --ff-only <当前分支> 并清理。
+本轮已 commit + SUMMARY 就位，按 --no-merge 保留分支不合入主干（worktree 已删）：
+  分支   : <当前分支>（已 rebase 到 <主分支>，线性可后续 FF）
+  backup : backup/<分支名>-<时间戳>
+后续可：① 在主工作树 git switch <当前分支> 联调 / 让人 review / 提 PR；
+       ② 准备好后 git -C <主工作树> merge --ff-only <当前分支>。
 ```
 
 然后直接进 Step 9（跳过 8.5 —— 主分支未前进）。
