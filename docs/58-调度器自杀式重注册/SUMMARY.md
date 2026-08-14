@@ -74,17 +74,44 @@
 
 ## 局限性
 
-- **真机端到端验证尚未执行。** 这是 PLAN 验收标准里唯一没兑现的一条：它必须在合入 master 后从**主 checkout** 跑，不能在 worktree 里做 —— `install.sh` 会把 `~/.claude/` 下所有软链重指到 worktree 路径，而该 worktree 收尾即删。已做的是只读验证（渲染一致性 + job 加载态），自交付这条链是通的，但「由 launchd 触发一次真实同步、确认 job 存活」还欠一次。
+- ~~真机端到端验证尚未执行~~ —— **已于 `/finish` 合入 master 后补做，通过**（见下方「真机验证记录」）。它必须在合入后从**主 checkout** 跑，不能在 worktree 里做：`install.sh` 会把 `~/.claude/` 下所有软链重指到 worktree 路径，而该 worktree 收尾即删。
 - **同模型自审。** 两轮 review 的 reviewer 与写这份 diff 的同为 Claude 模型家族，独立的是 context 而非模型。本轮涉及进程生命周期与状态机，正是该盲区最大的地方；已按规程升重档（含 `code-reviewer-deep`）缓解，但不等于消除。
 - **`FORCE_INSTALL` 补跑闸只挂在「已是最新」分支。** 若同时叠加 non-fast-forward（本地有未推提交）等持久性阻塞，标记会长期留存而补跑不执行，直到阻塞人工解除。判为期望行为（此时仓库根本无法同步，不该硬部署），review 中置信 60、已丢弃。
 - **未迁移到 `launchctl bootstrap` / `bootout`。** 它们的退出码可信（坏路径 → 5，不存在 → 3），比 legacy 的恒 0 好；但 `-w` 的 enable 语义要拆成单独的 `launchctl enable`，改动面与回归面更大。本轮用 `launchctl list` 事后验证同样拿到了真判据。
 - **Linux 分支未做等价加固。** 已确认不存在对称问题（`systemctl --user disable --now <timer>` 停的是 timer 单元，正在跑的 `Type=oneshot` service 不会被带走），仅补了一条「Linux 分支不碰 launchctl」的测试。
 
+## 真机验证记录
+
+合入 master 并 push 后，在本机跑通了两级验证。
+
+**① 终端路径**：主 checkout 跑 `bash install.sh` → 输出 `launchd 调度器已注册且配置未变,跳过重注册`（早退分支生效），job 存活，install 跑到「安装完成」。
+
+**② launchd 路径（关键 —— 旧代码正是死在这条）**：光跑终端不算数，必须让 install.sh **在 job 内部**执行。做法是用新加的补跑闸把它逼出来 —— 造一个 in-flight 标记，于是即便「已是最新」也会真实执行 install.sh，再由 launchd 自己拉起：
+
+```bash
+echo "1786000000" > ~/.claude/.auto-update-inflight
+rm -f ~/.claude/.auto-update-last-run           # 免得被 30min 节流挡掉
+launchctl kickstart "gui/$UID/com.claude-code-global.auto-update"
+```
+
+结果全部符合预期：
+
+```
+[2026-08-14 17:28:26] warn: 上次的 install.sh 未成功完成（被中断或非零退出，2026-08-06 15:06:40），本次补跑
+[2026-08-14 17:28:26] running install.sh
+[INFO] launchd 调度器已注册且配置未变,跳过重注册      ← unload 零调用，没自杀
+[2026-08-14 17:28:26] ok: updated to a71a389
+```
+
+- **job 存活** —— 旧代码在这一步必然从 `launchctl list` 消失；
+- `ok: updated to` 是**全日志里第二次**出现这行（上一次是 2026-06-28，此后 5 次全死在自杀点）；
+- warn 报的是 `2026-08-06`（最初那次失败的时间，未被本次覆写），时间戳保留一并验到；
+- in-flight 标记已清除、节流戳已写入。
+
 ## 后续 TODO
 
-1. **合入后补做真机端到端验证**：构造 `origin/master` 领先本地，由 launchd 触发一次真实同步，确认同步后 job 仍在、节流戳被写入、日志出现 `ok: updated to` —— 那将是全日志里第二次出现这行（上一次是 2026-06-28）。
-2. **更正 `playbooks/shell.md` §2 的触发条件描述**（详见「可沉淀项」）。
-3. `scheduler/uninstall.sh` 本轮未审视，是否有同类自杀路径未知（它本就要卸载 job，语义上是期望的，但由 launchd 拉起时的行为没验证过）。
+1. **更正 `playbooks/shell.md` §2 的触发条件描述** —— 已提 [#130](https://github.com/pkulijing/claude-code-global/issues/130)（详见「可沉淀项」）。
+2. `scheduler/uninstall.sh` 本轮未审视，是否有同类自杀路径未知（它本就要卸载 job，语义上是期望的，但由 launchd 拉起时的行为没验证过）。
 
 ## 可沉淀项
 
