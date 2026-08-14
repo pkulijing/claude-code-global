@@ -39,21 +39,93 @@ render_template() {
         "$1" > "$2"
 }
 
+LAUNCHD_LABEL="com.claude-code-global.auto-update"
+
+# job 是否已加载。实测:`launchctl list <label>` 存在 → 0,不存在 → 113。
+# 只判「是否为 0」,不硬编码 113,以免其它 macOS 版本换了码值。
+job_is_loaded() {
+    launchctl list "$LAUNCHD_LABEL" >/dev/null 2>&1
+}
+
+# job 主进程的 PID(job 未加载 / 未在运行时为空)。
+job_pid() {
+    launchctl list "$LAUNCHD_LABEL" 2>/dev/null \
+        | awk -F'= ' '/"PID"/{gsub(/[^0-9]/,"",$2); print $2}' || true
+}
+
+# 当前进程是否正跑在该 job 内 —— 沿 ppid 链上溯,命中 job 主进程 PID 即是。
+# 实测:launchd 报告的是最外层 auto-update.sh 的 PID,而本脚本是它的孙进程
+# (auto-update.sh → install.sh → scheduler/install.sh),链上必然命中。
+running_inside_job() {
+    local jp p
+    jp="$(job_pid)"
+    [ -n "$jp" ] || return 1
+    p=$$
+    while [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null; do
+        if [ "$p" = "$jp" ]; then
+            return 0
+        fi
+        p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ' || true)"
+    done
+    return 1
+}
+
 install_macos() {
     local plist_dst="$HOME/Library/LaunchAgents/com.claude-code-global.auto-update.plist"
+    local tmp_plist
     mkdir -p "$HOME/Library/LaunchAgents"
 
-    # 渲染模板
-    render_template "$SCHEDULER_DIR/launchd.plist.template" "$plist_dst"
+    if ! command -v launchctl >/dev/null 2>&1; then
+        warn "未找到 launchctl,跳过调度器注册"
+        return 1
+    fi
 
-    # 幂等:先 unload(可能不存在,忽略错误),再 load -w(持久启用)
+    # 先渲染到临时文件,好在落盘前跟已装的那份比对
+    tmp_plist="$(mktemp)"
+    render_template "$SCHEDULER_DIR/launchd.plist.template" "$tmp_plist"
+
+    # ① 已是目标状态(内容一致 + job 已加载)→ 什么都不做。
+    #
+    # 这条早退不只是省事,它是**安全要求**:本脚本可能正由 auto-update.sh 经
+    # launchd 拉起,而 `launchctl unload` 会杀死该 job 名下的全部进程,也就是
+    # 执行 unload 的自己 —— 于是 job 被摘掉、下一行 load 永远执行不到,自动同步
+    # 从此停摆到下次登录。详见 docs/58-调度器自杀式重注册/。
+    if cmp -s "$tmp_plist" "$plist_dst" && job_is_loaded; then
+        rm -f "$tmp_plist"
+        info "launchd 调度器已注册且配置未变,跳过重注册"
+        info "  plist:  $plist_dst"
+        info "  日志:    $AGENT_HOME/logs/auto-update.log"
+        return 0
+    fi
+
+    # 走到这里说明确需(重)注册:plist 内容有变,或 job 掉线了。
+
+    # ② 但如果自己正被该 job 承载,就地 unload 仍会自杀 → 只更新 plist,
+    #    把重注册推迟到下次登录(launchd 届时会读到新 plist)。
+    if running_inside_job; then
+        mv -f "$tmp_plist" "$plist_dst"
+        warn "plist 已更新,但当前进程正由该 launchd job 运行"
+        warn "  就地重注册会杀死正在运行的自己,故推迟到下次登录自动生效"
+        warn "  如需立即生效,可在终端手动跑:"
+        warn "    launchctl unload $plist_dst && launchctl load -w $plist_dst"
+        return 0
+    fi
+
+    # ③ 不在 job 内(人工跑 install.sh / 首次安装)→ 正常重注册
+    mv -f "$tmp_plist" "$plist_dst"
     launchctl unload "$plist_dst" 2>/dev/null || true
-    if launchctl load -w "$plist_dst" 2>/dev/null; then
+    launchctl load -w "$plist_dst" 2>/dev/null || true
+
+    # 成败**只认事后查询**。实测 `launchctl load` 在三种失败模式下(路径不存在 /
+    # plist 损坏 / 已加载)全部打印 "Load failed" 却仍 exit 0,据其退出码判断会把
+    # 失败一路报成成功。
+    if job_is_loaded; then
         success "已注册 launchd 调度器(登录跑 + 每小时跑)"
         info "  plist:  $plist_dst"
         info "  日志:    $AGENT_HOME/logs/auto-update.log"
     else
-        warn "launchctl load 失败,可手动: launchctl load -w $plist_dst"
+        warn "launchd 调度器注册失败(launchctl list 查不到 $LAUNCHD_LABEL)"
+        warn "可手动: launchctl load -w $plist_dst"
         return 1
     fi
 }
