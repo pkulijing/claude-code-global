@@ -200,9 +200,12 @@ bash ~/Developer/claude-code-global/install.sh
 
 **`bash install.sh` 末尾自动调 [scheduler/install.sh](scheduler/install.sh)** 注册 OS 调度器（macOS 写 `~/Library/LaunchAgents/com.claude-code-global.auto-update.plist` + `launchctl load -w`；Linux 写 `~/.config/systemd/user/` + `systemctl --user enable --now`）。失败 warn 不阻塞主 install。
 
+> macOS 侧的注册**不是无条件 unload + load**：plist 内容未变且 job 已加载时直接跳过，正被该 job 承载时只更新 plist、把重注册推迟到下次登录。因为 `launchctl unload` 会杀掉该 job 名下**全部**进程 —— 而 `install.sh` 常常正是由这个 job 拉起的，就地重注册等于自杀。成败也不看 `launchctl load` 的退出码（它失败时照样返 0），改查 `launchctl list`。来龙去脉见 [docs/58-调度器自杀式重注册/SUMMARY.md](docs/58-调度器自杀式重注册/SUMMARY.md)。
+
 **关键行为**：
 
 - dirty working tree / non-fast-forward / 网络错误 → 跳过 + 写日志 + **不更新时间戳**（下次重试）
+- `install.sh` 未成功跑完（被强杀或非零退出）→ 留下 `$AGENT_HOME/.auto-update-inflight` 标记，下次运行**告警并补跑**。没有它的话，此时 `git pull` 往往已成功，下次会走「已是最新」直接退出，部署就永久停在半截；标记里的时间戳是**最初**那次失败的时间，好看出「已经坏了多久」
 - 只在 master 分支自动 pull
 - 第一台设备首次仍要手动 `git clone + bash install.sh`（自举的硬限制）
 - 正在跑的旧 Claude session 不会自动应用新配置，需 `/exit` 重开
