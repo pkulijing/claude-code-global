@@ -45,7 +45,7 @@ args 可含以下项（三者正交、可任意组合），解析后剩余文字
 
 - 探测主分支：`git symbolic-ref --short refs/remotes/origin/HEAD`（得 `origin/master` → 取末段）；失败则本地探测 `main` / `master`。
 - 若工作区已有未提交改动 → 提示用户「切分支会带走当前未提交改动」，等用户确认。
-- `git switch -c quick/<ascii 短描述>`（从当前 HEAD 切，**不建 worktree**）。短描述从需求描述提炼，**规格同 `/start`**：`[a-z0-9-]`、2–4 个词、≤ 20 字符，无自然英文对应用拼音。GitHub 网页端导航不进非 ASCII 分支名的文件树（缺陷在其前端，服务端正常），凡 ref 位置一律避开中文。
+- `git switch -c quick/<ascii 短描述>`（从当前 HEAD 切，**不建 worktree**）。短描述从需求描述提炼，**规格与「为什么 ref 位置必须纯 ASCII」同 `/start`，见 `skills/start/references/worktree-create.md`「短描述规格」条**，此处不复述。
 
 **默认（不带 `--branch`）**：跳过本步，在当前所在分支直接改。若当前分支就是主分支（`master` / `main`），**允许**——简易流小改直提主分支是合理的，但打印一行提示让用户知情（「将在主分支 `<主分支>` 上直接改并提交」），给用户一个喊停的机会。
 
@@ -61,7 +61,7 @@ args 可含以下项（三者正交、可任意组合），解析后剩余文字
 
 调用 `/commit` 提交（继承其 lint 门禁 / semantic commit message / Co-authored-by trailer，单一真源不重复实现）：
 
-- **若解析出 `#N`**：把 `Closes #N` 作为额外上下文传给 `/commit`，让 message body 自然包含（不嵌入 title）。**关多个 issue 时每个 `#N` 各占一行、各带 `Closes` 关键字**（`Closes #13` / `Closes #20` / …）—— 绝不写成 `Closes #13 #20`（GitHub / GitLab 的关闭关键字只对紧跟的第一个号生效，后面的不会关，这是 `/finish` 里踩过的坑）。
+- **若解析出 `#N`**：把 `Closes #N` 作为额外上下文传给 `/commit`，让 message body 自然包含（不嵌入 title）。**关多个 issue 时每个 `#N` 各占一行、各带 `Closes` 关键字**（`Closes #13` / `Closes #20` / …），**绝不写成 `Closes #13 #20`** —— 这条硬规则连同它的代价，单一真源在 `skills/finish/SKILL.md` Step 4。
 - **`[round N]` 前缀天然不加**：`/quick` 默认既不建 `round<N>` 分支、也不建 `docs/<N>-*/` 目录 → `/commit` 的两路轮次探测都判不出 N → 走普通 commit、不加前缀。**这是预期行为**（简易流本就不进轮次追踪），无需干预。
 
 ## Step 4：轻量收尾提示
