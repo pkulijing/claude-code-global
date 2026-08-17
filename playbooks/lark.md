@@ -24,13 +24,28 @@
 
 `docs +create` 建好文档后，用 `docs +update --command block_insert_after --block-id <document_id>` 把署名 blockquote 锚在标题后：docx 里 `<title>` 块的 id **等于** document_id，锚它即落在正文最前、结论 callout 之上。
 
-### 2.2 图 / 文件置顶：用 block_move_after 重定位
+### 2.2 图 / 文件定位：置顶用 block_move_after，插正文中间用 --selection-with-ellipsis
 
-`docs +media-insert` 只能把图 / 文件追加到**文末**。要把它移到正文最前，用 `block_move_after` 锚 `<title>`（id == document_id）即可置顶。
+`docs +media-insert` **默认**把图 / 文件追加到**文末**。要它落在别处有两条路，别混用：
 
-### 2.3 内容文件只接受 CWD 内相对路径
+- **置顶** → 用 `block_move_after` 锚 `<title>`（id == document_id）。
+- **插到正文中间** → 直接用 `--selection-with-ellipsis <锚点文本>` 配 `--before`，**一步**把图插到指定段落前 / 后，不必走「先 append 到文末、再 `block_move_after` 重定位」那两步。
+  ⚠ 锚点文本里含引号（中文弯引号或半角 `"`）会被 shell 吃掉、报 `unmatched "`，**挑不含引号的片段做锚点**。
 
-`docs +create --content @file` 只接受 **CWD 内的相对路径**。内容文件宜写在 gitignore 的 `output/` 目录，再用 `@output/xxx.md` 形式传入，规避 shell 转义问题。
+### 2.3 `--content` 与 `--file` 都只接受 CWD 内相对路径
+
+`docs +create --content @file` 与 `docs +media-insert --file` **都**只接受 **CWD 内的相对路径**，传绝对路径直接被拒：
+
+```
+"message": "unsafe file path: --file must be a relative path within the current directory,
+ got \"/Users/.../assets/frame_sample_grid.jpg\"
+ (hint: use a relative path like ./filename; flags that support stdin can read an out-of-tree file via '-' instead)"
+```
+
+- **内容文件**宜写在 gitignore 的 `output/` 目录，再用 `@output/xxx.md` 形式传入，规避 shell 转义问题。
+- **配图同理，且更容易撞上**：图往往产自 `docs/<轮次>/assets/`（甚至在另一个 git worktree 里），而 lark-cli 需要在项目根跑 —— 先把图**拷进 CWD 内的 `output/`**，再用 `./output/xxx.jpg` 传入。
+
+报错提示里给的 `-`（stdin）**仅对支持 stdin 的 flag 有效**，别拿它当通用逃生舱。
 
 ### 2.4 带图的文档：markdown 里直接留 mermaid 围栏，导入器自动转原生画板
 
