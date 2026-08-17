@@ -18,12 +18,33 @@ Coding Agent 写含中文的 shell 脚本时，反复在「中文 / 全角字符
 
 ## 2. `$var` 紧贴 CJK / 全角字符 → 一律 `${var}`
 
-`$var` 后**紧贴**一个 CJK 或全角字符时，在**非 UTF-8 locale**（C / POSIX，CC 的 Bash 工具常处于此）或 `set -u` 下，Bash 会把那个字符的**首字节**当成变量名的一部分 → 解析成一个不存在的变量 → 报 `unbound variable`。
+`$var` 后**紧贴**一个 CJK 或全角字符时，Bash 可能把那个字符的**首字节**当成变量名的一部分 → 解析成一个不存在的变量；`set -u` 下直接 abort 报 `unbound variable`。
 
 ```sh
 echo "OK: ...（SHA=$CURRENT）"   # $CURRENT 紧贴全角 '）' → 报 `CURRENT\xef: unbound variable`
 echo ">> $host：建会话"          # $host 紧贴全角 '：' → 报 `host?: unbound variable`
 ```
+
+**触发条件随 bash 版本与 locale 实现分叉，两侧都可能触发 —— 别去记「哪一侧安全」。** 已实测两台，结论相反：
+
+| 环境 | `LC_ALL=C` | UTF-8 locale |
+| --- | --- | --- |
+| macOS 自带 bash `3.2.57(1)` | 正常 | **报错** |
+| Linux bash `5.2.21(1)` | 正常 | 正常（测的是 `C.UTF-8`，charmap 实为 `UTF-8`；该机无 `en_US.UTF-8`） |
+
+一秒自测本机落在哪一侧：
+
+```console
+# ① 先确认要测的 locale 真的生效 —— charmap 得是 UTF-8
+$ LC_ALL=en_US.UTF-8 /bin/bash -c 'locale charmap'
+# ② 再各跑一次
+$ LC_ALL=C           /bin/bash -uc 'V="x"; echo "终止（$V），重试"'
+$ LC_ALL=en_US.UTF-8 /bin/bash -uc 'V="x"; echo "终止（$V），重试"'
+```
+
+⚠ **第 ① 步不能省，否则这个自测会骗你**：精简容器 / CI 镜像常没装 `en_US.UTF-8`，`setlocale` 失败后**静默回落到 C/POSIX**（只在 stderr 留 warning，stdout 一切照常），于是两条命令实际测的是**同一个 locale 两遍**，却看起来「两侧都正常」。判据看 `locale charmap`：出 `UTF-8` 才算真站在 UTF-8 侧，出 `ANSI_X3.4-1968` 说明已回落 —— 换一个本机确实装了的 UTF-8 locale 再测（`locale -a | grep -i utf` 查，常见是 `C.utf8`）。
+
+⚠ **自测只用来满足好奇，不构成豁免**：修法（下面那条）**与 locale 无关，两侧都成立**，所以不必判断自己在哪一侧，更不能因为「我这里是 UTF-8 / 我这里是 C」就认为不会踩。**按环境判断安全性正是这条坑最主要的危害** —— 写脚本的机器与跑脚本的机器（定时器 / CI / ssh 远端）往往不是同一台，也未必是同一个 bash 版本。
 
 **修法**：
 
