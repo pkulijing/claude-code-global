@@ -121,16 +121,7 @@ ROS 2 + Python 混合仓里，一个纯 Python 包可能既要走 uv / PyPI 链�
 **原则：双链路 = 两套构建元数据物理隔离，各读各的。**
 
 - **uv 侧不动**：`pyproject.toml` 保留 `[build-system] uv_build`（照常发 wheel / editable）。
-- **colcon 侧新增**同目录的 `package.xml`（`<build_type>ament_cmake</build_type>`）+ `CMakeLists.txt`：
-
-  ```cmake
-  cmake_minimum_required(VERSION 3.8)
-  project(my_proto NONE)          # 纯 Python 无编译，NONE 跳过编译器探测（交叉编译无关）
-  find_package(ament_cmake REQUIRED)
-  find_package(ament_cmake_python REQUIRED)
-  ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR src/${PROJECT_NAME})
-  ament_package()
-  ```
+- **colcon 侧新增**同目录的 `package.xml`（`<build_type>ament_cmake</build_type>`）+ `CMakeLists.txt`。**CMakeLists 骨架就是 §4.6 那份**，去掉 `install(PROGRAMS ...)`（本场景无可执行入口）与 `ament_environment_hooks(...)`（无 source-time hook）两行即可；`project(<pkg> NONE)` 的 `NONE` 是「纯 Python 无编译、跳过编译器探测」，与交叉编译无关。
 
 - **隔离成立的关键**：colcon 只读 `package.xml` / `CMakeLists.txt`，uv 只读 `pyproject.toml`；选 `ament_cmake`（**而非** `ament_python`）正是为了避免 `setup.py` 布局与 `uv_build` 的 src 布局抢同一目录的元数据。
 - 下游 ROS 包运行期 import 它 → 在其 `package.xml` 里加 `<exec_depend>my_proto</exec_depend>`，保证 colcon 构建顺序 + `source` 后运行期可见。
