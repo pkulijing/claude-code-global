@@ -147,7 +147,7 @@ python3 scripts/context_budget.py measure      # 「后」数据
 | 某条内容拿不准是否属禁止删除清单 | 问用户 | **不删**，同上 |
 | 拆 `references/` 后找不到合适的触发点 | 问用户 | **不拆**（没有触发点的分层等于丢约束），记入 PR 描述 |
 | 判定某个文件该整体重写 | 问用户 | **不做** —— 本 routine 只做删除与搬移，重写是人的活 |
-| `/review-loop` 委派失败 | 告知用户 | 照常继续，在 PR 的 review 段如实标注「未经独立 context 把关」 |
+| `/review-loop` 委派失败 | 告知用户 | 照常继续，在 PR 的 review 段照 Step 5 该档的措辞如实标注（② 独立 context 未失、`effort` 未钉死；③ 未经独立 context 把关）—— **别把 ② 记成 ③**，云端撞不上 `agents/` 时的常态是 ② |
 | `/commit` lint 失败 | 停下问用户 | 放弃这个文件、`git restore`、记入跳过清单 |
 | push / 开 PR 失败 | 问用户 | 放弃本次运行，**不重试**（下周会重新捡起） |
 

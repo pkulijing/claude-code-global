@@ -31,7 +31,7 @@ disable-model-invocation: false
    - 遵循 semantic commit message 规则（如 `feat:`, `fix:`, `refactor:` 等）
    - **若第 6 步探出 N**：在 semantic message 最前面加 `[round N] ` 前缀，形如 `[round 3] feat(skill): 支持 xxx`
    - **若第 4 步 `/review-loop` 以「未收敛留痕」放行**：在 message body 追加其给出的标注行（形如 `Review: 2 轮未收敛，遗留 N 条 finding，见 docs/<N>-*/REVIEW.md`），不得省略——这是遗留问题在 `/finish` 前唯一的显式可见性
-   - **若第 4 步 `/review-loop` 走了降级路径**（未委派成功、改为本端结构化自审）：在 message body 追加一行标注写明「未经独立 context 把关」，**并附降级证据**（那次调用失败的实际表现 / 工具确实不在列表）——只写结论不算数，写不出证据说明本就不该降级
+   - **若第 4 步 `/review-loop` 走了降级路径**（Step 5 的第 ② 或 ③ 档）：在 message body 追加一行标注，**照抄该档在 Step 5 里的措辞**（② 写「独立 context 未失、`effort` 未钉死」；③ 写「未经独立 context 把关」——**别把 ② 记成 ③**），**并附降级证据**（那次调用失败的实际表现 / 工具确实不在列表）——只写结论不算数，写不出证据说明本就不该降级
    - 简明扼要，聚焦于「为什么」而非「改了什么」
 8. 将相关文件添加到暂存区（优先按文件名添加，避免 `git add -A`）
 9. 执行提交，commit message 末尾必须**按当前执行的 Agent** 追加正确的 `Co-authored-by` trailer（详见全局 CLAUDE.md「git 规则」）：

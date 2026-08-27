@@ -71,9 +71,9 @@ review 的对象是**整个工作树的全部改动** —— `/commit` 调本 sk
 
 起 **1 个 orchestrator 子 agent**（`subagent_type: review-orchestrator`），同步等它返回一份 finding 列表。**按你环境里 Agent 工具的实际 schema 填参** —— 该 schema 随 CC 版本漂移，别照抄记忆里的字段清单。
 
-**不要传 `model` 入参。** 模型解析顺序是「环境变量 > 单次调用的 `model` 参数 > agent 定义的 frontmatter」—— 传了就会盖掉定义里钉死的那个（`code-reviewer-deep` 会被从 `opus` 打回去）。思考档没有单次调用入参，只认 frontmatter，所以**编队档位的唯一真源是 `agents/*.md`**。
+**走本档编队时不要传 `model` 入参。** 模型解析顺序是「环境变量 > 单次调用的 `model` 参数 > agent 定义的 frontmatter」—— 传了就会盖掉定义里钉死的那个（`code-reviewer-deep` 会被从 `opus` 打回去）。思考档没有单次调用入参，只认 frontmatter，所以**编队档位的唯一真源是 `agents/*.md`**。**唯一例外是 Step 5 的第 ② 档** —— 那里用的通用类型没有 frontmatter 可继承，`model` 反而必须传。
 
-> **本段是 CC 端路径。** Codex 端没有 Agent 工具、也没有 `agents/` 这个概念（`install.sh` 只把 `agents/` 链到 CC 端），故在 Codex 上本步必然走 Step 5 的降级链 —— 那是能力缺失，属正当降级，照 Step 5 留痕。
+> **本段是 CC 端路径。** Codex 端没有 Agent 工具、也没有 `agents/` 这个概念（`install.sh` 只把 `agents/` 链到 CC 端），故在 Codex 上本步必然走 Step 5 的降级链，**且直接落到第 ③ 档**（没有 Agent 工具，第 ② 档同样起不来）—— 那是能力缺失，属正当降级，照 Step 5 留痕。
 
 **先钉死工作目录**（这条排在任务书之前，因为它决定了后面六条审的是不是同一棵树）：主会话自己跑 `git rev-parse --show-toplevel` 取**绝对路径**，写进委派 prompt，并要求整个编队**一切操作都锚定这个根**（`git -C <根>` + 绝对路径读文件）、把它**原样**逐层转给每个 reviewer。
 
@@ -94,19 +94,38 @@ review 的对象是**整个工作树的全部改动** —— `/commit` 调本 sk
 
 ## Step 5 · 降级链
 
-优先级：**委派 orchestrator > 主会话结构化自审 > 不 review（禁止）**。
+优先级：**① orchestrator 编队 > ② 主会话当 orchestrator + 通用 agent 编队 > ③ 主会话结构化自审 > 不 review（禁止）**。
 
-**降级门槛（两条硬规则，任一不满足就不许降）**：
+| 档 | 编队形态 | 相对 ① 丢了什么 | 何时用 |
+| --- | --- | --- | --- |
+| ① | Step 4 的 `review-orchestrator` + `code-reviewer` | —— | 默认 |
+| ② | **主会话自己当 orchestrator**：按档位表并行起 N 个**当前可用的通用 agent 类型**（`general-purpose` 等）各审一个角度，主会话只做跨 reviewer 去重、置信打分、探针验证 | 丢**由 agent 定义兜住的两条**：`effort` 钉死（Agent 工具无 effort 入参）、以及**结构性只读**（`general-purpose` 拿的是全量工具，没有 `code-reviewer` 那行 `disallowedTools`）。独立 context 与 `model` 保住 | `agents/*.md` 的类型不可用，但 Agent 工具本身能用 |
+| ③ | 无编队，主会话逐角度自审 | **独立 context** —— 本机制的首要属性 | Agent 工具整个不可用（Codex 端 / 受限环境） |
+
+**② 的委派 prompt 必须自带这两条**（①档由 agent 定义兜住，通用类型没有）：
+
+- **传 `model` 入参**，值照抄 `agents/code-reviewer.md` 的 frontmatter —— 不传就跟着主会话跑。这是 Step 4「不要传 `model`」的唯一例外。
+- **写死「只读不写：不修改任何文件」** —— 通用类型没有 `disallowedTools` 兜底，漏了这句 reviewer 真的能改工作树，而 review 阶段改动是静默的。
+
+**② 不是将就，在无人值守会话里接近无损**：`agents/*.md` 存在的唯一理由是钉死 `model` 与 `effort`，而 `effort` 那一半防的是「主会话跑 `xhigh` 时全编队跟着烧」—— 那是**本机交互会话**的风险，云端 routine 没有 xhigh 主会话。**只要上面两条约束真写进了 prompt**，② 与 ① 差距很小；③ 丢的却是首要属性，量级完全不同。
+
+> **云端 `agents/` 不可用是常态、不是偶发**：CC 在**会话启动时**快照 agent 类型，而云端 routine 的 `agents/` 由会话内的 `install.sh` 才软链上，来不及。实测（CC 2.1.247）：会话中途新建的 agent 定义不会被拾取，调一次 Skill 工具（skills 靠它整体刷新）也不刷新 agents。撞上 `Agent type 'review-orchestrator' not found` 就**直接走 ②**，不必每次重判。
+
+**降级门槛（三条硬规则，任一不满足就不许降）**：
 
 1. **先真核验一次。** 要么**实际发起过一次 Agent 调用并失败**，要么**核对确认 Agent 工具不在当前工具列表里**（受限环境下无从发起，核对工具列表就是那次实际核验）—— 两者都是可复述的实际观察。纯推断（「我判断它起不来 / 不该调」）不构成理由。
 2. **只有能力缺失才算失败。** 穷举：Agent 工具不在当前工具列表里、调用直接报错、子 agent 起不来、返回的不是 finding 列表。**策略类指令一律不算** —— 「除非用户要求否则别调 Agent / 别用 workflow」这类平台通用系统提示，在用户走 `/commit` / `/review-loop` 时**条件已被满足**（宪法要求 commit 前委派独立 context reviewer，这就是那个 user request），它是策略约束、不是能力缺失。真拿不准 → **停机问人**，不许自己挑降级路径：在代价不同、计划未预先授权的方案间替人类选择是方向性决策。
+3. **一次只降一档，门槛逐档适用。** 核验到 ① 失败只授权你走 ②；要再落到 ③，必须**对 ② 另做一次核验**（通用 agent 类型也起不来）。**「① 起不来」永远不构成走 ③ 的理由** —— 两个自动 PR（#141 / #143）正是这么丢掉独立 context 的，而同一根因下的 #125 / #136 / #137 都在 ② 上跑完了。
 
 **无人值守例外**：云端 routine 等无人在环的会话**没有「停机问人」这个选项** —— 判不准时按降级处理，并在留痕里写明「门槛判定存疑」及实际观察到的表现。挂起等于整次运行报废，比一次留痕充分的降级更糟。
 
-达标后降级 → 主会话读 `references/angles.md`，按档位对应的角度**逐角度**过一遍 diff（一个都不能少）+ 同一置信 rubric 过滤，告知用户「本次未走独立 context，主 context 会因此增大」，并在结果**顶部显著标注**：
+降级后**角度覆盖不打折**：② 由主会话读 `references/angles.md`、把对应小节**逐字原文**转给每个 reviewer；③ 由主会话自己逐角度过一遍 diff。两者都用同一套置信 rubric 过滤，并在结果**顶部显著标注** —— **两档的标注不通用，别混用**：
 
-> ⚠ 本次为**主会话结构化自审**（未经独立 context 把关）——开发对话的先入之见在场，难复现问题极易漏判。
-> 降级原因：<那次调用失败的实际表现：报错原文 / 工具确实不在列表>
+> **②** ⚠ 本次编队降级为**通用 agent 类型** —— 独立 context 未失，`model` 已按 `agents/code-reviewer.md` 钉死、只读已由委派 prompt 约束；**损失是 `effort` 未由 frontmatter 钉死**，reviewer 继承了主会话思考档。
+> 降级原因：<那次调用失败的实际表现：报错原文>
+
+> **③** ⚠ 本次为**主会话结构化自审**（未经独立 context 把关）—— 开发对话的先入之见在场，难复现问题极易漏判。另需告知用户「主 context 会因此增大」。
+> 降级原因：<① 与 ② **各自**失败的实际表现：报错原文 / 工具确实不在列表>
 
 **留痕必须带证据**：降级标注只写结论不算数，要附那次核验的实际表现。落点：commit message（由 `/commit` 第 7 步写入）与 `REVIEW.md`；无 docs 目录的轮（如 `/quick`）写进对话输出。**写不出证据，本身就说明不该降级** —— 此时的正解是回去把委派做完，**绝不是编一次没发生过的调用来填这一栏**。
 
