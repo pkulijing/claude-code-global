@@ -27,3 +27,38 @@ jobs:
 
       - name: ruff format check
         run: uv run ruff format --check .
+
+  # lint 只证明静态无错，证明不了行为没回归——二者不可互替。
+  # 守护测试（从实际发出的命令 / 请求端钉死安全底线的那些）如果 CI 从不跑，
+  # 它们的实际保障强度就只等于「每个人都记得在本地跑 pytest」，等于注释。
+  test:
+    runs-on: ubuntu-latest
+    # 想加 OS matrix 就把上面一行换成下面两行（GitHub 的 macos runner 对公开仓免费，
+    # 私有仓按 10 倍分钟数计费，故不设为默认）：
+    #   runs-on: ${{ matrix.os }}
+    #   strategy: { fail-fast: false, matrix: { os: [ubuntu-latest, macos-latest] } }
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install
+
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: pytest
+        run: |
+          # 新项目可能一条测试都还没有：pytest 收集不到用例时退出码为 5，视作跳过。
+          # 但**一旦有测试就必须真跑**——任何其它非零退出码照常让 CI 红。
+          rc=0
+          uv run pytest || rc=$?
+          if [ "$rc" -eq 5 ]; then
+            echo "::notice::no tests collected — skipping (add tests under packages/*/tests/ to enable this gate)"
+            exit 0
+          fi
+          exit "$rc"
