@@ -65,7 +65,7 @@ args 非空时可作为问题 1 或 2 的输入；不足部分仍需问全。
 
 顺序：先 `_common`，再按用户选的每个 `<stack>` 依次应用。对每个来源把 `__root__/` 与 `__subpath__/` 下所有文件（含点文件与子目录）复制到各自落点，目标已存在的列入冲突清单逐条确认。
 
-**`*.fragment` 与 `<target>.variant.<key>` 两类文件要从普通复制流程中剔除**，不落地为同名文件 —— 它们分别走 3.3.6 的合并与 3.3.7 的选一个落地。
+**`*.fragment` 与 `<target>.variant.<key>` 两类文件要从普通复制流程中剔除**，不落地为同名文件 —— 它们分别走 3.3.6 的选一个落地与 3.3.7 的合并（**变体先落地、fragment 后合并**，理由见 3.3.7）。
 
 ### 3.3.5 同步 labels
 
@@ -77,17 +77,19 @@ python3 $HOME/.claude/scripts/platform_issue.py label-sync-from-file .github/lab
 
 stdout 原样展示给用户；exit 2/3/4 按契约降级为收尾提示（Step 5 第 6 条），不阻塞后续。helper 完整行为见 `~/.claude/scripts/platform_issue.md`。
 
-### 3.3.6 合并 fragments
-
-对 3.3 剔除出来的每一份 `*.fragment`，按 `templates/MECHANICS.md` §2 合并。单包 `python-uv` 且项目根无 `pyproject.toml` 时，相关片段标记 **needs-step-3.5**，等 3.5 生成骨架后回到本步再合。
-
-### 3.3.7 落地变体组
+### 3.3.6 落地变体组
 
 对 3.3 按 `<target>` 聚合出来的每个变体组，按 `templates/MECHANICS.md` §3 问用户选一个 key 并只落地那一份，**记住每个组的选择**供 3.6 写进 marker。
 
+### 3.3.7 合并 fragments
+
+对 3.3 剔除出来的每一份 `*.fragment`，按 `templates/MECHANICS.md` §2 合并。单包 `python-uv` 且项目根无 `pyproject.toml` 时，相关片段标记 **needs-step-3.5**，等 3.5 生成骨架后回到本步再合。
+
+> **这一步必须排在 3.3.6 之后，顺序不许调换** —— 理由见 `templates/MECHANICS.md` §2.3 硬约束 1。
+
 ### 3.5 后端可跑化（选中含 `python-uv` 或 `python-uv-workspace` 时）
 
-按 `templates/MECHANICS.md` §4 执行四步（确保 `pyproject.toml` → 装 dev 依赖 → 确保 pre-commit → 注册 git hook）。生成骨架后**回到 3.3.6** 处理所有标记 needs-step-3.5 的片段。都没选中则整段跳过。
+按 `templates/MECHANICS.md` §4 执行四步（确保 `pyproject.toml` → 装 dev 依赖 → 确保 pre-commit → 注册 git hook）。生成骨架后**回到 3.3.7** 处理所有标记 needs-step-3.5 的片段。都没选中则整段跳过。
 
 ### 3.5b 前端依赖安装（选中含 `react-vite` 时）
 
@@ -107,7 +109,7 @@ stacks:
     path: .
     skipped: []
     variants: # 仅当该 stack 落了变体组时写，缺省不写
-      .gitlab-ci.yml: shell # 3.3.7 用户选的 key
+      .gitlab-ci.yml: shell # 3.3.6 用户选的 key
   - stack: react-vite
     path: frontend
     skipped: []
