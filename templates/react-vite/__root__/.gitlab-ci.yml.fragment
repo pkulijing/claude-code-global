@@ -1,0 +1,30 @@
+# react-vite 栈的 GitLab CI 片段 —— 合并进**项目根** .gitlab-ci.yml。
+#
+# 为什么是 fragment 而不是变体组：`.gitlab-ci.yml` 本体由后端栈以变体组形式提供
+# （.variant.docker / .variant.shell，按 runner 类型二选一）。前端这一维与 runner
+# 类型正交——它要的不是「再来一个变体」，而是往**已选中的那份**里加一个 job。
+# 落地顺序因此是「变体先落地成 .gitlab-ci.yml，本片段再合并进去」
+# （见 templates/MECHANICS.md §2.3）。纯前端项目没有后端变体可合，本片段直接创建。
+#
+# ⚠ 本文件**不使用 YAML 锚点**：锚点作用域是单个 YAML 文档，合并进另一份文件后
+# 既可能与对方的锚点重名、又可能引用到不存在的锚点。这条是 §2.3 的硬约束。
+stages:
+  - lint
+  - test
+
+frontend:
+  stage: lint
+  image: node:22-bookworm-slim
+  before_script:
+    # biome / tsc 都按目录解析配置，必须进到 frontend/ 里跑（见 playbooks/frontend.md §1）
+    - cd frontend
+    # npm ci 要求 package-lock.json 已提交（模板未 gitignore 它）
+    - npm ci
+  script:
+    - npm run lint
+    - npm run typecheck
+    # 模板未预置测试脚手架，故用 --if-present：补上 Vitest 后自动开始跑
+    - npm run test --if-present
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

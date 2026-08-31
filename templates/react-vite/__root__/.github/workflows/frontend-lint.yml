@@ -1,0 +1,36 @@
+# 前端维度的 CI，与后端栈的 lint.yml **并列存在**、互不覆盖。
+# 故意不叫 lint.yml：`__root__` 落点由各 stack 共同贡献到项目根，同名会撞车
+# （见 templates/MECHANICS.md §1）。混栈仓库因此有两份 workflow，各管一维。
+name: frontend
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  ts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # npm ci 要求 package-lock.json 已提交（模板未 gitignore 它，与后端 uv.lock
+      # 同一约定）。bootstrap 的前端可跑化步骤跑完 npm install 即生成。
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      # 模板未预置测试脚手架，故用 --if-present：没有 test 脚本时跳过，
+      # 一旦按 playbooks/frontend.md §5 补上 Vitest 就自动开始跑。
+      - run: npm run test --if-present

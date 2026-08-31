@@ -54,6 +54,22 @@
 
 **为什么一定落根**：VS Code 单根工作区只读仓库根的 `.vscode/`，子目录 stack（如 `react-vite`）也必须借此落根才生效。
 
+### 2.3 `<target>.yaml|yml.fragment` —— YAML 合并
+
+目标是**项目根**的 `<target>`（去掉 `.fragment`）。当前用它的是**门禁类根文件**：`.pre-commit-config.yaml` 与 `.gitlab-ci.yml` —— 它们落项目根，而**前后端两维都要往同一个路径贡献内容**，混栈仓库需要的是两侧的**并集**而不是二选一（少了谁，那一维就没有闸门）。
+
+- 目标**不存在** → 用 fragment 内容创建。
+- 目标**已存在** → 按 key 合并，规则按目标语义：
+  - `.pre-commit-config.yaml`：顶层 `repos` 数组按 `repo` 字段 union；同一个 `repo`（含 `repo: local`）两侧都有时，其 `hooks` 再按 `id` union，项目侧已有同名 `id` 则跳过、不覆盖用户改过的参数。
+  - `.gitlab-ci.yml`：`stages` 按**有序去重 union**（保持原有先后、新 stage 追加在后）；job（顶层非保留键）按 job 名 union，同名 job 项目侧优先、不覆盖。
+  - 其余标量冲突 → 问用户。
+- 多个来源的同名 fragment 依次合并进**同一个**根目标（先 `_common` 再逐个 stack）。
+
+**两条硬约束**：
+
+1. **落地顺序：普通文件与变体组先落地，fragment 最后合并。** `.gitlab-ci.yml` 本体来自后端栈的**变体组**（§3），前端只是往**已选中的那份**里加一个 job；顺序反了，fragment 会先创建一个文件、随后变体落地时撞进冲突清单，白白问用户一次。
+2. **fragment 里不许用 YAML 锚点（`&anchor` / `*anchor`）。** 锚点的作用域是**单个 YAML 文档**：合并进另一份文件后，既可能与对方的锚点重名，又可能引用到根本不存在的锚点。变体组那两份 `.gitlab-ci.yml.variant.*` 是**整份落地、不参与合并**的，所以它们内部照常用锚点（也**必须**用锚点而非 GitLab 的 `!reference`，理由见 §3 下方）。
+
 ## 3. 变体组 `<target>.variant.<key>`
 
 同一 `<target>` 的多个 `.variant.<key>` 是**一组互斥变体**，只有一个能落地为 `<target>`（去掉后缀）。复制流程同样要先把它们剔除、按 `<target>` 聚合。
@@ -66,6 +82,10 @@
 
 - `docker` —— Docker executor runner（GitLab.com / 官方 docker runner，image 提供 uv+Python）
 - `shell` —— 本地 shell runner（公司自建、无 docker executor，runner 无 uv 时脚本装）
+
+**变体落地排在 fragment 合并之前**（§2.3 硬约束 1）：`.gitlab-ci.yml` 既是变体组的目标、又是 `react-vite` 那份 YAML fragment 的目标，顺序反了会白白多问用户一次冲突。
+
+**变体文件内部复用一律用标准 YAML 锚点（`&anchor` / `*anchor`），禁用 GitLab 的 `!reference` tag**：通用 YAML 解析器（pre-commit 的 `check-yaml` 就是一个）不认这个自定义 tag，会报 `could not determine a constructor for the tag` 让 commit 直接失败；锚点 GitLab 同样支持、且 `check-yaml` 能过。变体是**整份落地、不参与合并**的，所以它们用锚点没有 §2.3 那条「fragment 里不许用锚点」的顾虑。
 
 **老项目 marker 无 `variants` 字段**（bootstrap 早于本机制）→ 该变体组标记「需补选」，决策时问用户选一个，落地后把选择写回 marker。
 
@@ -93,6 +113,13 @@ cd frontend && npm install
 ```
 
 `.npmrc` 已固化国内镜像。失败 → 报告 stdout/stderr、提示手动重试，**不自动回滚**。装完可选 `npm run lint` / `npm run build` 验证。
+
+装完依赖后**还要确保 pre-commit 钩子真的注册上**（与 §4 的 3–4 步同样两条，此处单列是因为**纯前端项目走不到 §4**）：
+
+3. `command -v pre-commit >/dev/null || uv tool install pre-commit`（无 uv 时提示用户自行安装 pre-commit）
+4. `pre-commit install`
+
+**为什么不能省**：本 stack 的 `.pre-commit-config.yaml.fragment` 会在项目根落出一份配置，但配置文件本身不是门禁 —— 没跑过 `pre-commit install` 就没有 `.git/hooks/pre-commit`，那份配置一次都不会被执行。混栈项目由 §4 顺带装上了，**纯前端项目不装就等于白落一个文件**。已装过的重复跑是幂等 no-op。
 
 ## 6. 迁移去重（只在 normal sync 遇得到）
 
