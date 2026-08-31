@@ -32,7 +32,7 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-list [--limit N] [--repo <
 只列 **open** issue，stdout 是归一 json **数组**，每项 schema 与 `issue-view` 完全一致（`number` / `title` / `body` / `url` / `labels` / `updatedAt` / `state`，末者只列 open 故恒为 `open`）—— 消费方（`/triage`）据此读 `labels` 取 priority 轴、读 `body` 取 scope 字段，不必关心是哪端答的。`--limit` 默认 100（GitHub `--limit` ↔ GitLab `--per-page`）。
 
 - **`updatedAt`**：平台给什么就是什么（GitLab 侧字段名是 `updated_at`，helper 归一）；**平台没给就是 `null`，绝不拿「现在」兜底** —— 它的消费方拿它和一个更早的快照比对「这条 issue 有没有被人动过」，编一个时间戳会让那道闸永远答「没动过」。
-- **`--no-body`**：整个丢掉 `body` 字段（不是截断），GitHub 侧在服务端就不取。用于**只要时间戳的复核式重读** —— `/routine-dev` 打 `auto:skip` 前要确认「读完正文到现在这段时间里没人编辑过它」，若为此把所有正文再拉一遍，花掉的正是这个 label 要省的那笔。GitLab 无字段选择能力，argv 不变、正文在归一层丢，schema 承诺一致。
+- **`--no-body`**：整个丢掉 `body` 字段（不是截断），GitHub 侧在服务端就不取。用于**只要时间戳 / label 的轻量重读** —— 一次运行里已经读过正文、之后只想核对「有没有人动过」时，再把所有正文拉一遍是纯浪费。GitLab 无字段选择能力，argv 不变、正文在归一层丢，schema 承诺一致。
 
 ## issue-comment 语义
 
@@ -66,7 +66,7 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-label-remove --issue <N> -
 | GitHub | `gh issue edit <N> --add-label <X>`     | `gh issue edit <N> --remove-label <X>`    |
 | GitLab | `glab issue update <N> --label <X>`     | `glab issue update <N> --unlabel <X>`     |
 
-- **增量语义**：只动指定的那几个 label，issue 上已有的原样保留。消费方（`/routine-dev` 打 `auto:skip`）依赖这一点 —— 换成全量替换会把三轴 label 悄悄抹掉。
+- **增量语义**：只动指定的那几个 label，issue 上已有的原样保留。**换成全量替换会把三轴 label 悄悄抹掉**，故任何消费方都可以依赖这一点。
 - **一个 label 一次 flag**，绝不拼成 `"a,b"`：label 名本身可以含逗号，拼起来会被平台侧拆成两个不存在的名字。
 - **输出**：成功打一行 `added on <platform>: #<N> <labels>`（删则 `removed`）。**失败原样透传底层 stderr 并 exit 1** —— 打标是为了持久化一个判断，谎报成功会让调用方以为结论已落库。
 - **GitLab 侧未经实测**（本机没装 `glab`）：argv 形态由纯函数 + 沙盘桩测钉住，真实 flag 语义待有 GitLab 环境时校，与 `issue-comment` 的 GitLab 输出 schema 同属一类未验项。

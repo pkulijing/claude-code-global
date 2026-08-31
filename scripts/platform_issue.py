@@ -434,7 +434,7 @@ def build_issue_label_cmd(platform, number, labels, remove, repo):
     split it into two names that exist nowhere.
 
     Semantics are incremental on both ends — the labels already on the issue
-    are left alone. That matters for the `auto:skip` writer in /routine-dev:
+    are left alone. Any caller may rely on that:
     a replace-style call would silently drop the three-axis labels.
 
     GitLab side is unverified (no `glab` on the dev machine) — see
@@ -535,11 +535,10 @@ def build_issue_list_cmd(platform, limit, repo, no_body=False):
     Only open issues: the sole consumer is "what should I pick up next".
 
     `no_body` drops the body from GitHub's field list server-side. That exists
-    for /routine-dev's re-check pass: before writing `auto:skip` it re-reads
-    the timestamps to see whether anyone edited an issue mid-run, and pulling
-    every body a second time would spend exactly the tokens the label is meant
-    to save. GitLab offers no field selection, so its argv is unchanged and
-    the body is dropped when normalizing instead.
+    for lightweight re-reads: when a caller already has the bodies and only
+    needs to re-check timestamps (did anyone edit this mid-run?), pulling every
+    body a second time is pure waste. GitLab offers no field selection, so its
+    argv is unchanged and the body is dropped when normalizing instead.
     """
     if platform == PLATFORM_GITHUB:
         fields = "number,title,url,labels,updatedAt,state"
@@ -876,7 +875,7 @@ def _sandbox_issue_label():
                     "--issue",
                     "7",
                     "--label",
-                    "auto:skip",
+                    "auto:take",
                     "--label",
                     "help wanted",
                 ],
@@ -886,15 +885,15 @@ def _sandbox_issue_label():
                     "edit",
                     "7",
                     "--add-label",
-                    "auto:skip",
+                    "auto:take",
                     "--add-label",
                     "help wanted",
                 ],
             ),
             (
                 PLATFORM_GITLAB,
-                ["issue-label-remove", "--issue", "7", "--label", "auto:skip"],
-                ["glab", "issue", "update", "7", "--unlabel", "auto:skip"],
+                ["issue-label-remove", "--issue", "7", "--label", "auto:take"],
+                ["glab", "issue", "update", "7", "--unlabel", "auto:take"],
             ),
         ]
         for plat, argv_in, want_argv in cases:
@@ -930,7 +929,7 @@ def _sandbox_issue_label():
                 "--issue",
                 "7",
                 "--label",
-                "auto:skip",
+                "auto:take",
             ],
             capture_output=True,
             text=True,
@@ -1024,7 +1023,7 @@ def cmd_self_test():
     }:
         failures.append(f"normalize_issue github: {norm_gh!r}")
 
-    # updatedAt：/routine-dev 打 auto:skip 前用它比对「读到这条之后有没有人动过」，
+    # updatedAt：用于在一次运行内比对「读到这条之后有没有人动过」，
     # 两个时间戳都落在同一次运行内，故不需要任何持久化。两端字段名不同。
     ua_cases = [
         (
@@ -1228,52 +1227,52 @@ def cmd_self_test():
     # 本来就含逗号的 label 被平台侧拆成两个。
     label_cmd_cases = [
         (
-            (PLATFORM_GITHUB, 7, ["auto:skip"], False, None),
-            ["gh", "issue", "edit", "7", "--add-label", "auto:skip"],
+            (PLATFORM_GITHUB, 7, ["auto:take"], False, None),
+            ["gh", "issue", "edit", "7", "--add-label", "auto:take"],
         ),
         (
-            (PLATFORM_GITHUB, 7, ["auto:skip", "type:docs"], False, None),
+            (PLATFORM_GITHUB, 7, ["auto:take", "type:docs"], False, None),
             [
                 "gh",
                 "issue",
                 "edit",
                 "7",
                 "--add-label",
-                "auto:skip",
+                "auto:take",
                 "--add-label",
                 "type:docs",
             ],
         ),
         (
-            (PLATFORM_GITHUB, 7, ["auto:skip"], True, None),
-            ["gh", "issue", "edit", "7", "--remove-label", "auto:skip"],
+            (PLATFORM_GITHUB, 7, ["auto:take"], True, None),
+            ["gh", "issue", "edit", "7", "--remove-label", "auto:take"],
         ),
         (
-            (PLATFORM_GITHUB, 7, ["auto:skip"], False, "o/x"),
+            (PLATFORM_GITHUB, 7, ["auto:take"], False, "o/x"),
             [
                 "gh",
                 "issue",
                 "edit",
                 "7",
                 "--add-label",
-                "auto:skip",
+                "auto:take",
                 "--repo",
                 "o/x",
             ],
         ),
         (
-            (PLATFORM_GITLAB, 7, ["auto:skip"], False, None),
-            ["glab", "issue", "update", "7", "--label", "auto:skip"],
+            (PLATFORM_GITLAB, 7, ["auto:take"], False, None),
+            ["glab", "issue", "update", "7", "--label", "auto:take"],
         ),
         (
-            (PLATFORM_GITLAB, 7, ["auto:skip"], True, "o/x"),
+            (PLATFORM_GITLAB, 7, ["auto:take"], True, "o/x"),
             [
                 "glab",
                 "issue",
                 "update",
                 "7",
                 "--unlabel",
-                "auto:skip",
+                "auto:take",
                 "--repo",
                 "o/x",
             ],

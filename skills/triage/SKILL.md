@@ -38,7 +38,7 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-list
 
 - **priority**：直接读 `labels` 里的 `priority:*`。没有就标 `未标`。
 - **area**：读 `labels` 里的 `area:*`。
-- **自动化状态**：读 `labels` 里有没有 `auto:take`（owner 已背书 routine 自动做）或 `auto:skip`（`/routine-dev` 已判定不自动做，下次不再读它的正文）。两者都没有就留空。
+- **自动化状态**：读 `labels` 里有没有 `auto:take`（owner 已背书，`/routine-dev` 下次会优先做它）。没有就留空。
 - **scope**：**优先读 `body` 里现成的 `scope` 字段**（feat / spike 两个 issue 模板本来就有这栏），归一到 `S` / `M` / `L` / `XL`。
 
 **scope 的两条来源必须在表里区分开**：
@@ -58,7 +58,7 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-list
 | # | priority | scope | area | 自动化 | 一句话 |
 | --- | --- | --- | --- | --- | --- |
 | #98 | P0 | S | skill | | …… |
-| #39 | P0 | XL | skill | `skip` | …… |
+| #39 | P0 | XL | skill | | …… |
 
 然后给**一条**推荐，附理由。理由里必须**把依据摊开**：
 
@@ -66,7 +66,7 @@ python3 $HOME/.claude/scripts/platform_issue.py issue-list
 - scope 来自正文字段还是模型现估（后者明说）；
 - 为什么它排在别的 P0 前面。
 
-**「自动化」列怎么用**：`take` 是「routine 下次会做，人多半不用管」；**`skip` 恰恰相反 —— routine 已经放弃它了，它只可能由人来做**，所以同等条件下它比一条 `take` 更该排前面。这一列不参与排序计算，但推荐理由里要提一句。
+**「自动化」列怎么用**：`take` 意味「owner 已背书、routine 下次会优先做它，人多半不用管」，同等条件下可以往后排。这一列不参与排序计算，但推荐理由里要提一句。**留空不代表 routine 会做它** —— routine 一次只做一条，绝大多数 issue 每次都排不上，所以留空的那些**默认就是人来做**。
 
 > **防权威性错觉**：推荐结论是 LLM 判断，不是计算结果。把依据摊开的目的就是**让人一眼能推翻它** —— 给一个看起来很确定、却没法核对的结论，比不给更坏。
 
