@@ -236,6 +236,8 @@ bash ~/Developer/claude-code-global/install.sh
 | 汇报回路 | 云端**无编程可读的运行输出** → **PR 即唯一汇报出口**（含改动摘要、review 是否降级、本次未选中清单）                        |
 | 审批     | PR 就是审批闸：手机收到推送 → review → 打 `ff-merge` label 或评论 `/ff` 合入                                             |
 
+**写权限面就三样，是穷举**：push 一条新分支、开一个 PR、编辑该 PR 的描述——**不打任何 label、不发任何评论、不 force-push**。早先的措辞是「绝不给 **PR** 打 label」（给 issue 打发出的是 `issues.labeled`，够不到 `ff-merge` 那条路，那个辨析技术上仍成立），但 routine 现在压根不需要写 label，**能力不存在比「有能力但按规则不用」强一档**，故直接收到零；force-push 随「照料在途 PR」一并删除，在途 PR 冲突改由 `ff-merge` 失败暴露给人、回本机处理。
+
 **边界**：自动通道只碰 `playbooks/*.md` / `GLOBAL_AGENTS.md` / `README.md` / `docs/`，**不碰任何可执行面**，`priority:P0` 留给人。标记通道解开落点限制与保守性排除（含 P0），但**四条红线绝不因 `auto:take` 放宽**：
 
 - **`skills/routine-dev/**`（自己）** —— 这份 SKILL 定义的正是「什么可以被自动改」，允许自改 = 一次标记永久放宽此后所有运行的边界，而判断「有没有改语义」的正是它自己；
