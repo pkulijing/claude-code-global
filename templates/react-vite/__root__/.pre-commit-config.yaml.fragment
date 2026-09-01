@@ -1,0 +1,40 @@
+# react-vite 栈的 pre-commit 片段 —— 合并进**项目根** .pre-commit-config.yaml。
+#
+# 为什么是 fragment 而不是普通文件：`.pre-commit-config.yaml` 落项目根，而后端栈
+# （python-uv / python-uv-workspace）也往同一个路径贡献内容。混栈仓库需要的是两侧
+# hooks 的**并集**，不是二选一——没有这个并集，Python 改动被 ruff 拦下、TS 改动却
+# 畅通无阻，前端这一维等于没有本地闸门。
+#
+# 三个设计点：
+#
+# 1) 用 `repo: local` 而不是 `biomejs/pre-commit`：后者自带一份 biome，会与
+#    frontend/package.json 里钉死的版本漂移。而 biome.json 的 `$schema` 版本必须与
+#    实际运行的版本一致——不一致会报 unknown key，或**静默回落默认配置**
+#    （见 playbooks/frontend.md §1）。两份 biome = 两个版本号 = 这个坑的温床。
+#
+# 2) 必须 `cd frontend` 再跑，**不能**在仓库根跑 `biome check frontend`：biome 按目录
+#    解析配置，从根跑读不到 frontend/biome.json，会静默用默认配置（同 §1）。
+#
+# 3) 不带 `--write`：与后端栈 .pre-commit-config.yaml 顶部同一约定——commit 阶段不
+#    悄悄改工作树，fix 交给 PostToolUse hook 与编辑器 fix-on-save。
+#
+# 前提是 frontend/node_modules 已装。与 worktree 那个坑叠加时（新建 worktree 只
+# checkout tracked 文件，node_modules 不跟过来）钩子会以「找不到 biome」失败——
+# **失败得响亮，不会静默放行**，按 playbooks/frontend.md §1 末段处理即可。
+
+repos:
+  - repo: local
+    hooks:
+      - id: biome-check
+        name: biome check (frontend)
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx|js|jsx|mjs|cjs|json|jsonc|css)$
+
+      - id: tsc-noemit
+        name: tsc --noEmit (frontend)
+        entry: bash -c 'cd frontend && npm run typecheck'
+        language: system
+        pass_filenames: false
+        files: ^frontend/.*\.(ts|tsx)$

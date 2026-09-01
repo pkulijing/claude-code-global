@@ -1,18 +1,51 @@
 # .gitlab-ci.yml —— docker-executor 变体（GitLab.com / 官方 docker runner）
 # runner 为 docker executor 时用本变体：image 提供 uv + Python，before_script 直接 sync。
 # 本地 shell runner（公司自建、无 docker executor）改用 .variant.shell。
-# 与 .github/workflows/lint.yml 等价：ruff check + ruff format --check。
+# 与 .github/workflows/lint.yml 等价：ruff check + ruff format --check，外加 pytest。
+#
+# 复用约定：多 job 复用 image / before_script / rules 一律用标准 YAML 锚点（&anchor / *anchor），
+# 禁用 GitLab 的 reference tag —— 通用 YAML 解析器（如 pre-commit 的 check-yaml）不认它这个
+# 自定义 tag，会报「could not determine a constructor for the tag」让 commit 失败；
+# YAML 锚点 GitLab 同样支持、且 check-yaml 能过。
 stages:
   - lint
+  - test
+
+# 以 . 开头的顶层键是 GitLab 的隐藏 job，不会被执行，只作锚点载体。
+.uv_image: &uv_image ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+
+.uv_sync: &uv_sync
+  - uv sync --frozen
+
+.default_rules: &default_rules
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 ruff:
   stage: lint
-  image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
-  before_script:
-    - uv sync --frozen
+  image: *uv_image
+  before_script: *uv_sync
   script:
     - uv run ruff check .
     - uv run ruff format --check .
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  rules: *default_rules
+
+# lint 只证明静态无错，证明不了行为没回归——二者不可互替。
+# 守护测试（从实际发出的命令 / 请求端钉死安全底线的那些）如果 CI 从不跑，
+# 它们的实际保障强度就只等于「每个人都记得在本地跑 pytest」，等于注释。
+pytest:
+  stage: test
+  image: *uv_image
+  before_script: *uv_sync
+  script:
+    # 新项目可能一条测试都还没有：pytest 收集不到用例时退出码为 5，视作跳过。
+    # 但**一旦有测试就必须真跑**——任何其它非零退出码照常让 CI 红。
+    - |
+      rc=0
+      uv run pytest || rc=$?
+      if [ "$rc" -eq 5 ]; then
+        echo "no tests collected — skipping (add tests under packages/*/tests/ to enable this gate)"
+        exit 0
+      fi
+      exit "$rc"
+  rules: *default_rules

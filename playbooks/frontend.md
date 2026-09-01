@@ -10,6 +10,7 @@
 
 - 用 **npm** 管理依赖，源固定走 **npmmirror**（原淘宝源），在 `frontend/.npmrc` 写 `registry=https://registry.npmmirror.com`。类比 Python 侧固化清华源——团队一致、国内加速。除非特殊要求，不改用其他源。
 - **Biome** 作「前端的 ruff」：`npm run lint`（= `biome check .`）做检查，`npm run lint:fix`（= `biome check --write .`）做格式化 + 修复。配置基线：`recommended` preset + 100 列 + 双引号 + 2 空格缩进，集中在 `biome.json`。
+  - **Biome 按目录解析配置：从仓库根跑 `biome check <子目录>` 读不到 `<子目录>/biome.json`，会静默用默认配置。** 实际表现是「我明明跑了 `biome check --write frontend`，怎么还是有格式错误」——那次根本没读到 `frontend/biome.json`，用的是 Biome 的内置默认（tab 缩进等），于是既漏掉你配的规则、又按错误的风格报一堆伪 error。正确姿势是**进到目标目录里跑**（`cd frontend && npm run lint`），npm workspaces 仓库则用 `npm run lint --workspaces`（它会 `cd` 进各 workspace 执行）。模板的 pre-commit 钩子与 CI job 都因此写成 `cd frontend` 的形式，别「优化」成从根跑。
   - **`biome.json` 必须是纯 JSON，不要加任何注释或 `"//"` 注释键**。Biome 对配置键做严格校验：`"//"` 这种键会直接报 `unknown key` 让 `biome check` 失败；而 `//` 行注释虽不报错，却会让 Biome 静默回落到默认（tab 缩进）配置，使你的 space/100 列设置全部失效、产出海量伪 error。要解释某段配置，把说明写到本规则或 PR 里，别写进 `biome.json`。
 - **TypeScript strict**：`tsconfig.json` 开 `strict` + `noUnusedLocals` + `noUnusedParameters` + `noFallthroughCasesInSwitch`。`npm run typecheck`（= `tsc --noEmit`）做类型门禁，`npm run build`（= `tsc --noEmit && vite build`）构建前先过类型。
 - 版本基线：**React 19 + Vite 6 + TypeScript 5.7**。模板 `package.json` 把依赖版本写死以保证可复现，会随时间过时，需偶尔人工 bump。
