@@ -61,6 +61,28 @@ lark-cli docs +update --command append --doc-format markdown --content @file.md
 
 **已知瑕疵**：mermaid 自动布局下个别标签会轻微重叠或长文本折行。画板可编辑，人工微调即可，不影响这条路径的选择。
 
+### 2.5 走 SVG 路线填画板：箭头用 `marker-end`、回写前反转 z 序、文本宽度放宽
+
+2.4 那条（markdown 留 mermaid 围栏、导入器自动转画板）**能走就走**；只有需要精确控制版式（自定义布局、虚线语义、指定折点）时才走 `lark-whiteboard` 的 **SVG 路线**（`whiteboard-cli -f svg --to openapi` 编译成节点再回写）。这条通道上有三个坑，共同特征是**本地全绿、只有真写进画板才暴露**：
+
+**① 箭头一律 `marker-end`，禁止 `<line>` + `<polygon>` 手拼三角形。**
+连线写 `<line>` / `<polyline>` + `marker-end="url(#id)"`，`<marker>` 定义在 `<defs>` 里，svg-parser 会编译成原生 `connector` 节点（`end.arrow_style: "triangle_arrow"`），节点可拖、箭头可编辑。手拼的三角形则编译成**两个互不相干的节点**：线成了 `arrow_style:"none"` 的裸线，三角形降级成 `type:"svg"` **内嵌图片节点**——用户在飞书里一拖就散，且内嵌 svg 节点还无法经 raw 通道回写（`field validation failed` 99992402）。
+同理另外两样也别手画：`stroke-dasharray` → `border_style:"dash"`，`<polyline>` 的折点 → `shape:"right_angled_polyline"` + `turning_points`。线型、折点、箭头三样都能用 SVG 原生属性表达，没有任何理由手拼。
+
+> 之所以容易连犯两次：SVG 路线的文档（`routes/svg.md`、`lark-doc/references/lark-doc-whiteboard.md` 的「可识别的元素」段）**通篇没提箭头怎么画**，只有 DSL 路线的 `elements/connectors.md` 提 `endArrow`——于是「自己画个三角形」成了最自然的选择。
+
+**② 回写前把节点顺序反过来（`nodes.reverse()`）。**
+画板的 z 序与 SVG 文档序**相反**：请求里的 `nodes[0]` 拿到最大 `z_index`（最上层），于是 SVG 里先画的背景矩形在画板里反而浮在最上面，**盖住它自己的标签**——线上表现是「所有带填充图形里的文字全部不可见」。按 skill 给的原命令（`whiteboard-cli --to openapi | lark-cli whiteboard +update`）直推必踩，要在两条命令之间插一步反转。
+
+**③ `text_shape` 宽度放大到 `w * 1.15 + 12`，且 SVG 里字号一律用整数。**
+whiteboard-cli 按**本地字体**度量精确贴合宽度，而画板硬编码 Noto Sans SC 更宽，非整数字号（10.5 / 11.5）还会被向上取整——结果一批短标签在线上全折成两行。center 对齐的元素放宽后同步左移 `dx/2`。
+
+**自检只认「编译产物 + 线上回读」，把你写的那份源 SVG 渲成 PNG 一律不算数**——上面三条在写进画板之前全都看不出来：`--check` 全绿，源 SVG 渲出来的 PNG 也全对（本地就是按 SVG 语义渲的，层序、字宽本来就对），错的是画板侧的语义。两步：
+
+1. **编译产物**：`npx -y @larksuite/whiteboard-cli@^0.2.12 -i diagram.svg -f svg --to openapi --format json`，grep `arrow_style`；图上本该有箭头却出现 `"arrow_style":"none"`，就是拼错了。
+2. **线上回读**：`+query --output_as raw` 校验节点数 / 箭头 / z 序 / 文本行数，再 `+query --output_as svg` 把**画板里真实存着的那份** SVG 拉回来、本地渲成 PNG 肉眼看 —— 渲的不再是你写的源文件，所以这一步算数。
+   ⚠ **别拿画板预览图接口验收**：刚写入后它返回「生成中」占位图且缓存不刷新，靠它验收等于没验。
+
 ## 3. 授权与 scope 管理
 
 任何用 lark-cli 的项目都要过授权这一关，而 scope 申请策略直接决定**会不会惊动租户管理员**。下面六条是实测出的最小 scope 授权工作流。
