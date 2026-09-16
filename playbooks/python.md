@@ -231,6 +231,31 @@ console.print(escape(text), highlight=False)
 
 只有**自己写的、可信的** markup 才享受解析与高亮。
 
+### 3.9 路径同一性判据用 `Path.samefile()`，别比较 `resolve()` 的字符串
+
+**`Path.resolve()` 不做大小写归一** —— 它只解析符号链接与 `..` / `.`。而 macOS 的 APFS 与 Windows 的 NTFS 默认**大小写不敏感**：`configs/Migration.Template.yml` 与 `configs/migration.template.yml` 在磁盘上是**同一个文件**，`resolve()` 后的字符串比较却为 `False`。
+
+**真实事故案例**：一道「不许把入库模板当成清单写坏」的守卫用 `resolve() == resolve()` 作判据，被一个只差大小写的拼法整个绕过 —— 守卫看着在，实际不开火。开发机就是 macOS，属真实可触发面。
+
+**让文件系统自己回答**：
+
+```python
+def _is_same_file(left: Path, right: Path) -> bool:
+    try:
+        return left.samefile(right)          # 文件都在 → 由 FS 判定是不是同一个 inode
+    except FileNotFoundError:                # 只兜「有一方还不存在」这一支
+        return os.path.normcase(left.resolve()) == os.path.normcase(right.resolve())
+```
+
+`samefile()` 比的是 `st_ino` / `st_dev`，**顺带正确处理硬链接与 bind mount** —— 这些同样是 `resolve()` 字符串比较看不见的。
+
+**两个反直觉的点，抄这段之前必须知道**：
+
+- **`except` 别写成 `OSError`。** `samefile()` 内部连做两次 `stat()`，而 `PermissionError`、`NotADirectoryError` 与 `FileNotFoundError` 同为 `OSError` 子类；catch 宽了，真实的环境故障会被**静默降级**成一次字符串比较。要兜的只有「有一方还不存在」，就只写 `FileNotFoundError`。
+- **退化分支在 POSIX 上补不回大小写归一 —— 这是已知盲区，不是已解决问题。** `os.path.normcase()` **只在 Windows 折叠大小写**（`ntpath.normcase()` 做 `.lower()`）；macOS 与 Linux 上 `os.path` 绑的是 `posixpath`，其 `normcase()` 的 docstring 原文就是 **"Has no effect under Posix"** —— 恒等函数。于是在 APFS 上、且有一方尚未落盘时，这条退化分支与本节开篇否定的 `resolve() == resolve()` **完全等价**，那个大小写绕过照旧复现。**正解是别在文件还不存在时判同一性**（把守卫挪到写盘之后，让 `samefile()` 能真正回答），做不到就显式探测该目录的大小写敏感性，**而不是指望 `normcase()` 兜底**。
+
+**配套的测试写法见 §4**（宪法「测试先行（TDD）」章「环境是被测行为的输入」那条在本场景的落地形态，**理由见宪法、此处不复述**）。
+
 ## 4. 测试
 
 **TDD 的适用范围与例外以全局宪法「测试先行（TDD）」章为准，此处不复述**；下面是落到 Python 的具体姿势：
@@ -305,6 +330,13 @@ console.print(escape(text), highlight=False)
   ```
 
   **fixture 的靶点必须跟着被测模块走**：被测的是形态 ② / ③ 就换成上面对应那一行，否则这个 fixture 静默失效、全树继续跟宿主走且照样全绿 —— 正是本条要根治的那种假绿。值域也随靶点变：`platform.system()` 给 `Darwin` / `Linux`，`sys.platform` 给 `darwin` / `linux`，**别拿同一个 flag 值喂两种靶点**。
+
+- **文件系统的大小写敏感性同样是被测行为的输入**（上一条的同族，只是靶点从平台换成 FS；**理由见宪法、此处不复述**）：判路径同一性的代码（§3.9）在 APFS / NTFS 上与在 ext4 上得出的是**相反**的正确结论 —— 前者两个只差大小写的拼法确实是同一个文件、守卫该开火，后者确实是两个文件、守卫本就不该开火。**反例（别这么写）**：在测试里探测宿主 FS 是否大小写敏感、再据此选断言，那正是「跟着宿主环境走」。
+
+  **靶点在哪要看被测代码走的是哪一支**（与上一条「打对靶子」同理）：
+
+  1. **走 `samefile()` 那一支（文件都在）→ 用硬链接造「两个路径、同一个文件」**：`os.link(a, b)` 后 `a.samefile(b)` 在**同一卷内任何支持硬链接的文件系统**上都为真（`tmp_path` 满足；FAT / exFAT 与跨设备不支持，`os.link` 会直接抛异常而不是返回 False），**不依赖宿主的大小写敏感性**，这一支不需要 monkeypatch。
+  2. **走退化分支（有一方还不存在）→ 没有可打的靶子，得先改被测代码**：`os.path.normcase` 在 POSIX 上是恒等函数（§3.9），monkeypatch 它等于去测一个宿主上根本不会发生的行为。要覆盖「大小写不敏感」那一支，就把**「该文件系统是否大小写不敏感」提成被测函数的显式入参或可注入依赖**，用例里两个值各喂一遍。**让环境条件变成参数，是这类代码上唯一落得了地的形态** —— 环境条件不可注入时，「各分支各测一遍」根本无从谈起。
 
 - **测试目录结构**：`tests/` 与 `src/` 同级（不嵌进 `src/<pkg>/`），由 `pyproject.toml [tool.pytest.ini_options] pythonpath = ["src"]` 解决 import；测试文件命名 `test_<被测对象>.py`。
 - **运行**：`uv run pytest`（带覆盖率：`uv run pytest --cov=src/<pkg>`）。
