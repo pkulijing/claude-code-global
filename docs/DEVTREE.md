@@ -28,7 +28,6 @@ graph TD
 
   ROOT["claude-code-global"]:::epic
   ROOT --> base["基础机制"]:::epic
-  ROOT --> toolchain["开发工具链"]:::epic
   base --> e_cc_reuse
   base --> e_cc_merge
   base --> e_userconfig
@@ -36,14 +35,16 @@ graph TD
   base --> e_multi_agent
   base --> e_constitution
   base --> e_rules
+  ROOT --> toolchain["开发工具链"]:::epic
   toolchain --> e_bootstrap
   toolchain --> e_finish
   toolchain --> e_quick
+  toolchain --> e_design
   toolchain --> e_routine
   toolchain --> devmgmt["开发项管理"]:::epic
-  toolchain --> codemgmt["代码管理"]:::epic
   devmgmt --> e_devtree
   devmgmt --> e_reqmgmt
+  toolchain --> codemgmt["代码管理"]:::epic
   codemgmt --> e_rebase
   codemgmt --> e_format
   toolchain --> e_content
@@ -164,6 +165,11 @@ graph TD
     N41["✨ 41 · 新增 /quick 轻量开发流"]:::feature
   end
 
+  subgraph e_design["🔄 讨论式方案设计"]
+    direction TB
+    N60["✨ 60 · design 讨论式方案 skill"]:::feature
+  end
+
   subgraph e_routine["🔄 云端自动化 routine"]
     direction TB
     N49["🌱 49 · 文档类 issue 云端 routine 自动化"]:::genesis
@@ -219,7 +225,7 @@ graph TD
 
 ## 节点索引
 
-> 最后更新：2026-09-01 | 共 59 轮
+> 最后更新：2026-09-17 | 共 60 轮
 
 | # | 名称 | 类型 | 所属 Epic | 一句话描述 |
 | - | - | - | - | - |
@@ -282,6 +288,7 @@ graph TD
 | 57 | 开轮远端对齐与撞车决策 | ✨ 功能 | 需求管理 | round 55 撞车事故的两半（#114 + #116）一并收口。**#114 —— 开轮前先与远端对齐**：`/start` 此前完全不碰远端，issue 详情只读正文、轮次编号三源全是本地信号，于是多设备 + 云端 routine 并行下撞车只能等到 `/finish` 之后暴露（round 55 因此整版作废）。新增「远端对齐」为通用流程**第 1 步**（排最前是必要的：编号要用远端信号，撞车检查得赶在建 worktree / docs 之前）。**三个信号各补各的盲区**：issue 自身 `state`（平台权威、**不依赖提交信息约定** —— `/start` 是全局 skill，别的项目未必写 `Closes #N`；还能识别 `NOT_PLANNED` 即「有人决定不做」，与「做完了」处理方向相反）、已合入的关闭 commit（给人类拍板要看的证据）、**远端在途分支**（`--remotes=origin --not <主分支>`，覆盖「分支已做完、PR 还开着、issue 还 open」—— 本仓 routine 每周开 PR 却不自动合，前两个信号都看不见它；这一条是 issue 原文没想到的）。轮次编号三源扩五源；三条失败路径（无 origin / fetch 失败 / issue-view 拉不到）一律只提示不阻断。**实证推翻了 issue 正文给的命令**：`--grep "Closes #11"` 会命中 `Closes #114`（子串匹配）；review 又逼出另一侧 —— `(clos|fix|resolv)[a-z]*` 会让 `still unresolved #11` / `not fixing #11` 命中，**把「还没修」报成「已修完」**，且补左边界还不够（`fix[a-z]*` 照样吃掉 `fixing`），最终按 **GitHub 真实关键字清单枚举**（没有进行时）。**#116 —— 宪法补撞车决策**：交付物被别人先做了不属既有「技术假设被证伪」，补为停机义务的子类 + 三行取舍表；review 逼出关键补充 —— **分类轴只有「谁更全面」是危险的**，「远端更全但有 bug」会被归进「弃己方」那行，故加前置「『更全面』不等于『更对』」，判不准或落表外走最保守那行；备份 tag 写出完整命令（与 `/rebase` `/finish` 逐字一致）而非只说「打个 tag」，因为这条可能在不经那两条流程时触发，而它的全部价值就在事后翻得到。配套 `platform_issue.py` 的 `issue-view` / `issue-list` 吐出归一 `state` / `stateReason`，赌注押在**两端词形一致的「closed」**（GitHub `CLOSED` / GitLab `closed` 小写同字，而「打开」两端是 `OPEN` vs `opened`），判不出一律算 `open`。**两条过程教训**：① 测试**并进脚本自带的 `--self-test`** 而非另起文件 —— review 查出它硬编码着旧 schema 期望值已经变红，而它才是 `routine-dev` 认的门禁，留两套等于新逻辑不在门禁覆盖内；② **验证脚本自身出错时最危险的形态是输出一份「看起来全绿」的结果** —— 抠正则的 `grep -o` 没匹配上、变量成空串，而空正则匹配一切，于是「全部命中」。③ 一度误判 `review-orchestrator` 不可用并绕过它，事后对照实验证明它没坏，**缺的是任务书里「拿不到子 agent 结果时怎么收尾」那一条** |
 | 58 | 调度器自杀式重注册 | 🐛 修复 | CC 工具复用 | 开发项 16 埋下的自杀路径，macOS 侧（19 修的是 Linux 侧，二者对称）：`auto-update.sh → install.sh → scheduler/install.sh` 由 launchd 拉起时，`launchctl unload` 卸载的正是**承载着这条链本身**的那个 job —— launchd 杀掉该 job 名下全部进程，执行 unload 的 shell 当场死亡、下一行 `load -w` 永不执行，job 从此不存在，自动同步停摆到下次登录，然后再拉到更新就再自杀一次。**潜伏两个月靠三重掩护**：没更新可拉时压根不跑 install.sh（平时全绿）、失效窗口是「拉到更新→下次登录」（登录够勤它自己就好）、失败**全程零输出**。实证：全日志 6 次 pulling 只有第一次（job 尚未注册时）走到 `ok: updated to`，此后 5 次全死在同一位置。改为四路分支：内容一致且已加载→**早退**（主修复点，`unload` 零调用）、正跑在 job 内→只更新 plist 推迟到下次登录、其余→正常重注册**再查 `launchctl list` 验证**。**顺带挖出第二个 bug**：`launchctl load` 在路径不存在 / plist 损坏 / 重复加载三种失败模式下**一律 exit 0**，而原码正用它判成败 —— 那个 `else` 是永远进不去的死代码、`2>/dev/null` 还吞掉唯一的失败信号，**注册失败被报成绿色的成功**（wrapper 原则「失败怎么向外传」的又一实例）。**修复自交付**：auto-update 先 pull 再跑 install.sh，拉到修复那次执行的已是新码，存量机器 plist 一致且 job 已加载正好命中早退分支 —— 前提是**不动 plist 模板**（动了就内容失配、先自杀一次），故一个字节没改。另加 in-flight 标记消除静默失败：只在 install.sh 成功时清除，于是被硬杀与非零退出都留痕并触发下次补跑（二者留下的是同一个洞，review 抓到我只堵了硬杀那一支）；标记检测压到所有 skip 分支之后、且时间戳只在首次落标记时写（「已经坏了多久」正是上次静默四天缺的那个信号）。**scheduler/ 从零单测到 14 条**：python3 驱动真实 bash、产品代码零改动即可测，PATH 收窄成**白名单沙盘**让 `systemctl` 在「systemd 缺席」用例里真的不存在（而非碰巧这台机器没有）。**两次自我修正**：① 给机制加职责后没回头复查依赖旧职责的判断；② 测试把 locale 钉死在**安全的一侧** —— 比「跟随宿主」更隐蔽，因为它看起来完全符合「显式指定环境」的要求 |
 | 59 | routine-dev 简化 | 🏗️ 重构 | 云端自动化 routine | 承接「云端 routine 机制性失败、长期不该依赖它做复杂的事」这条判断，给 `/routine-dev` 减重。开工前按节实测其构成，结论是**占大头的不是安全边界**（那部分全是短禁令、约 3.5 KB），而是「一次跑多条、出多个 PR、还要管在途 PR」的衍生债加一层为省分诊 token 引入的缓存。三刀：**删整套 `auto:skip` 缓存**（含事件驱动复活 workflow 与 label 定义）、**删 Step 0.5 在途 PR 照料**（rebase 解冲突 + force-push，冲突改交给人在本机处理）、**退回「一次运行只出一个 PR」**（合批不变式 / 并集簿记 / cherry-pick 退路整体蒸发）。刀 C 的依据恰恰写在被它删掉的 reference §6 里：那套机制在本仓的**实测结果本来就是「一次运行通常只出 1 个 PR」**（几乎每批都要动 README 或 GLOBAL_AGENTS 那两张登记表），实际吞吐是 1 就别为「理论上是 N」养一整套编排。**连带把写权限面收紧为穷举三样**：push 一条新分支 / 开一个 PR / 编辑该 PR 的描述——不打任何 label、不发任何评论、不 force-push；原先「绝不给 **PR** 打 label」要配一整节辨析证明「给 issue 打是安全的」，现在**能力不存在比「有能力但按规则不用」强一档**，直接收到零、那节辨析随之不必要。**两轮重档 review 报的 3 条全是本轮自造的，且前两条同源**：① 刀 C 把「放弃这条」升格成「放弃本次运行」，而刀 A 恰好拿掉了唯一的跨运行记忆——排序是纯函数、分诊又短路，队首一条确定性失败会每周三次原地复现、把后面的 issue **永久饿死**，零 PR 意味着无人知晓；**两刀单独看都干净，叠起来才有**。② 「共享登记文件也算落点」这条通则原先**寄生在合批节里**，是撞车预判真正的判据，跟着刀 C 一起被删漏、预判形同虚设。③ 修复本身又漏一层：`git restore` 对已 `git add` 的是 no-op、对未跟踪新文件无效，而 `git checkout` 会把残留**原样带进下一条候选的分支**——撞红线那条分岔尤其致命（A 正因写到 `agents/` 才被放弃，残留却进了 B 的 PR，而开 PR 前的复核只比对在途 PR 落点、**不重新判红线**）。修法分别是「换下一条候选、最多试 3 条」「通则补回 1.2」「规范清理块 `git reset --hard` + `git clean -fd` + 切回 + 删分支 + 复检 porcelain 为空」。**明确否决**用跨运行持久标记根治饿死——它与本轮刚收紧的「绝不打任何 label」直接冲突，用安全边界换吞吐不划算，否决连同理由写进 SKILL 的「残余」块而非悄悄不做。量化：SKILL.md 19,356 → 15,999 字符、reference 5,240 → 3,208、指令面 195,675 → 190,162（−2.8%）。**但它仍是指令面最大的单文件**（15,999，第二名 `playbooks/python.md` 14,750、宪法 11,107），只是对宪法的差距从 8,249 收窄到 4,892——想找下一个精简目标的人别被这轮的降幅误导。**局限**：没打到 PROMPT 定的 −35%（实际 −18%），差额是那两处加固及其 WHY，不为对数字压回去；`/review-loop` 2 轮上限用满、第 2 轮所修的清理块未经独立 context 复审（已留痕）；活锁只降级未根除（3 次上限内若始终是同样那几条排前面且都失败，后面的仍轮不到）；全部改动**未经真实云端运行验证**。**教训**：删除型重构要先查「这一节里有没有别处依赖的判据」——登记文件通则就是这么被误删的 |
+| 60 | design 讨论式方案 skill | ✨ 功能 | 讨论式方案设计 | 新增 `/design`：需求本身还模糊时，在多轮对话里逐步收敛出框架级方案，**方案本身即产出**。plan mode 不合适——产物不进仓库、不记讨论过程、退出即执行、长讨论被上下文压缩丢决策。落点 `docs/design/<中文主题>/`（不编号、不占轮次号；不放顶级 `design/`：`docs/design/` 正是理想结构 `docs/design` + `docs/develop` 的一半，且顶级 `design/` 在前端项目易撞设计稿目录），只两份文件：`DISCUSSION.md` 是历史、只追加（阶段 0 原样保留背景，之后每阶段记输入 / 分析 / 决策 / 否决，决策即时写入以抵御上下文压缩、支撑 `--resume`），`DESIGN.md` 是快照、整体改写、带 `讨论中` / `已定稿` / `已搁置` 状态。不开 worktree、不写代码、不拆 issue、不进 DEVTREE、不写 SUMMARY，宪法同步写明豁免。**顺带根治一个反复出现的坑**：在 worktree 内跑 `install.sh` 会把两端全局软链整体改指到 worktree、删除即断链，round 31 / 51 / 52 / 53 / 54 都靠文档提醒绕开，本轮又实际踩中——改为 `install.sh` 入口硬拦（比较 git-dir 与 git-common-dir 物理路径，给出主 checkout 下的正确命令），7 项沙盘测试先红后绿，首版实现当场撞上 `$REPO_DIR）` 紧贴全角括号的 `set -u` 中止（shell playbook §2） |
 
 ---
 
@@ -342,6 +349,11 @@ graph TD
 
 - 状态：已完成
 - 轮次：41
+
+#### 讨论式方案设计
+
+- 状态：进行中
+- 轮次：60
 
 #### 云端自动化 routine
 

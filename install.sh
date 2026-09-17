@@ -428,6 +428,20 @@ deploy_agent() {
     fi
 }
 
+# 判断目录是否位于 git linked worktree 内（主 checkout、非 git 目录都返回非 0）。
+# 比较 git-dir 与 git-common-dir 的物理路径：二者在 rev-parse 输出里可能是相对路径，
+# 故各自 cd 进去取 pwd -P，不依赖较新 git 才有的 --path-format。
+ccg_is_linked_worktree() {
+    local dir="$1" rel_git rel_common git_dir common_dir
+    # 先单独取值并判空：rev-parse 失败时输出空串，而 cd "" 会成功，不拦就会误判为同一目录
+    rel_git="$(cd "$dir" 2>/dev/null && git rev-parse --git-dir 2>/dev/null)" || return 1
+    rel_common="$(cd "$dir" && git rev-parse --git-common-dir 2>/dev/null)" || return 1
+    [ -n "$rel_git" ] && [ -n "$rel_common" ] || return 1
+    git_dir="$(cd "$dir" && cd "$rel_git" && pwd -P)" || return 1
+    common_dir="$(cd "$dir" && cd "$rel_common" && pwd -P)" || return 1
+    [ "$git_dir" != "$common_dir" ]
+}
+
 # 测试可 source 本脚本只取函数定义、不跑安装主流程（见 docs/51-rules按需加载/test-unlink-legacy.sh）。
 #
 # 只在 source 语境下生效：直接执行时，哪怕环境里意外带了这个变量也照常安装。否则
@@ -436,6 +450,19 @@ deploy_agent() {
 # 有任何人察觉（与本轮 unlink_legacy_dir 漏删是同一类病：全绿、无感、收益归零）。
 if [ "${CCG_INSTALL_LIB_ONLY:-0}" = "1" ] && [ "${BASH_SOURCE[0]}" != "$0" ]; then
     return 0
+fi
+
+# 拒绝在 linked worktree 内运行：REPO_DIR 取自脚本所在目录，从 worktree 跑会把两端全局软链
+# 整体改指到 worktree，worktree 一删全成死链。这个坑在 round 31 / 51 / 52 / 53 / 54 / 60
+# 里反复出现，文档提醒防不住，故在入口硬拦、不留开关。验证未合入的改动请用
+# CCG_INSTALL_LIB_ONLY 沙盘测函数（见 docs/51、docs/53），或合入后从主 checkout 跑。
+if ccg_is_linked_worktree "$REPO_DIR"; then
+    main_checkout="$(git -C "$REPO_DIR" worktree list --porcelain | sed -n '1s/^worktree //p')"
+    echo "[ERROR] install.sh 不能在 git worktree 内运行（当前: ${REPO_DIR}）" >&2
+    echo "        从 worktree 安装会把全局软链指向 worktree，删除后全部断链。" >&2
+    echo "        请合入后在主 checkout 执行：" >&2
+    echo "  bash ${main_checkout}/install.sh" >&2
+    exit 1
 fi
 
 echo "=============================="

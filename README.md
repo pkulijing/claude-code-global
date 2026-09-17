@@ -28,6 +28,7 @@ Claude Code 读取 `~/.claude/`、Codex 读取 `~/.codex/` 下的全局配置。
 - **object**：递归合并
 - **array**：并集去重（如 `permissions.allow` 会把仓库基线里的条目追加进本地已有的列表，而不是覆盖）
 - **scalar**：仓库基线胜出；不想跨机共享的标量就别写进 `settings.base.json`
+- `install.sh` **只能在主 checkout 运行**：在 git worktree 内会直接报错退出，避免全局软链被指到 worktree、删除后全部断链
 - 多次运行 `install.sh` 幂等；真正发生变化时会先备份成 `settings.json.bak.<timestamp>`
 
 合并依赖 `jq`（macOS 自带 `/usr/bin/jq`；Linux 各发行版用包管理器安装）。

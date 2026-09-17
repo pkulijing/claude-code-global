@@ -27,6 +27,7 @@
 - 新增或修改 `agents/*.md` 后无需重新安装（同为目录级软链）；但**新 agent 类型要新开一个会话才会出现在 Agent 工具的可选类型里**，当前会话不会热加载。自检命令（不必进交互式会话）：`claude -p "Do not use any tools. From the system-reminder listing available agent types for the Agent tool, output ONLY the agent type names, one per line." --model haiku`
 - 修改 `templates/` 下文件内容后无需重新安装（同理目录级软链）；新增 stack 子目录或在 `__root__/` `__subpath__/` 加新条目，下游 `bootstrap` / `sync-project-config` 即时可见
 - 新增或删除 skill 目录后需重新运行 `bash install.sh`
+- **`install.sh` 只能在主 checkout 运行**，在 linked worktree 内会直接报错退出（否则全局软链会被改指到 worktree、删除后全部断链）。轮次中新增的 skill / hook / script，合入后再从主 checkout 跑；合入前要验证 install 逻辑，用 `CCG_INSTALL_LIB_ONLY=1` source 出函数在临时 HOME 里测（先例见 `docs/51-*`、`docs/53-*`、`docs/60-*` 的测试脚本）
 - 新增或删除 hook 脚本后需重新运行 `bash install.sh`（hook 脚本本体是软链，修改其内容无需重装）
 - 修改 `settings.base.json` 或 `codex.config.base.toml` 后需重新运行 `bash install.sh`（合并的是快照，不是软链接）
 - 修改 `user.config.example.env` 后需重新运行 `bash install.sh`（新增的 key 会「补缺追加」到用户真实配置，已设值不动）；用户真实配置 `~/.claude-code-global/config.env` 在仓库外，改完下次 install/自动同步即生效
