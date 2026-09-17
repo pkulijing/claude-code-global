@@ -82,3 +82,5 @@ disable-model-invocation: false
 参数是文字描述时（非 issue 引用）：流程同原版。AI 基于参数撰写 PROMPT.md，文件夹命名从描述提炼。
 
 > 提示：自由描述分支适合「轻量改动 / 探索性 round / 不需要长期追踪的开发项」。**长期可追踪的开发项推荐先 `/backlog` 创 issue，再 `/start <issue#>`**。
+>
+> 需求本身还模糊、要先讨论出方案 → 先走 `/design`，别硬开轮。若本轮落地的是某份 `docs/design/<主题>/DESIGN.md` 的一部分，在 `PROMPT.md` 顶部引用它（`> 依据方案 [<主题>](../design/<主题>/DESIGN.md)`）。
