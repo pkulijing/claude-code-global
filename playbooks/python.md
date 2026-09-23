@@ -10,6 +10,8 @@
 - 使用 **`uv run`** 运行 Python 脚本，如 `uv run some_script.py`、`uv run python -m ruff check .`。**禁止直接调用 `python` / `python3`**。
 - **让 uv 全权管 python**：`pyproject.toml` 设 `[tool.uv] python-preference = "only-managed"`，强制 uv 只用托管 standalone python、忽略系统 python。默认 `managed` 会复用系统 python，而系统 python 常缺 dev 头文件（无 `Python.h`）→ 含 C 扩展的依赖（如 `evdev`）编译失败、且易误判为编译器问题；托管 standalone python 永远自带头文件、缺版自动下载。python-uv 模板已默认带此设置；机器级一劳永逸可在 `~/.config/uv/uv.toml` 设同名键（`install.sh` 缺失时会 seed）。
 - 使用 **ruff** 做代码格式化与语法检查（`uv run ruff check` / `uv run ruff format`）。
+  - **仓库含 git submodule / vendored 外部代码时，`[tool.ruff]` 必须把这些目录写进 `extend-exclude`，并一并设 `force-exclude = true`。** ruff 的遍历确实遵守 `.gitignore`（§1.1 那种「`third_party/` 整类 ignore」已被自动跳过），真正的缺口是**父仓的 ignore 规则管不到 submodule 内部** —— submodule 是被跟踪的 gitlink，`git check-ignore` 进去直接拒答（`fatal: Pathspec ... is in submodule`），于是 `ruff format .` 会把它已 checkout 的源码一并改写。`force-exclude` 补的是另一半：**排除项默认不作用于命令行显式传入的路径**（`ruff format third_party/<app>`、或 pre-commit / CI 喂文件清单时照样改），设 `true` 才拦得住。
+  - **失败形态格外隐蔽**：父仓 `git status` 只多出一行 ` M <submodule 路径>`，里面被改了 1 个还是 27 个文件都长一样；回滚也必须进去做，**两条都要带 `-C`** —— `git -C <submodule> checkout -- . && git -C <submodule> clean -fd`（漏掉第二个 `-C`，清掉的是父仓自己的未跟踪文件，而该清的 submodule 残留还在）。（真实代价：一次 `ruff format collectors/prometheus` 改掉了它下面 submodule `third_party/arx5-sdk` 里 27 个文件。）原则与 §1.1 同源：**所有权在上游，本仓的 lint / format 不去改写另一个仓库的代码。**
 - **pypi index 指南**（为提高国内下载速度，固定两个源）：
   - 普通库走[清华源](https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple)
   - `torch` / `torchaudio` / `torchvision` 等 torch 系列走 [aliyun pytorch-wheels 镜像](https://mirrors.aliyun.com/pytorch-wheels/cu121/)。这并非完整 pypi 源，必须在 `pyproject.toml` 用 `extra` 方式指定。
@@ -77,7 +79,7 @@ packages = ["src/<pkg>"]
 - **共享配置上提到根**：`[tool.uv]`（`python-preference="only-managed"`）/ 清华 index / `[tool.ruff]` / `[tool.pytest.ini_options]` 都在根，各成员不重复。dev 依赖 `uv add --dev pytest pytest-cov ruff` 在根写入 `[dependency-groups] dev`、并触发把各成员 editable 装入。
 - **各成员独立 `pyproject.toml`** 落 `packages/<member>/`（标准 src 布局 + `[build-system] uv_build`）。跨成员依赖：成员 `dependencies = ["<dep>"]` + `[tool.uv.sources] <dep> = { workspace = true }`，解析到本仓源码而非去 index 拉。
 - **测试**：仓根一条 `uv run pytest` 跑全树，根 `[tool.pytest.ini_options]` 必带 `addopts = ["--import-mode=importlib"]`，否则多个成员同名 `tests` 包碰撞（`No module named 'tests.test_xxx'`）；配套各成员 `tests/` **不放 `__init__.py`**。`pythonpath` / `testpaths` 列全各成员的 `src` / `tests`，新增成员时追加。
-- **生成码**（如 protobuf `_pb`）入库时 `ruff` `extend-exclude` 豁免。
+- **生成码**（如 protobuf `_pb`）入库时 `ruff` `extend-exclude` 豁免，并按 §1 那条一并设 `force-exclude = true` —— 否则**逐文件**调用时豁免不生效，而编辑后自动 format 的 hook 恰是逐文件传路径。
 - **VSCode**：`.vscode/settings.json` 带 `python.analysis.extraPaths` 指向各成员 `src`（Pylance 静态解析跨成员 import 不稳，extraPaths 显式喂才认 `from <other_member> import ...`）+ `python.defaultInterpreterPath` 钉死 workspace 根 `.venv`。
 
 > 与 §2.1 hatchling 是正交的两个 escape hatch：2.1 换 **build backend**（含 C 扩展 / 自定义 build），2.2 换 **仓库布局**（单包 → 多包 workspace），可叠加（workspace 里某个含 C 扩展的成员自己切 hatchling）。
